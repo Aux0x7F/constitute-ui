@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "types": "./dist/index.d.ts",
+  "types": "./src/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
     },
-    "./styles.css": "./dist/styles.css"
+    "./styles.css": "./src/styles.css"
   },
   "scripts": {
     "build": "node ./scripts/build.mjs",
