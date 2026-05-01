@@ -5,6 +5,7 @@
 It is not:
 - the runtime authority
 - the account authority
+- the protocol/security primitive package
 - a domain-specific gateway or NVR repo
 
 ## Responsibilities
@@ -22,6 +23,7 @@ It is not:
 - apps fill named slots / content regions
 - runtime and gateway calls remain in app controllers, not shared UI components
 - debug and diagnostics surfaces stay opt-in and out-of-band; shared UI does not place transport logs in the primary workflow by default
+- CAAC, broker constants, Nostr helpers, and service-access contracts come from `constitute-protocol`, not `constitute-ui`
 
 ## Delivery
 - build dependency first
