@@ -1,0 +1,446 @@
+:root {
+  color-scheme: dark;
+  --cu-bg: #080b11;
+  --cu-panel: rgba(15, 21, 33, 0.92);
+  --cu-panel-strong: rgba(10, 16, 27, 0.96);
+  --cu-line: rgba(176, 193, 217, 0.16);
+  --cu-text: #eef2f8;
+  --cu-muted: #95a4ba;
+  --cu-accent: #57d1bf;
+  --cu-warn: #f7b955;
+  --cu-good: #59d391;
+  --cu-bad: #f0717a;
+  --cu-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top left, rgba(87, 209, 191, 0.14), transparent 30%),
+    radial-gradient(circle at top right, rgba(247, 185, 85, 0.08), transparent 24%),
+    linear-gradient(180deg, #0a0f18 0%, #080b11 100%);
+  color: var(--cu-text);
+  font-family: var(--cu-sans);
+}
+
+body {
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.small {
+  font-size: 0.88rem;
+}
+
+.muted {
+  color: var(--cu-muted);
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(to bottom, rgba(15, 21, 33, 0.95), rgba(15, 21, 33, 0.8));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.left,
+.right,
+.title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.title {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+}
+
+.appname {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.iconbtn,
+.smallbtn,
+.navbtn,
+.cuAction {
+  border: 1px solid var(--cu-line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--cu-text);
+  cursor: pointer;
+}
+
+.iconbtn,
+.smallbtn,
+.navbtn,
+.cuAction {
+  border-radius: 999px;
+}
+
+.iconbtn {
+  width: 3rem;
+  height: 3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.65rem;
+}
+
+.cuIcon {
+  width: 1.15rem;
+  height: 1.15rem;
+  display: block;
+}
+
+.cuIcon path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.smallbtn,
+.navbtn,
+.cuAction {
+  padding: 0.55rem 0.95rem;
+}
+
+.navbtn.active {
+  color: var(--cu-accent);
+  border-color: rgba(87, 209, 191, 0.35);
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 60;
+  width: min(360px, calc(100vw - 1rem));
+  height: 100%;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background: rgba(15, 21, 33, 0.98);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
+}
+
+.drawerHeader {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.drawerTitle {
+  font-weight: 800;
+}
+
+.drawerNav {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.drawerFooter {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+  gap: 0.65rem;
+}
+
+.accountRailButton {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.accountRailLead {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-self: start;
+}
+
+.accountRailChevron {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  color: var(--cu-muted);
+  transform: rotate(180deg);
+  transition: transform 140ms ease, color 140ms ease;
+}
+
+.accountRailButton[aria-expanded="true"] .accountRailChevron {
+  color: var(--cu-accent);
+  transform: rotate(0deg);
+}
+
+.identityHandle {
+  color: var(--cu-muted);
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.identityHandle-linked {
+  color: var(--cu-accent);
+}
+
+.identityHandle-unlinked {
+  color: var(--cu-warn);
+}
+
+.connWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: max-content;
+  justify-self: end;
+}
+
+.connStateText {
+  font-weight: 600;
+}
+
+.connStateText-connected {
+  color: var(--cu-good);
+}
+
+.connStateText-limited {
+  color: var(--cu-warn);
+}
+
+.connStateText-error,
+.connStateText-offline {
+  color: var(--cu-bad);
+}
+
+.menu {
+  background: rgba(18, 23, 38, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
+  z-index: 80;
+  padding: 0.6rem;
+}
+
+.menu:not(.menuInline) {
+  position: absolute;
+  top: 60px;
+  right: 16px;
+  width: min(360px, calc(100vw - 1rem));
+}
+
+.menuInline {
+  position: static;
+  width: 100%;
+}
+
+.menuHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.25rem 0.2rem 0.6rem;
+}
+
+.menuTitle {
+  font-weight: 700;
+}
+
+.menuList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.cuLoadingRow {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.8rem 0.2rem;
+}
+
+.cuSpinner {
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-top-color: var(--cu-accent);
+  animation: cu-spin 900ms linear infinite;
+}
+
+.popover {
+  position: absolute;
+  right: 1rem;
+  bottom: calc(100% + 0.75rem);
+  min-width: 220px;
+  padding: 0.75rem;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(16, 20, 33, 0.98);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.3);
+}
+
+.popoverTitle {
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.popoverRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.1rem 0;
+}
+
+.popoverDetails {
+  margin-top: 0.4rem;
+  line-height: 1.4;
+}
+
+.main {
+  padding: 1rem;
+}
+
+.cuPanel,
+.cuTile {
+  border: 1px solid var(--cu-line);
+  background: var(--cu-panel);
+  border-radius: 20px;
+}
+
+.cuPanel {
+  padding: 1rem;
+}
+
+.cuPanelHeader,
+.cuTileHeader,
+.cuTileFooter,
+.cuActionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.cuPanelTitle {
+  margin: 0;
+}
+
+.cuPanelHint {
+  margin: 0.2rem 0 0;
+}
+
+.cuPanelBody,
+.cuTileBody {
+  margin-top: 0.9rem;
+}
+
+.cuTile {
+  padding: 1rem;
+}
+
+.cuTileTitle {
+  font-size: 1rem;
+}
+
+.cuTileStatus {
+  color: var(--cu-muted);
+}
+
+.cuTileFooter {
+  margin-top: 0.9rem;
+}
+
+.cuActionRow {
+  padding: 0.65rem 0;
+}
+
+.cuActionRowActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.cuAction-bad {
+  border-color: rgba(240, 113, 122, 0.35);
+  color: var(--cu-bad);
+}
+
+.cuAction-good {
+  border-color: rgba(89, 211, 145, 0.35);
+  color: var(--cu-good);
+}
+
+.accountCenterSummary {
+  margin-bottom: 0.65rem;
+  line-height: 1.4;
+}
+
+.accountCenterSummaryLine {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.accountCenterSummaryDot {
+  color: var(--cu-muted);
+}
+
+@keyframes cu-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
