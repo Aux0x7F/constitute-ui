@@ -55,6 +55,22 @@ export type FirstPartyShell = {
   mainEl: HTMLElement;
 };
 
+export type FirstPartyShellChromeController = {
+  state: {
+    drawerOpen: boolean;
+    accountCenterOpen: boolean;
+    notificationMenuOpen: boolean;
+  };
+  navButtonActivity(button: HTMLButtonElement): string;
+  openDrawer(): void;
+  closeDrawer(): void;
+  openAccountCenter(): void;
+  closeAccountCenter(): void;
+  openNotificationMenu(): void;
+  closeNotificationMenu(): void;
+  closeTransientMenus(): void;
+};
+
 export function createViewModel<T>(initialValue: T): ViewModel<T>;
 export function renderActionList(container: HTMLElement, actions?: ActionDescriptor[]): void;
 export function setConnectionStateText(element: HTMLElement, options?: {
@@ -84,4 +100,27 @@ export function createActionRow(options?: { label?: string; actions?: ActionDesc
   el: HTMLElement;
   actionsEl: HTMLElement;
 };
+export type DataTableColumn<T = Record<string, unknown>> = {
+  id: string;
+  header?: string;
+  label?: string;
+  className?: string;
+  align?: "start" | "center" | "end";
+  hidden?: boolean;
+  render?: (row: T, rowIndex: number, column: DataTableColumn<T>) => string | Node | Array<string | Node> | null | undefined;
+};
+export function renderDataTable<T = Record<string, unknown>>(container: HTMLElement, options?: {
+  columns?: Array<DataTableColumn<T>>;
+  rows?: T[];
+  emptyLabel?: string;
+  className?: string;
+  getRowClassName?: (row: T, rowIndex: number) => string;
+  renderExpandedRow?: (row: T, rowIndex: number) => string | Node | Array<string | Node> | null | undefined | false;
+}): { wrap: HTMLElement; table: HTMLTableElement | null } | null;
 export function renderFirstPartyShell(root: HTMLDivElement, options?: FirstPartyShellOptions): FirstPartyShell;
+export function bindFirstPartyShellChrome(shell: FirstPartyShell, options?: {
+  onNavSelect?: (activity: string, button: HTMLButtonElement) => void;
+  onNotificationClear?: () => void;
+  closeOnOutsideClick?: boolean;
+  enableConnectionPopover?: boolean;
+}): FirstPartyShellChromeController;
