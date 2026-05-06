@@ -420,6 +420,74 @@ textarea {
   color: var(--cu-good);
 }
 
+.cuTableWrap {
+  width: 100%;
+  overflow: auto;
+  border: 1px solid var(--cu-line);
+  border-radius: 16px;
+  background: rgba(5, 10, 20, 0.34);
+}
+
+.cuTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.cuTable th,
+.cuTable td {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid rgba(176, 193, 217, 0.1);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.cuTable th {
+  color: var(--cu-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.cuTable td {
+  color: var(--cu-text);
+  font-size: 0.9rem;
+}
+
+.cuTable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.cuTable tbody tr:hover td {
+  background: rgba(87, 209, 191, 0.045);
+}
+
+.cuTableExpandedRow td,
+.cuTableExpandedRow:hover td {
+  background: rgba(5, 10, 20, 0.28);
+}
+
+.cuTableExpandedCell {
+  padding: 0.7rem;
+}
+
+.cuTable th[data-align="center"],
+.cuTable td[data-align="center"] {
+  text-align: center;
+}
+
+.cuTable th[data-align="end"],
+.cuTable td[data-align="end"] {
+  text-align: right;
+}
+
+.cuTableEmpty {
+  padding: 1rem;
+  color: var(--cu-muted);
+}
+
 .accountCenterSummary {
   margin-bottom: 0.65rem;
   line-height: 1.4;

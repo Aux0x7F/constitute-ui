@@ -4,6 +4,10 @@ function bySelector(root, selector) {
   return node;
 }
 
+function isNodeLike(value) {
+  return Boolean(value && typeof value === "object" && typeof value.nodeType === "number");
+}
+
 function bellIconSvg() {
   return `
     <svg class="cuIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -191,6 +195,95 @@ export function createActionRow({ label = "", actions = [] } = {}) {
   };
 }
 
+export function renderDataTable(container, {
+  columns = [],
+  rows = [],
+  emptyLabel = "No records",
+  className = "",
+  getRowClassName,
+  renderExpandedRow,
+} = {}) {
+  if (!container) return null;
+  container.replaceChildren();
+
+  const wrap = document.createElement("div");
+  wrap.className = `cuTableWrap ${className}`.trim();
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "cuTableEmpty";
+    empty.textContent = String(emptyLabel || "No records");
+    wrap.appendChild(empty);
+    container.appendChild(wrap);
+    return { wrap, table: null };
+  }
+
+  const table = document.createElement("table");
+  table.className = "cuTable";
+
+  const visibleColumns = columns.filter((column) => column && !column.hidden);
+  const thead = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  for (const column of visibleColumns) {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = String(column.header || column.label || column.id || "");
+    if (column.className) th.className = String(column.className);
+    if (column.align) th.dataset.align = String(column.align);
+    headerRow.appendChild(th);
+  }
+  thead.appendChild(headerRow);
+
+  const tbody = document.createElement("tbody");
+  rows.forEach((row, rowIndex) => {
+    const tr = document.createElement("tr");
+    const rowClass = typeof getRowClassName === "function" ? getRowClassName(row, rowIndex) : "";
+    if (rowClass) tr.className = String(rowClass);
+    for (const column of visibleColumns) {
+      const td = document.createElement("td");
+      if (column.className) td.className = String(column.className);
+      if (column.align) td.dataset.align = String(column.align);
+      const value = typeof column.render === "function"
+        ? column.render(row, rowIndex, column)
+        : row?.[column.id];
+      appendTableCellValue(td, value);
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+    if (typeof renderExpandedRow === "function") {
+      const expandedValue = renderExpandedRow(row, rowIndex);
+      if (expandedValue !== null && expandedValue !== undefined && expandedValue !== false) {
+        const expandedRow = document.createElement("tr");
+        expandedRow.className = "cuTableExpandedRow";
+        const expandedCell = document.createElement("td");
+        expandedCell.className = "cuTableExpandedCell";
+        expandedCell.colSpan = Math.max(visibleColumns.length, 1);
+        appendTableCellValue(expandedCell, expandedValue);
+        expandedRow.appendChild(expandedCell);
+        tbody.appendChild(expandedRow);
+      }
+    }
+  });
+
+  table.append(thead, tbody);
+  wrap.appendChild(table);
+  container.appendChild(wrap);
+  return { wrap, table };
+}
+
+function appendTableCellValue(cell, value) {
+  if (isNodeLike(value)) {
+    cell.appendChild(value);
+  } else if (Array.isArray(value)) {
+    for (const item of value) {
+      if (isNodeLike(item)) cell.appendChild(item);
+      else cell.appendChild(document.createTextNode(String(item ?? "")));
+    }
+  } else {
+    cell.textContent = String(value ?? "");
+  }
+}
+
 function renderNavButtons(navItems = []) {
   return navItems
     .filter((item) => item && !item.hidden)
@@ -302,5 +395,95 @@ export function renderFirstPartyShell(root, {
     popServicesEl: bySelector(root, "#popServices"),
     popConnectionReasonEl: bySelector(root, "#popConnectionReason"),
     mainEl: bySelector(root, "#appMain"),
+  };
+}
+
+export function bindFirstPartyShellChrome(shell, {
+  onNavSelect,
+  onNotificationClear,
+  closeOnOutsideClick = true,
+  enableConnectionPopover = true,
+} = {}) {
+  if (!shell) throw new Error("shell is required");
+  const state = {
+    drawerOpen: false,
+    accountCenterOpen: false,
+    notificationMenuOpen: false,
+  };
+
+  const setDrawerOpen = (open) => {
+    state.drawerOpen = Boolean(open);
+    shell.drawerEl?.classList.toggle("hidden", !state.drawerOpen);
+    shell.drawerBackdropEl?.classList.toggle("hidden", !state.drawerOpen);
+  };
+  const setAccountCenterOpen = (open) => {
+    state.accountCenterOpen = Boolean(open);
+    shell.accountRailButtonEl?.setAttribute("aria-expanded", state.accountCenterOpen ? "true" : "false");
+    shell.accountCenterMenuEl?.classList.toggle("hidden", !state.accountCenterOpen);
+  };
+  const setNotificationMenuOpen = (open) => {
+    state.notificationMenuOpen = Boolean(open);
+    shell.notifMenuEl?.classList.toggle("hidden", !state.notificationMenuOpen);
+  };
+  const closeTransientMenus = () => {
+    setAccountCenterOpen(false);
+    setNotificationMenuOpen(false);
+  };
+  const navButtonActivity = (button) => String(button?.dataset?.activity || button?.dataset?.nav || "").trim();
+
+  shell.btnMenuEl?.addEventListener("click", () => setDrawerOpen(true));
+  shell.btnDrawerCloseEl?.addEventListener("click", () => setDrawerOpen(false));
+  shell.drawerBackdropEl?.addEventListener("click", () => setDrawerOpen(false));
+  shell.btnBellEl?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    setNotificationMenuOpen(!state.notificationMenuOpen);
+    setAccountCenterOpen(false);
+  });
+  shell.btnNotifClearEl?.addEventListener("click", () => {
+    if (typeof onNotificationClear === "function") onNotificationClear();
+  });
+  shell.accountRailButtonEl?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    setAccountCenterOpen(!state.accountCenterOpen);
+    setNotificationMenuOpen(false);
+  });
+  for (const button of shell.navButtons || []) {
+    button.addEventListener("click", () => {
+      const activity = navButtonActivity(button);
+      for (const candidate of shell.navButtons || []) {
+        candidate.classList.toggle("active", navButtonActivity(candidate) === activity);
+      }
+      if (typeof onNavSelect === "function") onNavSelect(activity, button);
+      setDrawerOpen(false);
+    });
+  }
+  if (enableConnectionPopover) {
+    shell.connPopoverEl?.classList.add("hidden");
+    shell.connWrapEl?.addEventListener("mouseenter", () => shell.connPopoverEl?.classList.remove("hidden"));
+    shell.connWrapEl?.addEventListener("mouseleave", () => shell.connPopoverEl?.classList.add("hidden"));
+  }
+  if (closeOnOutsideClick) {
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (state.notificationMenuOpen && !shell.notifMenuEl?.contains(target) && !shell.btnBellEl?.contains(target)) {
+        setNotificationMenuOpen(false);
+      }
+      if (state.accountCenterOpen && !shell.accountCenterMenuEl?.contains(target) && !shell.accountRailButtonEl?.contains(target)) {
+        setAccountCenterOpen(false);
+      }
+    });
+  }
+
+  return {
+    state,
+    navButtonActivity,
+    openDrawer: () => setDrawerOpen(true),
+    closeDrawer: () => setDrawerOpen(false),
+    openAccountCenter: () => setAccountCenterOpen(true),
+    closeAccountCenter: () => setAccountCenterOpen(false),
+    openNotificationMenu: () => setNotificationMenuOpen(true),
+    closeNotificationMenu: () => setNotificationMenuOpen(false),
+    closeTransientMenus,
   };
 }
