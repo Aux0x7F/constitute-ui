@@ -11,6 +11,10 @@
     },
     "./media-webrtc-adapter": "./src/media-webrtc-adapter.ts",
     "./runtime-surface-client": "./src/runtime-surface-client.js",
+    "./surface-app-contract": {
+      "types": "./src/surface-app-contract.d.ts",
+      "default": "./src/surface-app-contract.js"
+    },
     "./runtime-stream-session": {
       "types": "./src/runtime-stream-session.d.ts",
       "default": "./src/runtime-stream-session.js"
