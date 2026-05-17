@@ -884,3 +884,16 @@ export function bindFirstPartyShellChrome(shell, {
     closeTransientMenus,
   };
 }
+
+export {
+  projectionCoverage,
+  projectionDeltaFor,
+  projectionForNode,
+  projectionNodePath,
+  projectionPostureSummary,
+  projectionRecordPolicyId,
+  projectionRepairFor,
+  projectionRuntimeKey,
+  projectionUpdatedAt,
+  selectProjectionForNode,
+} from "./projection-read-model.js";
