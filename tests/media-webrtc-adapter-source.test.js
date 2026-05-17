@@ -22,8 +22,14 @@ test("media webrtc adapter owns runtime media transport profile helpers", () => 
   assert.match(adapter, /export function isRuntimeMediaTransportProfileFailure/);
   assert.match(adapter, /RUNTIME_MEDIA_TRANSPORT_PROFILE_GET = "runtime\.media\.transport\.profile\.get"/);
   assert.match(adapter, /MEDIA_CORRELATION_MATERIALIZATION_BUDGET_ID = "media-webrtc\.correlation"/);
+  assert.match(adapter, /MEDIA_RENDER_WAITING_GRACE_MS = 5_000/);
+  assert.match(adapter, /MEDIA_RENDER_BLOCKED_GRACE_MS = 10_000/);
   assert.match(adapter, /function mediaCorrelationKeys\(/);
   assert.match(adapter, /function mediaCorrelationMaterializationBudget\(/);
+  assert.match(adapter, /lastRenderCurrentTime/);
+  assert.match(adapter, /playbackAdvanced/);
+  assert.match(adapter, /renderPlaybackStalled/);
+  assert.match(adapter, /renderDimensionsMissing/);
   assert.match(adapter, /assertMaterializationBudget/);
   assert.match(adapter, /correlationBudget: mediaCorrelationMaterializationBudget\(correlationKeys, issuedAt\)/);
   assert.doesNotMatch(adapter, /correlationKeys: new Set\(\[options\.sessionId, options\.nonce\]\.filter\(Boolean\)\)/);

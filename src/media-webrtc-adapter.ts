@@ -35,6 +35,9 @@ export type BrowserStreamSession = {
   lastInboundFramesDecoded: number;
   lastInboundAdvancedAt: number;
   inboundStalledSince: number;
+  lastRenderCurrentTime: number;
+  lastRenderAdvancedAt: number;
+  renderPendingSince: number;
   mediaStatsTimer: number;
   issuedAt: number;
   expiresAt: number;
@@ -84,6 +87,9 @@ export const BROWSER_STREAM_ADAPTER_REF = "adapter:media-webrtc:browser";
 const MEDIA_CORRELATION_MATERIALIZATION_BUDGET_ID = "media-webrtc.correlation";
 const MEDIA_CORRELATION_KEY_LIMIT = 4;
 const INBOUND_RTP_STALL_GRACE_MS = 15_000;
+export const MEDIA_RENDER_WAITING_GRACE_MS = 5_000;
+export const MEDIA_RENDER_BLOCKED_GRACE_MS = 10_000;
+const MEDIA_RENDER_CURRENT_TIME_EPSILON = 0.05;
 const RUNTIME_MEDIA_TRANSPORT_PROFILE_GET = "runtime.media.transport.profile.get";
 
 export function runtimeMediaIceServers(profile: RuntimeMediaTransportProfile | null): RTCIceServer[] {
@@ -446,25 +452,59 @@ export function mediaFulfillmentEvidenceFromRender(
   session: BrowserStreamSession,
   video: HTMLVideoElement,
 ): MediaFulfillmentEvidence {
+  const observedAt = Date.now();
   const visibleFrame = video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
-  const blocked = Boolean(video.error);
+  const currentTime = Number(video.currentTime || 0) || 0;
+  const previousCurrentTime = Number(session.lastRenderCurrentTime || 0) || 0;
+  const playbackAdvanced = visibleFrame
+    && (currentTime > previousCurrentTime + MEDIA_RENDER_CURRENT_TIME_EPSILON
+      || (previousCurrentTime <= 0 && currentTime > MEDIA_RENDER_CURRENT_TIME_EPSILON));
+  if (playbackAdvanced) {
+    session.lastRenderAdvancedAt = observedAt;
+    session.renderPendingSince = 0;
+  } else if (!session.renderPendingSince) {
+    session.renderPendingSince = observedAt;
+  }
+  session.lastRenderCurrentTime = Math.max(previousCurrentTime, currentTime);
+  const renderPendingMs = session.renderPendingSince > 0 ? observedAt - session.renderPendingSince : 0;
+  const readinessState = playbackAdvanced
+    ? "renderVisible"
+    : renderPendingMs >= MEDIA_RENDER_BLOCKED_GRACE_MS
+      ? "renderBlocked"
+      : renderPendingMs >= MEDIA_RENDER_WAITING_GRACE_MS
+        ? "waitingRender"
+        : "pendingRender";
+  const blockedReason = video.error
+    ? "videoElementError"
+    : renderPendingMs >= MEDIA_RENDER_BLOCKED_GRACE_MS
+      ? visibleFrame
+        ? "renderPlaybackStalled"
+        : "renderDimensionsMissing"
+      : "";
+  const blocked = Boolean(video.error) || Boolean(blockedReason);
   return mediaEvidenceBase(
     session,
     SWARM.MEDIA_FULFILLMENT_EVIDENCE_KIND.RENDER_STATE,
     blocked
       ? SWARM.MEDIA_FULFILLMENT_STATE.BLOCKED
-      : visibleFrame
+      : playbackAdvanced
         ? SWARM.MEDIA_FULFILLMENT_STATE.USABLE
         : SWARM.MEDIA_FULFILLMENT_STATE.PENDING,
     {
       readyState: video.readyState,
       videoWidth: video.videoWidth,
       videoHeight: video.videoHeight,
+      currentTime,
+      previousCurrentTime,
       paused: video.paused,
       ended: video.ended,
       visibleFrame,
+      playbackAdvanced,
+      renderPendingMs,
+      readinessState,
+      lastRenderAdvancedAt: session.lastRenderAdvancedAt || 0,
     },
-    blocked ? "videoElementError" : "",
+    blockedReason,
   );
 }
 
@@ -615,6 +655,9 @@ export async function createBrowserStreamOffer(options: BrowserStreamAdapterOpti
     lastInboundFramesDecoded: 0,
     lastInboundAdvancedAt: 0,
     inboundStalledSince: 0,
+    lastRenderCurrentTime: 0,
+    lastRenderAdvancedAt: 0,
+    renderPendingSince: 0,
     mediaStatsTimer: 0,
     issuedAt,
     expiresAt: issuedAt + (2 * 60_000),
