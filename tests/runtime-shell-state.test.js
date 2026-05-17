@@ -16,6 +16,14 @@ test("runtime shell state derives authority and resource posture from snapshots"
     },
     services: { nvr: { service: "nvr" } },
     resource: { state: "withinBudget", profileId: "profile-1" },
+    materialization: {
+      state: "pressure",
+      reason: "projectionStoreMaterializationPressure",
+      budgets: [{ budgetId: "runtime.projections.retained" }],
+      fanout: 2,
+      projectionCount: 3,
+      runtimeEventCount: 5,
+    },
     retention: { state: "blocked", releaseRequired: true },
   });
 
@@ -24,6 +32,10 @@ test("runtime shell state derives authority and resource posture from snapshots"
   assert.equal(state.connection.label, "Runtime attached");
   assert.equal(state.services.count, 1);
   assert.equal(state.resource.state, "withinBudget");
+  assert.equal(state.materialization.state, "pressure");
+  assert.equal(state.materialization.budgetCount, 1);
+  assert.equal(state.materialization.fanout, 2);
+  assert.equal(state.materialization.projectionCount, 3);
   assert.equal(state.retention.releaseRequired, true);
 });
 
