@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { parseHTML } from "linkedom";
 import {
   bindFirstPartyShellChrome,
+  createKeyValueGrid,
   createViewModel,
   renderAccountCenterSummary,
   renderActionList,
@@ -84,6 +85,27 @@ test("renderAccountCenterSummary uses shared identity and connection classes", (
   });
   assert.equal(summaryEl.querySelector(".identityHandle-linked").textContent, "@kyle");
   assert.equal(summaryEl.querySelector(".connStateText-connected").textContent, "Connected");
+});
+
+test("createKeyValueGrid renders shared summary rows and skips empty values", () => {
+  const dom = installDom("");
+  const grid = createKeyValueGrid([
+    ["Gateway", "Home"],
+    ["Empty", ""],
+    ["Cameras", 2],
+  ]);
+
+  assert.equal(grid.tagName, "DL");
+  assert.equal(grid.className, "cuKeyValueGrid");
+  assert.deepEqual(
+    Array.from(grid.querySelectorAll("dt")).map((node) => node.textContent),
+    ["Gateway", "Cameras"],
+  );
+  assert.deepEqual(
+    Array.from(grid.querySelectorAll("dd")).map((node) => node.textContent),
+    ["Home", "2"],
+  );
+  assert.equal(dom.document.body.childElementCount, 0);
 });
 
 test("renderDataTable renders generic rows and empty state", () => {

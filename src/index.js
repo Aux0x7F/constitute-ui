@@ -271,6 +271,183 @@ export function renderDataTable(container, {
   return { wrap, table };
 }
 
+export function renderPreparedCapabilityList(container, {
+  records = [],
+  emptyLabel = "No capabilities",
+  onAction,
+} = {}) {
+  return renderPreparedRecordList(container, {
+    records,
+    emptyLabel,
+    kind: "capability",
+    onAction,
+    getId: (record) => record.id || record.capability || record.name,
+    getTitle: (record) => record.label || record.title || record.name || record.capability || record.id,
+    getMeta: (record) => record.namespace || record.memberRef || record.serviceRef || record.scope || "",
+    getStatus: (record) => record.status || record.health || record.freshness || "",
+    getTags: (record) => record.channels || record.channelIds || record.capabilities || [],
+  });
+}
+
+export function renderPreparedChannelList(container, {
+  records = [],
+  emptyLabel = "No channels",
+  onAction,
+} = {}) {
+  return renderPreparedRecordList(container, {
+    records,
+    emptyLabel,
+    kind: "channel",
+    onAction,
+    getId: (record) => record.channelId || record.id,
+    getTitle: (record) => record.label || record.displayName || record.name || record.channelId || record.id,
+    getMeta: (record) => record.kind || record.policy || record.owner || "",
+    getStatus: (record) => record.status || record.freshness || "",
+    getTags: (record) => record.capabilities || record.capabilityRefs || record.recordKinds || [],
+  });
+}
+
+export function renderProjectionSyncStatus(container, {
+  projectionId = "",
+  revision = "",
+  stale = false,
+  gap = false,
+  pending = false,
+  pendingDeltas,
+  repair = false,
+  repairPending = false,
+  repairRequested = false,
+  lastAppliedAt = "",
+  actions = [],
+  onAction,
+} = {}) {
+  if (!container) return null;
+  container.replaceChildren();
+
+  const wrap = document.createElement("section");
+  wrap.className = "cuStatusPanel cuProjectionStatus";
+  wrap.setAttribute("aria-label", "Projection status");
+
+  const header = createStatusHeader({
+    title: projectionId || "Projection",
+    status: stale || gap || pending || repair || repairPending || repairRequested ? "Needs sync" : "Current",
+  });
+  wrap.appendChild(header);
+
+  const flags = document.createElement("div");
+  flags.className = "cuStatusFlags";
+  const pendingCount = normalizeCount(pendingDeltas);
+  appendStatusFlag(flags, stale, "Stale", "warn");
+  appendStatusFlag(flags, gap, "Gap", "bad");
+  appendStatusFlag(flags, pending || pendingCount > 0, pendingCount > 0 ? `Pending ${pendingCount}` : "Pending", "warn");
+  appendStatusFlag(flags, repair || repairPending || repairRequested, repairPending ? "Repair pending" : "Repair", "accent");
+  if (!flags.childNodes.length) appendStatusFlag(flags, true, "Current", "good");
+  wrap.appendChild(flags);
+
+  wrap.appendChild(createKeyValueGrid([
+    ["Revision", revision],
+    ["Applied", lastAppliedAt],
+  ]));
+
+  appendPreparedActions(wrap, {
+    actions,
+    kind: "projection",
+    recordId: projectionId,
+    record: { projectionId, revision },
+    onAction,
+  });
+
+  container.appendChild(wrap);
+  return { wrap };
+}
+
+export function renderSwarmEdgeStatus(container, {
+  queued = 0,
+  sent = 0,
+  rejected = 0,
+  lastRejectReason = "",
+  connected = false,
+  mode = "",
+  actions = [],
+  onAction,
+} = {}) {
+  if (!container) return null;
+  container.replaceChildren();
+
+  const wrap = document.createElement("section");
+  wrap.className = "cuStatusPanel cuSwarmEdgeStatus";
+  wrap.setAttribute("aria-label", "Swarm edge status");
+  wrap.appendChild(createStatusHeader({
+    title: "Swarm edge",
+    status: Number(rejected) > 0 ? "Rejects" : Number(queued) > 0 ? "Queued" : connected ? "Connected" : "Clear",
+  }));
+  wrap.appendChild(createCountStrip([
+    ["Queued", queued, "warn"],
+    ["Sent", sent, "good"],
+    ["Rejected", rejected, Number(rejected) > 0 ? "bad" : ""],
+  ]));
+  wrap.appendChild(createKeyValueGrid([
+    ["Mode", mode],
+    ["Last reject", lastRejectReason],
+  ]));
+
+  appendPreparedActions(wrap, {
+    actions,
+    kind: "swarmEdge",
+    recordId: "swarm-edge",
+    record: { queued, sent, rejected, lastRejectReason, connected, mode },
+    onAction,
+  });
+
+  container.appendChild(wrap);
+  return { wrap };
+}
+
+export function renderStreamStatus(container, {
+  sessionId = "",
+  label = "",
+  state = "unknown",
+  health = "",
+  transport = "",
+  recovering = false,
+  backoff = "",
+  updatedAt = "",
+  actions = [],
+  onAction,
+} = {}) {
+  if (!container) return null;
+  container.replaceChildren();
+
+  const wrap = document.createElement("section");
+  wrap.className = "cuStatusPanel cuStreamStatus";
+  wrap.setAttribute("aria-label", "Stream status");
+  const title = label || sessionId || "Stream";
+  const status = health || state || "unknown";
+  wrap.appendChild(createStatusHeader({ title, status }));
+  wrap.appendChild(createKeyValueGrid([
+    ["Session", sessionId],
+    ["State", state],
+    ["Health", health],
+    ["Transport", transport],
+    ["Recovery", recovering ? "Recovering" : ""],
+    ["Backoff", backoff],
+    ["Updated", updatedAt],
+  ]));
+
+  appendPreparedActions(wrap, {
+    actions,
+    kind: "stream",
+    recordId: sessionId,
+    record: { sessionId, label, state, health, transport, recovering, backoff, updatedAt },
+    onAction,
+  });
+
+  container.appendChild(wrap);
+  return { wrap };
+}
+
+export { createRuntimeSurfaceClient } from "./runtime-surface-client.js";
+
 function appendTableCellValue(cell, value) {
   if (isNodeLike(value)) {
     cell.appendChild(value);
@@ -282,6 +459,213 @@ function appendTableCellValue(cell, value) {
   } else {
     cell.textContent = String(value ?? "");
   }
+}
+
+function renderPreparedRecordList(container, {
+  records,
+  emptyLabel,
+  kind,
+  onAction,
+  getId,
+  getTitle,
+  getMeta,
+  getStatus,
+  getTags,
+}) {
+  if (!container) return null;
+  container.replaceChildren();
+
+  const wrap = document.createElement("div");
+  wrap.className = `cuPreparedList cuPreparedList-${kind}`;
+  wrap.setAttribute("role", "list");
+
+  const sortedRecords = [...(Array.isArray(records) ? records : [])]
+    .filter(Boolean)
+    .sort((left, right) => comparePreparedRecords(left, right, getTitle, getId));
+
+  if (!sortedRecords.length) {
+    const empty = document.createElement("div");
+    empty.className = "cuPreparedListEmpty";
+    empty.textContent = String(emptyLabel || "No records");
+    wrap.appendChild(empty);
+    container.appendChild(wrap);
+    return { wrap, items: [] };
+  }
+
+  const items = [];
+  for (const record of sortedRecords) {
+    const recordId = String(getId(record) || "");
+    const item = document.createElement("article");
+    item.className = "cuPreparedRecord";
+    item.setAttribute("role", "listitem");
+    if (recordId) item.dataset.recordId = recordId;
+
+    const main = document.createElement("div");
+    main.className = "cuPreparedRecordMain";
+
+    const titleRow = document.createElement("div");
+    titleRow.className = "cuPreparedRecordTitleRow";
+    const title = document.createElement("strong");
+    title.className = "cuPreparedRecordTitle";
+    title.textContent = String(getTitle(record) || "Untitled");
+    titleRow.appendChild(title);
+
+    const status = getStatus(record);
+    if (status) {
+      const statusEl = document.createElement("span");
+      statusEl.className = "cuStatusPill";
+      statusEl.textContent = String(status);
+      titleRow.appendChild(statusEl);
+    }
+    main.appendChild(titleRow);
+
+    const metaParts = [getMeta(record), recordId].filter(Boolean);
+    if (metaParts.length) {
+      const meta = document.createElement("div");
+      meta.className = "cuPreparedRecordMeta";
+      meta.textContent = metaParts.map(String).join(" · ");
+      main.appendChild(meta);
+    }
+
+    const tags = normalizeTags(getTags(record));
+    if (tags.length) main.appendChild(createTagList(tags));
+    item.appendChild(main);
+
+    appendPreparedActions(item, {
+      actions: record.actions,
+      kind,
+      recordId,
+      record,
+      onAction,
+    });
+
+    wrap.appendChild(item);
+    items.push(item);
+  }
+
+  container.appendChild(wrap);
+  return { wrap, items };
+}
+
+function comparePreparedRecords(left, right, getTitle, getId) {
+  const leftTitle = String(getTitle(left) || "").toLocaleLowerCase();
+  const rightTitle = String(getTitle(right) || "").toLocaleLowerCase();
+  const titleOrder = leftTitle.localeCompare(rightTitle);
+  if (titleOrder !== 0) return titleOrder;
+  return String(getId(left) || "").localeCompare(String(getId(right) || ""));
+}
+
+function appendPreparedActions(container, {
+  actions = [],
+  kind = "",
+  recordId = "",
+  record,
+  onAction,
+} = {}) {
+  const visibleActions = Array.isArray(actions) ? actions.filter((action) => action && !action.hidden) : [];
+  if (!visibleActions.length) return;
+
+  const actionsEl = document.createElement("div");
+  actionsEl.className = "cuPreparedActions";
+  for (const action of visibleActions) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `cuAction ${action.tone ? `cuAction-${action.tone}` : ""}`.trim();
+    button.dataset.action = String(action.id || "");
+    button.disabled = Boolean(action.disabled || action.pending);
+    button.textContent = action.pending ? String(action.pendingLabel || action.label || "") : String(action.label || "");
+    if (action.description) button.title = String(action.description);
+    button.addEventListener("click", () => {
+      const payload = Object.prototype.hasOwnProperty.call(action, "payload") ? action.payload : {
+        kind,
+        actionId: action.id || "",
+        recordId,
+        record,
+      };
+      if (typeof action.onSelect === "function") action.onSelect(payload);
+      if (typeof onAction === "function") onAction(payload);
+    });
+    actionsEl.appendChild(button);
+  }
+  container.appendChild(actionsEl);
+}
+
+function normalizeTags(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item) => item !== null && item !== undefined && item !== "")
+    .map((item) => String(item))
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function createTagList(tags) {
+  const row = document.createElement("div");
+  row.className = "cuTagList";
+  for (const tag of tags) {
+    const tagEl = document.createElement("span");
+    tagEl.className = "cuTag";
+    tagEl.textContent = tag;
+    row.appendChild(tagEl);
+  }
+  return row;
+}
+
+function createStatusHeader({ title = "", status = "" } = {}) {
+  const header = document.createElement("header");
+  header.className = "cuStatusHeader";
+  const titleEl = document.createElement("strong");
+  titleEl.className = "cuStatusTitle";
+  titleEl.textContent = String(title || "Status");
+  const statusEl = document.createElement("span");
+  statusEl.className = "cuStatusPill";
+  statusEl.textContent = String(status || "Unknown");
+  header.append(titleEl, statusEl);
+  return header;
+}
+
+function createCountStrip(items = []) {
+  const strip = document.createElement("div");
+  strip.className = "cuCountStrip";
+  for (const [label, value, tone] of items) {
+    const item = document.createElement("div");
+    item.className = `cuCountItem ${tone ? `cuCountItem-${tone}` : ""}`.trim();
+    const valueEl = document.createElement("strong");
+    valueEl.className = "cuCountValue";
+    valueEl.textContent = String(normalizeCount(value));
+    const labelEl = document.createElement("span");
+    labelEl.className = "cuCountLabel";
+    labelEl.textContent = String(label || "");
+    item.append(valueEl, labelEl);
+    strip.appendChild(item);
+  }
+  return strip;
+}
+
+export function createKeyValueGrid(rows = []) {
+  const grid = document.createElement("dl");
+  grid.className = "cuKeyValueGrid";
+  for (const [label, value] of rows) {
+    if (value === null || value === undefined || value === "") continue;
+    const term = document.createElement("dt");
+    term.textContent = String(label || "");
+    const detail = document.createElement("dd");
+    detail.textContent = String(value);
+    grid.append(term, detail);
+  }
+  return grid;
+}
+
+function appendStatusFlag(container, active, label, tone = "") {
+  if (!active) return;
+  const flag = document.createElement("span");
+  flag.className = `cuStatusFlag ${tone ? `cuStatusFlag-${tone}` : ""}`.trim();
+  flag.textContent = String(label || "");
+  container.appendChild(flag);
+}
+
+function normalizeCount(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.floor(number) : 0;
 }
 
 function renderNavButtons(navItems = []) {
@@ -302,6 +686,7 @@ export function renderFirstPartyShell(root, {
   panePath = true,
   accountCenterTitle = "Account",
 } = {}) {
+  const accountCenterTitleText = String(accountCenterTitle || "").trim();
   root.innerHTML = `
     <header class="topbar">
       <div class="left">
@@ -354,10 +739,11 @@ export function renderFirstPartyShell(root, {
           </span>
         </button>
 
-        <div id="accountCenterMenu" class="menu menuInline hidden" aria-label="${String(accountCenterTitle)} center">
+        <div id="accountCenterMenu" class="menu menuInline hidden" aria-label="${accountCenterTitleText || "Account"} center">
+          ${accountCenterTitleText ? `
           <div class="menuHeader">
-            <div class="menuTitle">${String(accountCenterTitle)}</div>
-          </div>
+            <div class="menuTitle">${accountCenterTitleText}</div>
+          </div>` : ""}
           <div id="accountCenterSummary" class="accountCenterSummary small muted"></div>
           <div id="accountCenterActions" class="menuList"></div>
         </div>

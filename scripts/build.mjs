@@ -7,4 +7,8 @@ const dist = resolve(root, "dist");
 await mkdir(dist, { recursive: true });
 await cp(resolve(root, "src", "index.js"), resolve(dist, "index.js"));
 await cp(resolve(root, "src", "index.d.ts"), resolve(dist, "index.d.ts"));
+await cp(resolve(root, "src", "media-webrtc-adapter.ts"), resolve(dist, "media-webrtc-adapter.ts"));
+await cp(resolve(root, "src", "runtime-surface-client.js"), resolve(dist, "runtime-surface-client.js"));
+await cp(resolve(root, "src", "runtime-stream-session.js"), resolve(dist, "runtime-stream-session.js"));
+await cp(resolve(root, "src", "runtime-stream-session.d.ts"), resolve(dist, "runtime-stream-session.d.ts"));
 await cp(resolve(root, "src", "styles.css"), resolve(dist, "styles.css"));

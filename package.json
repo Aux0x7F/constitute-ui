@@ -9,6 +9,12 @@
       "types": "./src/index.d.ts",
       "default": "./src/index.js"
     },
+    "./media-webrtc-adapter": "./src/media-webrtc-adapter.ts",
+    "./runtime-surface-client": "./src/runtime-surface-client.js",
+    "./runtime-stream-session": {
+      "types": "./src/runtime-stream-session.d.ts",
+      "default": "./src/runtime-stream-session.js"
+    },
     "./styles.css": "./src/styles.css"
   },
   "scripts": {
