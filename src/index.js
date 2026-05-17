@@ -271,6 +271,11 @@ export function renderDataTable(container, {
   return { wrap, table };
 }
 
+export {
+  preparedServiceRegistry,
+  preparedServiceRegistryServices,
+} from "./service-registry-model.js";
+
 export function renderPreparedCapabilityList(container, {
   records = [],
   emptyLabel = "No capabilities",
