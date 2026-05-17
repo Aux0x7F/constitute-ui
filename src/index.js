@@ -470,6 +470,7 @@ export {
   requireSurfaceMaterializationBudget,
   requireSurfaceModuleRole,
   surfaceAppAttachContext,
+  surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
   surfaceMaterializationBudgetPosture,
   surfaceModuleRolePosture,

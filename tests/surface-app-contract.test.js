@@ -10,6 +10,7 @@ import {
   requireSurfaceMaterializationBudget,
   requireSurfaceModuleRole,
   surfaceAppAttachContext,
+  surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
   surfaceMaterializationBudgetPosture,
   surfaceModuleRolePosture,
@@ -95,6 +96,52 @@ test("surface app helper reports missing required module roles", () => {
   assert.equal(posture.state, "blocked");
   assert.equal(posture.blockedReason, "missingModuleRole");
   assert.deepEqual(posture.missingRoles, ["projectionModel"]);
+});
+
+test("surface app helper reduces bootstrap posture from service manager and release contracts", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract({
+    bootstrapPosture: {
+      bootstrapId: "bootstrap:logging-ui",
+      state: "ready",
+      sourceMode: "bundled",
+      evidenceRefs: ["build:logging-ui:local"],
+    },
+    serviceManagerPosture: {
+      managerId: "manager:logging-local",
+      state: "ready",
+      evidenceRefs: ["host:manual"],
+    },
+    secretBoundary: { state: "notRequired" },
+    releasePosture: { state: "static" },
+  }));
+  const posture = surfaceAppBootstrapPosture(surfaceApp, { issuedAt: 1234 });
+
+  assert.equal(posture.kind, "surface.app.bootstrap.posture");
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.sourceMode, "bundled");
+  assert.equal(posture.serviceManagerRef, "manager:logging-local");
+  assert.equal(posture.moduleRefs.length, 3);
+  assert.deepEqual(posture.blockedReasons, []);
+  assert.deepEqual(posture.evidenceRefs, ["build:logging-ui:local", "host:manual"]);
+
+  const blocked = surfaceAppBootstrapPosture(makeContract({
+    modules: makeContract().modules.filter((module) => module.role !== "projectionModel"),
+    serviceManagerPosture: {
+      managerId: "manager:blocked",
+      state: "blocked",
+      blockedReasons: ["missingRollback"],
+    },
+    releasePosture: {
+      state: "blocked",
+      blockedReasons: ["missingBuild"],
+    },
+  }));
+  assert.equal(blocked.state, "blocked");
+  assert.deepEqual(blocked.blockedReasons, [
+    "missingModuleRole:projectionModel",
+    "serviceManager:missingRollback",
+    "release:missingBuild",
+  ]);
 });
 
 test("surface app helper gates bundled module roles by contract", () => {
