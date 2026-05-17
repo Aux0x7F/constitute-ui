@@ -16,6 +16,7 @@ export function createRuntimeSurfaceClient({
   onMessage = null,
   onSnapshot = null,
   onMaterializationBudget = null,
+  onConsumerFloor = null,
   onAttachTimeout = null,
   onAttachError = null,
   onWorkerError = null,
@@ -27,6 +28,7 @@ export function createRuntimeSurfaceClient({
   let attached = false;
   let snapshot = null;
   let materializationBudget = null;
+  let consumerFloor = null;
   let attachWaiters = [];
   let attachInFlight = false;
 
@@ -47,6 +49,11 @@ export function createRuntimeSurfaceClient({
       : null;
     materializationBudget = nextBudget;
     if (typeof onMaterializationBudget === "function") onMaterializationBudget(nextBudget, msg);
+    const nextFloor = msg.consumerFloor && typeof msg.consumerFloor === "object"
+      ? msg.consumerFloor
+      : (nextBudget?.consumerFloor && typeof nextBudget.consumerFloor === "object" ? nextBudget.consumerFloor : null);
+    consumerFloor = nextFloor;
+    if (typeof onConsumerFloor === "function") onConsumerFloor(nextFloor, msg);
   }
 
   function settleAttached(value) {
@@ -177,6 +184,7 @@ export function createRuntimeSurfaceClient({
     attached = false;
     snapshot = null;
     materializationBudget = null;
+    consumerFloor = null;
   }
 
   function openIntent(type, payload = {}, timeoutMs = callTimeoutMs) {
@@ -214,6 +222,9 @@ export function createRuntimeSurfaceClient({
     },
     get materializationBudget() {
       return materializationBudget;
+    },
+    get consumerFloor() {
+      return consumerFloor;
     },
   };
 

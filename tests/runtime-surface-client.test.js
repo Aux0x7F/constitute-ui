@@ -40,6 +40,7 @@ test("runtime surface client attaches and settles correlated responses", async (
   try {
     const snapshots = [];
     const budgets = [];
+    const floors = [];
     const client = createRuntimeSurfaceClient({
       clientId: "surface-client",
       surface: "surface",
@@ -49,6 +50,7 @@ test("runtime surface client attaches and settles correlated responses", async (
       attachContext: { product: "test" },
       onSnapshot: (snapshot) => snapshots.push(snapshot),
       onMaterializationBudget: (budget) => budgets.push(budget),
+      onConsumerFloor: (floor) => floors.push(floor),
     });
 
     const port = client.attach();
@@ -68,13 +70,16 @@ test("runtime surface client attaches and settles correlated responses", async (
         type: "runtime.snapshot",
         snapshot: { buildId: "runtime-test" },
         materializationBudget: { kind: "materialization.budget", budgetId: "budget-1" },
+        consumerFloor: { kind: "consumer.floor", floorId: "floor-1" },
       },
     });
     assert.equal(await ready, port);
     assert.equal(client.attached, true);
     assert.deepEqual(snapshots, [{ buildId: "runtime-test" }]);
     assert.deepEqual(budgets, [{ kind: "materialization.budget", budgetId: "budget-1" }]);
+    assert.deepEqual(floors, [{ kind: "consumer.floor", floorId: "floor-1" }]);
     assert.deepEqual(client.materializationBudget, { kind: "materialization.budget", budgetId: "budget-1" });
+    assert.deepEqual(client.consumerFloor, { kind: "consumer.floor", floorId: "floor-1" });
 
     const resultPromise = client.call("runtime.snapshot.get", { value: 1 }, 1_000);
     const request = port.messages[1];
