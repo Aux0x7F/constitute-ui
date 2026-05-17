@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   defineSurfaceAppContract,
+  requireSurfaceModuleRole,
   surfaceAppAttachContext,
   surfaceAppContractPosture,
+  surfaceModuleRolePosture,
 } from "../src/surface-app-contract.js";
 
 function makeContract(overrides = {}) {
@@ -75,4 +77,26 @@ test("surface app helper reports missing required module roles", () => {
   assert.equal(posture.state, "blocked");
   assert.equal(posture.blockedReason, "missingModuleRole");
   assert.deepEqual(posture.missingRoles, ["projectionModel"]);
+});
+
+test("surface app helper gates bundled module roles by contract", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract());
+  const posture = surfaceModuleRolePosture(surfaceApp, "runtimeClient", {
+    moduleRef: "constitute-ui/runtime-surface-client@0.1.0",
+    primitiveRef: "runtime.attach",
+  });
+
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.moduleCount, 1);
+  assert.equal(requireSurfaceModuleRole(surfaceApp, "runtimeClient", {
+    moduleRef: "constitute-ui/runtime-surface-client@0.1.0",
+  }).role, "runtimeClient");
+
+  const missing = surfaceModuleRolePosture(surfaceApp, "platformAdapter");
+  assert.equal(missing.state, "blocked");
+  assert.equal(missing.blockedReason, "missingModuleRole");
+  assert.throws(
+    () => requireSurfaceModuleRole(surfaceApp, "runtimeClient", { moduleRef: "missing/module@0.1.0" }),
+    /missingModuleRef/
+  );
 });

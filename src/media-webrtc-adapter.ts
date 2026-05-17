@@ -21,6 +21,7 @@ export type BrowserStreamSession = {
   healthStatus: string;
   routePending: boolean;
   routeState: string;
+  adapterModuleRef: string;
   adapterFailed: boolean;
   adapterFailureReason: string;
   adapterFailureNotified: boolean;
@@ -65,6 +66,7 @@ export type BrowserStreamAdapterOptions = {
   nonce: string;
   sessionId: string;
   sourceId: string;
+  moduleRef?: string;
   iceServers?: RTCIceServer[];
   onCandidate?: (candidate: RTCIceCandidateInit) => void;
   onStateChange?: (state: BrowserStreamAdapterState, session: BrowserStreamSession) => void;
@@ -224,6 +226,10 @@ function mediaEvidenceBase(
   safeFacts: Record<string, unknown>,
   blockedReason = "",
 ): MediaFulfillmentEvidence {
+  const evidenceSafeFacts = {
+    ...safeFacts,
+    adapterModuleRef: session.adapterModuleRef || BROWSER_STREAM_ADAPTER_REF,
+  };
   const record = {
     kind: SWARM.RECORD_KIND.MEDIA_FULFILLMENT_EVIDENCE,
     evidenceId: mediaEvidenceId(session, evidenceKind),
@@ -234,7 +240,7 @@ function mediaEvidenceBase(
     adapterRef: BROWSER_STREAM_ADAPTER_REF,
     sourceRef: session.sourceId,
     ...(blockedReason ? { blockedReason } : {}),
-    safeFacts,
+    safeFacts: evidenceSafeFacts,
     observedAt: Date.now(),
     expiresAt: Date.now() + 60_000,
   };
@@ -641,6 +647,7 @@ export async function createBrowserStreamOffer(options: BrowserStreamAdapterOpti
     healthStatus: "",
     routePending: false,
     routeState: "",
+    adapterModuleRef: String(options.moduleRef || ""),
     adapterFailed: false,
     adapterFailureReason: "",
     adapterFailureNotified: false,

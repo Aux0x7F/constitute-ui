@@ -83,6 +83,40 @@ export function surfaceAppAttachContext(surfaceAppOrContract, extra = {}) {
   });
 }
 
+export function surfaceModuleRolePosture(surfaceAppOrContract, role, options = {}) {
+  const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
+    ? surfaceAppOrContract
+    : defineSurfaceAppContract(surfaceAppOrContract);
+  const roleRef = String(role || "");
+  const moduleRef = String(options.moduleRef || "").trim();
+  const primitiveRef = String(options.primitiveRef || "").trim();
+  const modules = surfaceApp.modulesForRole(roleRef)
+    .filter((module) => !moduleRef || String(module.moduleRef || "") === moduleRef)
+    .filter((module) => !primitiveRef || module.primitiveRefs.includes(primitiveRef));
+  const state = modules.length ? "ready" : "blocked";
+  return Object.freeze({
+    kind: "surface.module.role.posture",
+    state,
+    blockedReason: state === "ready" ? "" : surfaceModuleBlockedReason(surfaceApp, roleRef, moduleRef, primitiveRef),
+    role: roleRef,
+    moduleRef,
+    primitiveRef,
+    moduleCount: modules.length,
+    modules: Object.freeze([...modules]),
+  });
+}
+
+export function requireSurfaceModuleRole(surfaceAppOrContract, role, options = {}) {
+  const posture = surfaceModuleRolePosture(surfaceAppOrContract, role, options);
+  if (posture.state !== "ready") {
+    const detail = [posture.blockedReason, posture.role, posture.moduleRef, posture.primitiveRef]
+      .filter(Boolean)
+      .join(" ");
+    throw new Error(`surface module role unavailable: ${detail}`.trim());
+  }
+  return posture.modules[0];
+}
+
 function normalizeModules(value) {
   if (!Array.isArray(value)) return Object.freeze([]);
   return Object.freeze(value
@@ -134,6 +168,14 @@ function normalizeStringArray(value) {
 
 function normalizeArray(value) {
   return Array.isArray(value) ? [...value] : [];
+}
+
+function surfaceModuleBlockedReason(surfaceApp, role, moduleRef, primitiveRef) {
+  if (!role) return "missingRole";
+  if (!surfaceApp.hasRole(role)) return "missingModuleRole";
+  if (moduleRef) return "missingModuleRef";
+  if (primitiveRef) return "missingPrimitiveRef";
+  return "missingModule";
 }
 
 function isDefinedSurfaceApp(value) {

@@ -24,6 +24,9 @@ test("media webrtc adapter owns runtime media transport profile helpers", () => 
   assert.match(adapter, /MEDIA_CORRELATION_MATERIALIZATION_BUDGET_ID = "media-webrtc\.correlation"/);
   assert.match(adapter, /MEDIA_RENDER_WAITING_GRACE_MS = 5_000/);
   assert.match(adapter, /MEDIA_RENDER_BLOCKED_GRACE_MS = 10_000/);
+  assert.match(adapter, /moduleRef\?: string/);
+  assert.match(adapter, /adapterModuleRef: String\(options\.moduleRef \|\| ""\)/);
+  assert.match(adapter, /adapterModuleRef: session\.adapterModuleRef \|\| BROWSER_STREAM_ADAPTER_REF/);
   assert.match(adapter, /function mediaCorrelationKeys\(/);
   assert.match(adapter, /function mediaCorrelationMaterializationBudget\(/);
   assert.match(adapter, /lastRenderCurrentTime/);

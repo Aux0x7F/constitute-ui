@@ -41,6 +41,17 @@ export type SurfaceAppPosture = {
   moduleCount: number;
 };
 
+export type SurfaceModuleRolePosture = {
+  kind: "surface.module.role.posture";
+  state: "ready" | "blocked";
+  blockedReason: string;
+  role: string;
+  moduleRef: string;
+  primitiveRef: string;
+  moduleCount: number;
+  modules: readonly SurfaceAppModuleClaim[];
+};
+
 export type SurfaceAppAttachContext = {
   kind: "surface.app.attachContext";
   contractId: string;
@@ -90,3 +101,15 @@ export function surfaceAppAttachContext(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   extra?: Record<string, unknown>,
 ): SurfaceAppAttachContext;
+
+export function surfaceModuleRolePosture(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  role: string,
+  options?: { moduleRef?: string; primitiveRef?: string },
+): SurfaceModuleRolePosture;
+
+export function requireSurfaceModuleRole(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  role: string,
+  options?: { moduleRef?: string; primitiveRef?: string },
+): SurfaceAppModuleClaim;
