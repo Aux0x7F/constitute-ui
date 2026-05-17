@@ -245,6 +245,28 @@ export function applyRuntimeActivationPostureToStreamSession(session, activation
     session.routeState = "serviceAccepted";
     return state;
   }
+  if (state === "waitingRender") {
+    session.routePending = false;
+    session.serviceAccepted = true;
+    session.answerReceived = true;
+    session.routeState = "waitingRender";
+    return state;
+  }
+  if (state === "renderBlocked" || state === "mediaPathBlocked" || state === "mediaBlocked") {
+    session.routePending = false;
+    session.routeState = state;
+    session.adapterFailed = true;
+    session.adapterFailureReason = String(lastError.message || state).trim();
+    return state;
+  }
+  if (state === "adapterLive") {
+    session.routePending = false;
+    session.answerReceived = true;
+    session.routeState = "mediaUsable";
+    session.adapterFailed = false;
+    session.adapterFailureReason = "";
+    return state;
+  }
   return state;
 }
 
@@ -257,16 +279,19 @@ export function applyRuntimeMediaFulfillmentPostureToStreamSession(session, post
     : [];
   const latestEvidence = asObject(record.latestEvidence);
   const blockedReason = blockedReasons[0] || String(latestEvidence.blockedReason || "").trim();
+  const postureState = String(record.postureState || "").trim();
   session.mediaPathState = state;
+  session.mediaPostureState = postureState;
   session.mediaBlockedReason = blockedReason;
   session.mediaVisibleFrame = record.visibleFrame === true;
   session.mediaTrackLive = record.trackLive === true;
   session.mediaTransportUsable = record.transportUsable === true;
+  session.mediaRenderReadinessState = String(record.renderReadinessState || asObject(latestEvidence.safeFacts).readinessState || "").trim();
   if (state === "blocked") {
     session.routePending = false;
-    session.routeState = "mediaBlocked";
+    session.routeState = postureState || "mediaBlocked";
     session.adapterFailed = true;
-    session.adapterFailureReason = blockedReason || "mediaTransportBlocked";
+    session.adapterFailureReason = blockedReason || postureState || "mediaTransportBlocked";
     return state;
   }
   if (state === "released") {
@@ -277,6 +302,13 @@ export function applyRuntimeMediaFulfillmentPostureToStreamSession(session, post
   if (state === "usable") {
     session.routePending = false;
     session.routeState = "mediaUsable";
+    session.adapterFailed = false;
+    session.adapterFailureReason = "";
+    return state;
+  }
+  if (postureState === "waitingRender") {
+    session.routePending = false;
+    session.routeState = "waitingRender";
     session.adapterFailed = false;
     session.adapterFailureReason = "";
     return state;
