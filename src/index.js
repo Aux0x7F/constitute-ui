@@ -462,7 +462,10 @@ export {
 export {
   SURFACE_CONTRACT_ROLE_ORDER,
   defineSurfaceAppContract,
+  materializationBudgetRecord,
   materializationBudgetLimit,
+  materializationBudgetUsage,
+  materializationConsumerFloorRecord,
   requireSurfaceMaterializationBudget,
   requireSurfaceModuleRole,
   surfaceAppAttachContext,

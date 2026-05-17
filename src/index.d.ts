@@ -141,6 +141,18 @@ export function materializationBudgetLimit(
   key: string,
   fallback?: number,
 ): number;
+export function materializationBudgetUsage(
+  budget: Record<string, unknown> | null | undefined,
+  options?: Record<string, unknown>,
+): Readonly<Record<string, unknown>>;
+export function materializationBudgetRecord(
+  budget: Record<string, unknown> | null | undefined,
+  options?: Record<string, unknown>,
+): Record<string, unknown>;
+export function materializationConsumerFloorRecord(
+  budget: Record<string, unknown> | null | undefined,
+  options?: Record<string, unknown>,
+): Record<string, unknown>;
 
 export * from "./surface-module-registry.js";
 

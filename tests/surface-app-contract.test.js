@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   defineSurfaceAppContract,
+  materializationBudgetRecord,
   materializationBudgetLimit,
+  materializationBudgetUsage,
+  materializationConsumerFloorRecord,
   requireSurfaceMaterializationBudget,
   requireSurfaceModuleRole,
   surfaceAppAttachContext,
@@ -136,4 +139,45 @@ test("surface app helper gates materialization budgets by contract", () => {
     () => requireSurfaceMaterializationBudget(surfaceApp, "missing-budget"),
     /missingMaterializationBudget/,
   );
+});
+
+test("surface app helper reduces materialization budget usage and consumer floors", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract());
+  const budget = requireSurfaceMaterializationBudget(surfaceApp, "logging-ui.event-table");
+  const usage = materializationBudgetUsage(budget, {
+    sourceCount: 3000,
+    materializedCount: 2500,
+    blockedReason: "eventTablePressure",
+    sampledAt: 1234,
+  });
+
+  assert.equal(usage.state, "pressure");
+  assert.equal(usage.overBudget, true);
+  assert.deepEqual(usage.blockedReasons, ["eventTablePressure"]);
+
+  const floor = materializationConsumerFloorRecord(budget, {
+    consumerRef: "logging-ui.events-view",
+    subjectRef: "logging.events.ui-table",
+    sourceCount: 3000,
+    materializedCount: 2500,
+    cursor: "event-1",
+    sampledAt: 1234,
+  });
+  assert.equal(floor.kind, "consumer.floor");
+  assert.equal(floor.lagState, "lagging");
+  assert.equal(floor.ackFloor, "2500");
+  assert.equal(floor.compactionFloor, "2500");
+
+  const record = materializationBudgetRecord(budget, {
+    sourceCount: 12,
+    materializedCount: 8,
+    limits: { renderedCount: 8 },
+    consumerFloor: floor,
+    sampledAt: 1234,
+  });
+  assert.equal(record.kind, "materialization.budget");
+  assert.equal(record.state, "withinBudget");
+  assert.equal(record.limits.sourceCount, 12);
+  assert.equal(record.limits.renderedCount, 8);
+  assert.equal(record.consumerFloor, floor);
 });

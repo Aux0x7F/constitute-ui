@@ -167,6 +167,126 @@ export function materializationBudgetLimit(budget, key, fallback = 0) {
   return Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
+export function materializationBudgetUsage(budget, {
+  sourceCount = 0,
+  materializedCount = sourceCount,
+  sourceLimitKey = "maxSourceItems",
+  materializedLimitKey = "maxItems",
+  blockedReason = "materializationBudgetPressure",
+  sampledAt = Date.now(),
+} = {}) {
+  const sourceTotal = normalizedCount(sourceCount);
+  const materializedTotal = normalizedCount(materializedCount);
+  const materializedLimit = materializationBudgetLimit(budget, materializedLimitKey, Number.POSITIVE_INFINITY);
+  const sourceLimit = materializationBudgetLimit(budget, sourceLimitKey, materializedLimit);
+  const sourceOver = sourceTotal > sourceLimit;
+  const materializedOver = materializedTotal > materializedLimit;
+  const overBudget = sourceOver || materializedOver;
+  return Object.freeze({
+    kind: "surface.materialization.usage",
+    budgetId: String(budget?.budgetId || ""),
+    state: overBudget ? "pressure" : "withinBudget",
+    sourceCount: sourceTotal,
+    materializedCount: materializedTotal,
+    sourceLimit,
+    materializedLimit,
+    sourceLimitKey,
+    materializedLimitKey,
+    overBudget,
+    blockedReasons: Object.freeze(overBudget ? [String(blockedReason || "materializationBudgetPressure")] : []),
+    sampledAt,
+  });
+}
+
+export function materializationBudgetRecord(budget, {
+  sourceCount = 0,
+  materializedCount = sourceCount,
+  sourceLimitKey = "maxSourceItems",
+  materializedLimitKey = "maxItems",
+  blockedReason = "materializationBudgetPressure",
+  limits = {},
+  consumerFloor = undefined,
+  sampledAt = Date.now(),
+  expiresInMs = 60_000,
+  ...overrides
+} = {}) {
+  const usage = materializationBudgetUsage(budget, {
+    sourceCount,
+    materializedCount,
+    sourceLimitKey,
+    materializedLimitKey,
+    blockedReason,
+    sampledAt,
+  });
+  const mergedLimits = {
+    ...(isObject(budget?.limits) ? budget.limits : {}),
+    ...(isObject(limits) ? limits : {}),
+    sourceCount: usage.sourceCount,
+    materializedCount: usage.materializedCount,
+  };
+  const record = {
+    ...(isObject(budget) ? budget : {}),
+    ...overrides,
+    state: usage.state,
+    limits: mergedLimits,
+    blockedReasons: usage.blockedReasons,
+    issuedAt: Number(overrides.issuedAt || sampledAt),
+    releaseAfter: Number(overrides.releaseAfter || sampledAt),
+    expiresAt: Number(overrides.expiresAt || (sampledAt + expiresInMs)),
+  };
+  if (consumerFloor !== undefined) record.consumerFloor = consumerFloor;
+  return record;
+}
+
+export function materializationConsumerFloorRecord(budget, {
+  floorId = "",
+  consumerRef = "",
+  materializationId = "",
+  subjectRef = "",
+  sourceCount = 0,
+  materializedCount = sourceCount,
+  sourceLimitKey = "maxSourceItems",
+  materializedLimitKey = "maxItems",
+  cursor = undefined,
+  eventTimeFloor = undefined,
+  observedTimeFloor = undefined,
+  reason = "",
+  replay = undefined,
+  redelivery = undefined,
+  sampledAt = Date.now(),
+  expiresInMs = 60_000,
+} = {}) {
+  const usage = materializationBudgetUsage(budget, {
+    sourceCount,
+    materializedCount,
+    sourceLimitKey,
+    materializedLimitKey,
+    blockedReason: reason || "materializationConsumerLag",
+    sampledAt,
+  });
+  const lagState = usage.overBudget ? "lagging" : "caughtUp";
+  const floor = {
+    kind: "consumer.floor",
+    floorId: String(floorId || `floor:${materializationId || budget?.budgetId || "materialization"}`),
+    consumerRef: String(consumerRef || budget?.consumerRef || ""),
+    materializationId: String(materializationId || budget?.budgetId || ""),
+    subjectRef: String(subjectRef || ""),
+    ackFloor: String(usage.materializedCount),
+    witnessFloor: String(usage.materializedCount),
+    compactionFloor: String(Math.min(usage.sourceCount, usage.materializedLimit)),
+    observedTimeFloor: observedTimeFloor || sampledAt,
+    lagState,
+    sampledAt,
+    expiresAt: sampledAt + expiresInMs,
+  };
+  if (cursor !== undefined) floor.cursor = cursor;
+  if (eventTimeFloor !== undefined) floor.eventTimeFloor = eventTimeFloor;
+  if (usage.overBudget || reason) floor.reason = String(reason || usage.blockedReasons[0] || "materialization consumer lag");
+  if (replay !== undefined) floor.replay = replay;
+  if (redelivery !== undefined) floor.redelivery = redelivery;
+  return floor;
+}
+
 function normalizeModules(value) {
   if (!Array.isArray(value)) return Object.freeze([]);
   return Object.freeze(value
@@ -261,4 +381,9 @@ function isDefinedSurfaceApp(value) {
 
 function isObject(value) {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function normalizedCount(value) {
+  const count = Number(value);
+  return Number.isFinite(count) && count >= 0 ? count : 0;
 }
