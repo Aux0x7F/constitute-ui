@@ -447,6 +447,12 @@ export function renderStreamStatus(container, {
 }
 
 export { createRuntimeSurfaceClient } from "./runtime-surface-client.js";
+export {
+  SURFACE_CONTRACT_ROLE_ORDER,
+  defineSurfaceAppContract,
+  surfaceAppAttachContext,
+  surfaceAppContractPosture,
+} from "./surface-app-contract.js";
 
 function appendTableCellValue(cell, value) {
   if (isNodeLike(value)) {
