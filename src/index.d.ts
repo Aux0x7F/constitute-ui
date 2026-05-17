@@ -347,3 +347,5 @@ export type PreparedServiceRegistry = {
 
 export function preparedServiceRegistry(snapshot?: Record<string, unknown>): PreparedServiceRegistry;
 export function preparedServiceRegistryServices(snapshot?: Record<string, unknown>): readonly PreparedServiceRegistryService[];
+
+export * from "./projection-read-model.js";
