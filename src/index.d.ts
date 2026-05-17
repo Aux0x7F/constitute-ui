@@ -398,3 +398,4 @@ export function preparedServiceRegistry(snapshot?: Record<string, unknown>): Pre
 export function preparedServiceRegistryServices(snapshot?: Record<string, unknown>): readonly PreparedServiceRegistryService[];
 
 export * from "./projection-read-model.js";
+export * from "./runtime-shell-state.js";
