@@ -162,12 +162,14 @@ test("runtime media fulfillment posture applies recovery state to stream session
 
   assert.equal(applyRuntimeMediaFulfillmentPostureToStreamSession(session, {
     state: "blocked",
+    postureState: "mediaPathBlocked",
     blockedReasons: ["inboundRtpStalled"],
     visibleFrame: false,
     trackLive: true,
     transportUsable: true,
   }), "blocked");
-  assert.equal(session.routeState, "mediaBlocked");
+  assert.equal(session.routeState, "mediaPathBlocked");
+  assert.equal(session.mediaPostureState, "mediaPathBlocked");
   assert.equal(session.adapterFailed, true);
   assert.equal(session.adapterFailureReason, "inboundRtpStalled");
 
@@ -186,7 +188,20 @@ test("runtime media fulfillment posture applies recovery state to stream session
   });
 
   assert.equal(applyRuntimeMediaFulfillmentPostureToStreamSession(session, {
+    state: "pending",
+    postureState: "waitingRender",
+    renderReadinessState: "waitingRender",
+    visibleFrame: false,
+    trackLive: true,
+    transportUsable: true,
+  }), "pending");
+  assert.equal(session.routeState, "waitingRender");
+  assert.equal(session.adapterFailed, false);
+  assert.equal(session.mediaRenderReadinessState, "waitingRender");
+
+  assert.equal(applyRuntimeMediaFulfillmentPostureToStreamSession(session, {
     state: "usable",
+    postureState: "adapterLive",
     visibleFrame: true,
     trackLive: true,
     transportUsable: true,

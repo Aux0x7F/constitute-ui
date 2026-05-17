@@ -29,7 +29,7 @@ export type SurfaceAppContractShape = {
   projectionSubscriptions?: unknown[];
   permissionRequirements?: unknown[];
   capabilityRequirements?: unknown[];
-  materializationBudgets?: unknown[];
+  materializationBudgets?: Record<string, unknown>[];
   updatePosture?: Record<string, unknown>;
   [key: string]: unknown;
 };
@@ -39,6 +39,28 @@ export type SurfaceAppPosture = {
   blockedReason: string;
   missingRoles: string[];
   moduleCount: number;
+};
+
+export type SurfaceModuleRolePosture = {
+  kind: "surface.module.role.posture";
+  state: "ready" | "blocked";
+  blockedReason: string;
+  role: string;
+  moduleRef: string;
+  primitiveRef: string;
+  moduleCount: number;
+  modules: readonly SurfaceAppModuleClaim[];
+};
+
+export type SurfaceMaterializationBudgetPosture = {
+  kind: "surface.materialization.budget.posture";
+  state: "ready" | "blocked";
+  blockedReason: string;
+  budgetId: string;
+  payloadClass: string;
+  copyRole: string;
+  transferMode: string;
+  budget: Record<string, unknown> | null;
 };
 
 export type SurfaceAppAttachContext = {
@@ -60,6 +82,7 @@ export type SurfaceAppAttachContext = {
     version: string;
     buildId: string;
   }>;
+  materializationBudgetRefs: string[];
   updatePosture?: Record<string, unknown>;
   [key: string]: unknown;
 };
@@ -90,3 +113,33 @@ export function surfaceAppAttachContext(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   extra?: Record<string, unknown>,
 ): SurfaceAppAttachContext;
+
+export function surfaceModuleRolePosture(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  role: string,
+  options?: { moduleRef?: string; primitiveRef?: string },
+): SurfaceModuleRolePosture;
+
+export function requireSurfaceModuleRole(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  role: string,
+  options?: { moduleRef?: string; primitiveRef?: string },
+): SurfaceAppModuleClaim;
+
+export function surfaceMaterializationBudgetPosture(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  budgetId: string,
+  options?: { payloadClass?: string; copyRole?: string; transferMode?: string },
+): SurfaceMaterializationBudgetPosture;
+
+export function requireSurfaceMaterializationBudget(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  budgetId: string,
+  options?: { payloadClass?: string; copyRole?: string; transferMode?: string },
+): Record<string, unknown>;
+
+export function materializationBudgetLimit(
+  budget: Record<string, unknown> | null | undefined,
+  key: string,
+  fallback?: number,
+): number;

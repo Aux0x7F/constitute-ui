@@ -455,8 +455,13 @@ export { createRuntimeSurfaceClient } from "./runtime-surface-client.js";
 export {
   SURFACE_CONTRACT_ROLE_ORDER,
   defineSurfaceAppContract,
+  materializationBudgetLimit,
+  requireSurfaceMaterializationBudget,
+  requireSurfaceModuleRole,
   surfaceAppAttachContext,
   surfaceAppContractPosture,
+  surfaceMaterializationBudgetPosture,
+  surfaceModuleRolePosture,
 } from "./surface-app-contract.js";
 
 function appendTableCellValue(cell, value) {

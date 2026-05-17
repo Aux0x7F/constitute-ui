@@ -2,8 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   defineSurfaceAppContract,
+  materializationBudgetLimit,
+  requireSurfaceMaterializationBudget,
+  requireSurfaceModuleRole,
   surfaceAppAttachContext,
   surfaceAppContractPosture,
+  surfaceMaterializationBudgetPosture,
+  surfaceModuleRolePosture,
 } from "../src/surface-app-contract.js";
 
 function makeContract(overrides = {}) {
@@ -39,6 +44,16 @@ function makeContract(overrides = {}) {
         primitiveRefs: ["runtime.posture.render"],
       },
     ],
+    materializationBudgets: [
+      {
+        kind: "materialization.budget",
+        budgetId: "logging-ui.event-table",
+        payloadClass: "projection",
+        copyRole: "projection",
+        transferMode: "referenceOnly",
+        limits: { maxItems: 2500 },
+      },
+    ],
     issuedAt: 1700000000,
     ...overrides,
   };
@@ -65,6 +80,7 @@ test("surface app helper indexes modules and emits attach context", () => {
   assert.equal(attachContext.clientId, "logging-ui");
   assert.deepEqual(attachContext.requiredModuleRoles, ["runtimeClient", "projectionModel", "productView"]);
   assert.equal(attachContext.moduleRefs.length, 3);
+  assert.deepEqual(attachContext.materializationBudgetRefs, ["logging-ui.event-table"]);
 });
 
 test("surface app helper reports missing required module roles", () => {
@@ -75,4 +91,49 @@ test("surface app helper reports missing required module roles", () => {
   assert.equal(posture.state, "blocked");
   assert.equal(posture.blockedReason, "missingModuleRole");
   assert.deepEqual(posture.missingRoles, ["projectionModel"]);
+});
+
+test("surface app helper gates bundled module roles by contract", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract());
+  const posture = surfaceModuleRolePosture(surfaceApp, "runtimeClient", {
+    moduleRef: "constitute-ui/runtime-surface-client@0.1.0",
+    primitiveRef: "runtime.attach",
+  });
+
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.moduleCount, 1);
+  assert.equal(requireSurfaceModuleRole(surfaceApp, "runtimeClient", {
+    moduleRef: "constitute-ui/runtime-surface-client@0.1.0",
+  }).role, "runtimeClient");
+
+  const missing = surfaceModuleRolePosture(surfaceApp, "platformAdapter");
+  assert.equal(missing.state, "blocked");
+  assert.equal(missing.blockedReason, "missingModuleRole");
+  assert.throws(
+    () => requireSurfaceModuleRole(surfaceApp, "runtimeClient", { moduleRef: "missing/module@0.1.0" }),
+    /missingModuleRef/
+  );
+});
+
+test("surface app helper gates materialization budgets by contract", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract());
+  const posture = surfaceMaterializationBudgetPosture(surfaceApp, "logging-ui.event-table", {
+    payloadClass: "projection",
+    copyRole: "projection",
+    transferMode: "referenceOnly",
+  });
+
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.budget?.budgetId, "logging-ui.event-table");
+  assert.equal(materializationBudgetLimit(posture.budget, "maxItems", 0), 2500);
+  assert.equal(requireSurfaceMaterializationBudget(surfaceApp, "logging-ui.event-table").budgetId, "logging-ui.event-table");
+
+  assert.equal(
+    surfaceMaterializationBudgetPosture(surfaceApp, "logging-ui.event-table", { payloadClass: "media" }).blockedReason,
+    "payloadClassMismatch",
+  );
+  assert.throws(
+    () => requireSurfaceMaterializationBudget(surfaceApp, "missing-budget"),
+    /missingMaterializationBudget/,
+  );
 });

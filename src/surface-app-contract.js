@@ -78,9 +78,93 @@ export function surfaceAppAttachContext(surfaceAppOrContract, extra = {}) {
       version: module.version,
       buildId: module.buildId || "",
     }))),
+    materializationBudgetRefs: Object.freeze((contract.materializationBudgets || [])
+      .map((budget) => String(budget?.budgetId || "").trim())
+      .filter(Boolean)),
     updatePosture: isObject(contract.updatePosture) ? Object.freeze({ ...contract.updatePosture }) : undefined,
     ...extra,
   });
+}
+
+export function surfaceModuleRolePosture(surfaceAppOrContract, role, options = {}) {
+  const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
+    ? surfaceAppOrContract
+    : defineSurfaceAppContract(surfaceAppOrContract);
+  const roleRef = String(role || "");
+  const moduleRef = String(options.moduleRef || "").trim();
+  const primitiveRef = String(options.primitiveRef || "").trim();
+  const modules = surfaceApp.modulesForRole(roleRef)
+    .filter((module) => !moduleRef || String(module.moduleRef || "") === moduleRef)
+    .filter((module) => !primitiveRef || module.primitiveRefs.includes(primitiveRef));
+  const state = modules.length ? "ready" : "blocked";
+  return Object.freeze({
+    kind: "surface.module.role.posture",
+    state,
+    blockedReason: state === "ready" ? "" : surfaceModuleBlockedReason(surfaceApp, roleRef, moduleRef, primitiveRef),
+    role: roleRef,
+    moduleRef,
+    primitiveRef,
+    moduleCount: modules.length,
+    modules: Object.freeze([...modules]),
+  });
+}
+
+export function requireSurfaceModuleRole(surfaceAppOrContract, role, options = {}) {
+  const posture = surfaceModuleRolePosture(surfaceAppOrContract, role, options);
+  if (posture.state !== "ready") {
+    const detail = [posture.blockedReason, posture.role, posture.moduleRef, posture.primitiveRef]
+      .filter(Boolean)
+      .join(" ");
+    throw new Error(`surface module role unavailable: ${detail}`.trim());
+  }
+  return posture.modules[0];
+}
+
+export function surfaceMaterializationBudgetPosture(surfaceAppOrContract, budgetId, options = {}) {
+  const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
+    ? surfaceAppOrContract
+    : defineSurfaceAppContract(surfaceAppOrContract);
+  const requestedBudgetId = String(budgetId || "").trim();
+  const payloadClass = String(options.payloadClass || "").trim();
+  const copyRole = String(options.copyRole || "").trim();
+  const transferMode = String(options.transferMode || "").trim();
+  const budgets = surfaceApp.contract.materializationBudgets || [];
+  const budget = budgets.find((entry) => String(entry?.budgetId || "") === requestedBudgetId) || null;
+  const blockedReason = materializationBudgetBlockedReason(budget, requestedBudgetId, {
+    payloadClass,
+    copyRole,
+    transferMode,
+  });
+  const state = blockedReason ? "blocked" : "ready";
+  return Object.freeze({
+    kind: "surface.materialization.budget.posture",
+    state,
+    blockedReason,
+    budgetId: requestedBudgetId,
+    payloadClass,
+    copyRole,
+    transferMode,
+    budget: budget ? Object.freeze({ ...budget }) : null,
+  });
+}
+
+export function requireSurfaceMaterializationBudget(surfaceAppOrContract, budgetId, options = {}) {
+  const posture = surfaceMaterializationBudgetPosture(surfaceAppOrContract, budgetId, options);
+  if (posture.state !== "ready") {
+    const detail = [posture.blockedReason, posture.budgetId, posture.payloadClass, posture.copyRole, posture.transferMode]
+      .filter(Boolean)
+      .join(" ");
+    throw new Error(`surface materialization budget unavailable: ${detail}`.trim());
+  }
+  return posture.budget;
+}
+
+export function materializationBudgetLimit(budget, key, fallback = 0) {
+  const limitKey = String(key || "").trim();
+  if (!limitKey || !isObject(budget)) return fallback;
+  const limits = isObject(budget.limits) ? budget.limits : {};
+  const value = Number(limits[limitKey] ?? budget[limitKey]);
+  return Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
 function normalizeModules(value) {
@@ -121,7 +205,7 @@ function freezeContract(contract, modules, requiredRoles) {
     projectionSubscriptions: Object.freeze(normalizeArray(contract.projectionSubscriptions)),
     permissionRequirements: Object.freeze(normalizeArray(contract.permissionRequirements)),
     capabilityRequirements: Object.freeze(normalizeArray(contract.capabilityRequirements)),
-    materializationBudgets: Object.freeze(normalizeArray(contract.materializationBudgets)),
+    materializationBudgets: normalizeBudgets(contract.materializationBudgets),
   });
 }
 
@@ -134,6 +218,41 @@ function normalizeStringArray(value) {
 
 function normalizeArray(value) {
   return Array.isArray(value) ? [...value] : [];
+}
+
+function normalizeBudgets(value) {
+  if (!Array.isArray(value)) return Object.freeze([]);
+  return Object.freeze(value
+    .filter(isObject)
+    .map((budget) => Object.freeze({
+      ...budget,
+      limits: isObject(budget.limits) ? Object.freeze({ ...budget.limits }) : budget.limits,
+      snapshotPolicy: isObject(budget.snapshotPolicy) ? Object.freeze({ ...budget.snapshotPolicy }) : budget.snapshotPolicy,
+      deltaPolicy: isObject(budget.deltaPolicy) ? Object.freeze({ ...budget.deltaPolicy }) : budget.deltaPolicy,
+      coalescing: isObject(budget.coalescing) ? Object.freeze({ ...budget.coalescing }) : budget.coalescing,
+      cardinality: isObject(budget.cardinality) ? Object.freeze({ ...budget.cardinality }) : budget.cardinality,
+      schema: isObject(budget.schema) ? Object.freeze({ ...budget.schema }) : budget.schema,
+      referenceRefs: Object.freeze(normalizeStringArray(budget.referenceRefs)),
+      evidenceRefs: Object.freeze(normalizeStringArray(budget.evidenceRefs)),
+      blockedReasons: Object.freeze(normalizeStringArray(budget.blockedReasons)),
+    })));
+}
+
+function surfaceModuleBlockedReason(surfaceApp, role, moduleRef, primitiveRef) {
+  if (!role) return "missingRole";
+  if (!surfaceApp.hasRole(role)) return "missingModuleRole";
+  if (moduleRef) return "missingModuleRef";
+  if (primitiveRef) return "missingPrimitiveRef";
+  return "missingModule";
+}
+
+function materializationBudgetBlockedReason(budget, budgetId, { payloadClass, copyRole, transferMode }) {
+  if (!budgetId) return "missingBudgetId";
+  if (!budget) return "missingMaterializationBudget";
+  if (payloadClass && String(budget.payloadClass || "") !== payloadClass) return "payloadClassMismatch";
+  if (copyRole && String(budget.copyRole || "") !== copyRole) return "copyRoleMismatch";
+  if (transferMode && String(budget.transferMode || "") !== transferMode) return "transferModeMismatch";
+  return "";
 }
 
 function isDefinedSurfaceApp(value) {

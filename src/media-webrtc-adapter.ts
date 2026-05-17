@@ -21,6 +21,7 @@ export type BrowserStreamSession = {
   healthStatus: string;
   routePending: boolean;
   routeState: string;
+  adapterModuleRef: string;
   adapterFailed: boolean;
   adapterFailureReason: string;
   adapterFailureNotified: boolean;
@@ -65,6 +66,7 @@ export type BrowserStreamAdapterOptions = {
   nonce: string;
   sessionId: string;
   sourceId: string;
+  moduleRef?: string;
   iceServers?: RTCIceServer[];
   onCandidate?: (candidate: RTCIceCandidateInit) => void;
   onStateChange?: (state: BrowserStreamAdapterState, session: BrowserStreamSession) => void;
@@ -147,6 +149,50 @@ export function browserStreamAvailable(): boolean {
   return typeof RTCPeerConnection === "function";
 }
 
+export type BrowserMediaStreamBindResult = {
+  kind: "browser.mediaStream.bind";
+  ok: boolean;
+  state: "bound" | "playRequested" | "playFailed";
+  reason?: string;
+  autoplay: boolean;
+  muted: boolean;
+  playsInline: boolean;
+  hasSrcObject: boolean;
+};
+
+export async function bindBrowserMediaStream(
+  video: HTMLVideoElement,
+  stream: MediaStream,
+): Promise<BrowserMediaStreamBindResult> {
+  video.autoplay = true;
+  video.muted = true;
+  video.playsInline = true;
+  if (video.srcObject !== stream) video.srcObject = stream;
+  try {
+    await video.play();
+    return {
+      kind: "browser.mediaStream.bind",
+      ok: true,
+      state: "playRequested",
+      autoplay: video.autoplay,
+      muted: video.muted,
+      playsInline: video.playsInline,
+      hasSrcObject: video.srcObject === stream,
+    };
+  } catch (error) {
+    return {
+      kind: "browser.mediaStream.bind",
+      ok: false,
+      state: "playFailed",
+      reason: String((error as Error)?.message || error || "video playback request failed"),
+      autoplay: video.autoplay,
+      muted: video.muted,
+      playsInline: video.playsInline,
+      hasSrcObject: video.srcObject === stream,
+    };
+  }
+}
+
 function descriptionJson(description: RTCSessionDescription | RTCSessionDescriptionInit | null): RTCSessionDescriptionInit {
   if (!description) throw new Error("missing WebRTC session description");
   return {
@@ -224,6 +270,10 @@ function mediaEvidenceBase(
   safeFacts: Record<string, unknown>,
   blockedReason = "",
 ): MediaFulfillmentEvidence {
+  const evidenceSafeFacts = {
+    ...safeFacts,
+    adapterModuleRef: session.adapterModuleRef || BROWSER_STREAM_ADAPTER_REF,
+  };
   const record = {
     kind: SWARM.RECORD_KIND.MEDIA_FULFILLMENT_EVIDENCE,
     evidenceId: mediaEvidenceId(session, evidenceKind),
@@ -234,7 +284,7 @@ function mediaEvidenceBase(
     adapterRef: BROWSER_STREAM_ADAPTER_REF,
     sourceRef: session.sourceId,
     ...(blockedReason ? { blockedReason } : {}),
-    safeFacts,
+    safeFacts: evidenceSafeFacts,
     observedAt: Date.now(),
     expiresAt: Date.now() + 60_000,
   };
@@ -641,6 +691,7 @@ export async function createBrowserStreamOffer(options: BrowserStreamAdapterOpti
     healthStatus: "",
     routePending: false,
     routeState: "",
+    adapterModuleRef: String(options.moduleRef || ""),
     adapterFailed: false,
     adapterFailureReason: "",
     adapterFailureNotified: false,
