@@ -473,6 +473,8 @@ export {
   surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
   surfaceMaterializationBudgetPosture,
+  surfaceServiceManagerOperationPosture,
+  surfaceServiceManagerProofDigest,
   surfaceModuleRolePosture,
 } from "./surface-app-contract.js";
 

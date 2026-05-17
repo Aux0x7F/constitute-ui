@@ -117,6 +117,56 @@ export type SurfaceAppBootstrapPosture = {
   expiresAt?: unknown;
 };
 
+export type SurfaceServiceManagerOperationPosture = {
+  kind: "service.manager.operation.posture";
+  operationId: string;
+  managerId: string;
+  subjectRef: string;
+  managerRef: string;
+  requesterRef: string;
+  operation: string;
+  state: string;
+  serviceRefs: string[];
+  capabilityRefs: string[];
+  authorityRefs: string[];
+  releaseRef: string;
+  rollbackRef: string;
+  secretBoundary: Readonly<Record<string, unknown>>;
+  evidenceRefs: string[];
+  proofRefs: string[];
+  blockedReasons: string[];
+  safeFacts?: Readonly<Record<string, unknown>>;
+  requestedAt: number;
+  acceptedAt?: unknown;
+  startedAt?: unknown;
+  completedAt?: unknown;
+  observedAt?: unknown;
+  expiresAt?: unknown;
+};
+
+export type SurfaceServiceManagerProofDigest = {
+  kind: "service.manager.proof.digest";
+  digestId: string;
+  operationId: string;
+  managerId: string;
+  subjectRef: string;
+  state: string;
+  trainRef: string;
+  releaseRef: string;
+  rollbackRef: string;
+  commitRefs: string[];
+  artifactRefs: string[];
+  proofRefs: string[];
+  metricsRefs: string[];
+  environmentRefs: string[];
+  serviceRefs: string[];
+  evidenceRefs: string[];
+  blockedReasons: string[];
+  safeFacts?: Readonly<Record<string, unknown>>;
+  observedAt: number;
+  expiresAt?: unknown;
+};
+
 export type DefinedSurfaceApp = {
   contract: SurfaceAppContractShape;
   modules: readonly SurfaceAppModuleClaim[];
@@ -144,6 +194,14 @@ export function surfaceAppBootstrapPosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
 ): SurfaceAppBootstrapPosture;
+export function surfaceServiceManagerOperationPosture(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceServiceManagerOperationPosture;
+export function surfaceServiceManagerProofDigest(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceServiceManagerProofDigest;
 export function surfaceModuleRolePosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   role: string,
