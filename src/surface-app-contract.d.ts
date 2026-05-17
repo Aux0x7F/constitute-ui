@@ -31,6 +31,11 @@ export type SurfaceAppContractShape = {
   capabilityRequirements?: unknown[];
   materializationBudgets?: Record<string, unknown>[];
   updatePosture?: Record<string, unknown>;
+  bootstrapPosture?: Record<string, unknown>;
+  serviceManagerPosture?: Record<string, unknown>;
+  secretBoundary?: Record<string, unknown>;
+  releasePosture?: Record<string, unknown>;
+  rollbackPosture?: Record<string, unknown>;
   [key: string]: unknown;
 };
 
@@ -87,6 +92,25 @@ export type SurfaceAppAttachContext = {
   [key: string]: unknown;
 };
 
+export type SurfaceAppBootstrapPosture = {
+  kind: "surface.app.bootstrap.posture";
+  bootstrapId: string;
+  contractId: string;
+  appId: string;
+  state: "ready" | "degraded" | "blocked";
+  sourceMode: string;
+  moduleRefs: string[];
+  serviceManagerRef: string;
+  serviceManagerPosture: Readonly<Record<string, unknown>>;
+  secretBoundary: Readonly<Record<string, unknown>>;
+  releasePosture: Readonly<Record<string, unknown>>;
+  rollbackPosture?: Readonly<Record<string, unknown>>;
+  blockedReasons: string[];
+  evidenceRefs: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
 export type DefinedSurfaceApp = {
   contract: SurfaceAppContractShape;
   modules: readonly SurfaceAppModuleClaim[];
@@ -113,6 +137,10 @@ export function surfaceAppAttachContext(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   extra?: Record<string, unknown>,
 ): SurfaceAppAttachContext;
+export function surfaceAppBootstrapPosture(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceAppBootstrapPosture;
 
 export function surfaceModuleRolePosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
@@ -143,3 +171,19 @@ export function materializationBudgetLimit(
   key: string,
   fallback?: number,
 ): number;
+export function materializationBudgetUsage(
+  budget: Record<string, unknown> | null | undefined,
+  options?: Record<string, unknown>,
+): Readonly<Record<string, unknown>>;
+export function materializationBudgetRecord(
+  budget: Record<string, unknown> | null | undefined,
+  options?: Record<string, unknown>,
+): Record<string, unknown>;
+export function materializationConsumerFloorRecord(
+  budget: Record<string, unknown> | null | undefined,
+  options?: Record<string, unknown>,
+): Record<string, unknown>;
+export function materializationEventReplayPosture(
+  budget: Record<string, unknown> | null | undefined,
+  options?: Record<string, unknown>,
+): Readonly<Record<string, unknown>>;

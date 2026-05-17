@@ -453,12 +453,24 @@ export function renderStreamStatus(container, {
 
 export { createRuntimeSurfaceClient } from "./runtime-surface-client.js";
 export {
+  createSurfaceModuleRegistry,
+  requireSurfaceModuleImplementation,
+  surfaceAppModuleImplementations,
+  surfaceModuleRegistryPosture,
+} from "./surface-module-registry.js";
+
+export {
   SURFACE_CONTRACT_ROLE_ORDER,
   defineSurfaceAppContract,
+  materializationBudgetRecord,
   materializationBudgetLimit,
+  materializationBudgetUsage,
+  materializationConsumerFloorRecord,
+  materializationEventReplayPosture,
   requireSurfaceMaterializationBudget,
   requireSurfaceModuleRole,
   surfaceAppAttachContext,
+  surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
   surfaceMaterializationBudgetPosture,
   surfaceModuleRolePosture,
@@ -902,3 +914,8 @@ export {
   projectionUpdatedAt,
   selectProjectionForNode,
 } from "./projection-read-model.js";
+export {
+  browserStorageShellContext,
+  deriveRuntimeShellState,
+  runtimeShellConnectionToneClass,
+} from "./runtime-shell-state.js";
