@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   defineSurfaceAppContract,
   materializationBudgetRecord,
+  materializationEventReplayPosture,
   materializationBudgetLimit,
   materializationBudgetUsage,
   materializationConsumerFloorRecord,
@@ -180,4 +181,73 @@ test("surface app helper reduces materialization budget usage and consumer floor
   assert.equal(record.limits.sourceCount, 12);
   assert.equal(record.limits.renderedCount, 8);
   assert.equal(record.consumerFloor, floor);
+});
+
+test("surface app helper reduces event replay privacy and bitemporal posture", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract({
+    materializationBudgets: [
+      {
+        kind: "materialization.budget",
+        budgetId: "logging-ui.event-table",
+        payloadClass: "projection",
+        copyRole: "referenceOnly",
+        transferMode: "referenceOnly",
+        consumerRef: "logging-ui.events-view",
+        limits: {
+          maxItems: 2,
+          maxSourceItems: 2,
+          maxSafeFactKeys: 2,
+          maxLabelValues: 1,
+          maxEncryptedDetailRefs: 2,
+        },
+      },
+    ],
+  }));
+  const budget = requireSurfaceMaterializationBudget(surfaceApp, "logging-ui.event-table");
+  const posture = materializationEventReplayPosture(budget, {
+    sourceEvents: [
+      {
+        eventId: "event-1",
+        schemaVersion: 1,
+        occurredAt: 1700000000,
+        observedAt: 1700000001000,
+        tags: ["route"],
+        safeFacts: { route: "ok" },
+      },
+      {
+        eventId: "event-2",
+        schemaVersion: 2,
+        occurredAt: 1700000010,
+        observedAt: 1700000011000,
+        tags: ["route", "diagnostic"],
+        safeFacts: { route: "ok", extra: true },
+        encryptedDetailRefs: [{ objectId: "detail-1" }],
+      },
+    ],
+    materializedEvents: [
+      {
+        eventId: "event-2",
+        schemaVersion: 2,
+        occurredAt: 1700000010,
+        observedAt: 1700000011000,
+        tags: ["route", "diagnostic"],
+        safeFacts: { route: "ok", extra: true },
+        encryptedDetailRefs: [{ objectId: "detail-1" }],
+      },
+    ],
+    expectedSchemaVersion: 1,
+    sampledAt: 1700000020000,
+  });
+
+  assert.equal(posture.kind, "surface.event.replay.posture");
+  assert.equal(posture.state, "blocked");
+  assert.equal(posture.schema.state, "quarantined");
+  assert.equal(posture.schema.unsupportedCount, 1);
+  assert.deepEqual(posture.privacy.tiers, ["safeFacts", "encryptedDetail"]);
+  assert.equal(posture.cardinality.state, "pressure");
+  assert.equal(posture.bitemporal.eventTimeFloor, 1700000010000);
+  assert.equal(posture.bitemporal.observedTimeFloor, 1700000011000);
+  assert.equal(posture.consumerFloor.kind, "consumer.floor");
+  assert.equal(posture.consumerFloor.lagState, "caughtUp");
+  assert.deepEqual(posture.blockedReasons, ["schemaPostureQuarantined", "labelCardinalityPressure"]);
 });

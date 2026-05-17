@@ -287,6 +287,142 @@ export function materializationConsumerFloorRecord(budget, {
   return floor;
 }
 
+export function materializationEventReplayPosture(budget, {
+  sourceEvents = [],
+  materializedEvents = sourceEvents,
+  eventKey = defaultEventKey,
+  eventTime = defaultEventTime,
+  observedTime = defaultObservedTime,
+  schemaVersion = defaultSchemaVersion,
+  safeFacts = defaultSafeFacts,
+  tags = defaultTags,
+  encryptedDetailRefs = defaultEncryptedDetailRefs,
+  expectedSchemaVersion = "",
+  maxSafeFactKeys = materializationBudgetLimit(budget, "maxSafeFactKeys", Number.POSITIVE_INFINITY),
+  maxLabelValues = materializationBudgetLimit(budget, "maxLabelValues", Number.POSITIVE_INFINITY),
+  maxEncryptedDetailRefs = materializationBudgetLimit(budget, "maxEncryptedDetailRefs", Number.POSITIVE_INFINITY),
+  sampledAt = Date.now(),
+  consumerFloor = {},
+} = {}) {
+  const source = Array.isArray(sourceEvents) ? sourceEvents : [];
+  const materialized = Array.isArray(materializedEvents) ? materializedEvents : [];
+  const usage = materializationBudgetUsage(budget, {
+    sourceCount: source.length,
+    materializedCount: materialized.length,
+    blockedReason: "eventReplayPressure",
+    sampledAt,
+  });
+  const eventTimes = materialized
+    .map((event) => normalizedTimeMillis(callExtractor(eventTime, event)))
+    .filter((value) => value > 0);
+  const observedTimes = materialized
+    .map((event) => normalizedTimeMillis(callExtractor(observedTime, event)))
+    .filter((value) => value > 0);
+  const schemaVersions = new Map();
+  let unsupportedSchemaCount = 0;
+  const safeFactKeys = new Set();
+  const labelValues = new Set();
+  let detailRefCount = 0;
+  for (const event of source) {
+    const version = String(callExtractor(schemaVersion, event) || "").trim();
+    if (version) {
+      schemaVersions.set(version, (schemaVersions.get(version) || 0) + 1);
+      if (expectedSchemaVersion && version !== String(expectedSchemaVersion)) unsupportedSchemaCount += 1;
+    }
+    const facts = callExtractor(safeFacts, event);
+    if (isObject(facts)) {
+      for (const key of Object.keys(facts)) safeFactKeys.add(key);
+    }
+    const eventTags = callExtractor(tags, event);
+    if (Array.isArray(eventTags)) {
+      for (const tag of eventTags) {
+        const value = String(tag || "").trim();
+        if (value) labelValues.add(value);
+      }
+    }
+    const refs = callExtractor(encryptedDetailRefs, event);
+    if (Array.isArray(refs)) detailRefCount += refs.length;
+    else if (refs) detailRefCount += 1;
+  }
+  const cardinalityPressure = safeFactKeys.size > maxSafeFactKeys
+    || labelValues.size > maxLabelValues
+    || detailRefCount > maxEncryptedDetailRefs;
+  const blockedReasons = [
+    ...(usage.overBudget ? usage.blockedReasons : []),
+    ...(unsupportedSchemaCount ? ["schemaPostureQuarantined"] : []),
+    ...(safeFactKeys.size > maxSafeFactKeys ? ["safeFactCardinalityPressure"] : []),
+    ...(labelValues.size > maxLabelValues ? ["labelCardinalityPressure"] : []),
+    ...(detailRefCount > maxEncryptedDetailRefs ? ["encryptedDetailRefPressure"] : []),
+  ];
+  const state = unsupportedSchemaCount
+    ? "blocked"
+    : (usage.overBudget || cardinalityPressure ? "pressure" : "ready");
+  const eventTimeFloor = eventTimes.length ? Math.min(...eventTimes) : undefined;
+  const observedTimeFloor = observedTimes.length ? Math.max(...observedTimes) : sampledAt;
+  const floor = materializationConsumerFloorRecord(budget, {
+    materializationId: budget?.budgetId || "",
+    sourceCount: source.length,
+    materializedCount: materialized.length,
+    cursor: materialized.length ? callExtractor(eventKey, materialized[materialized.length - 1]) : undefined,
+    eventTimeFloor,
+    observedTimeFloor,
+    reason: blockedReasons[0] || "",
+    replay: {
+      mode: "event-replay",
+      sourceCount: source.length,
+      materializedCount: materialized.length,
+      eventTimeFloor,
+      observedTimeFloor,
+    },
+    redelivery: {
+      mode: "cursor",
+      duplicatePolicy: "eventKey",
+    },
+    sampledAt,
+    ...(isObject(consumerFloor) ? consumerFloor : {}),
+  });
+  return deepFreeze({
+    kind: "surface.event.replay.posture",
+    budgetId: String(budget?.budgetId || ""),
+    state,
+    blockedReasons,
+    counts: {
+      source: source.length,
+      materialized: materialized.length,
+      detailRefs: detailRefCount,
+    },
+    consumerFloor: floor,
+    bitemporal: {
+      eventTimeFloor,
+      observedTimeFloor,
+      eventTimeCount: eventTimes.length,
+      observedTimeCount: observedTimes.length,
+    },
+    schema: {
+      state: unsupportedSchemaCount ? "quarantined" : "current",
+      expectedVersion: String(expectedSchemaVersion || ""),
+      versions: Object.fromEntries(schemaVersions.entries()),
+      unsupportedCount: unsupportedSchemaCount,
+    },
+    privacy: {
+      tiers: detailRefCount ? ["safeFacts", "encryptedDetail"] : ["safeFacts"],
+      encryptedDetailRefCount: detailRefCount,
+    },
+    cardinality: {
+      state: cardinalityPressure ? "pressure" : "withinBudget",
+      safeFactKeyCount: safeFactKeys.size,
+      labelValueCount: labelValues.size,
+      maxSafeFactKeys,
+      maxLabelValues,
+      maxEncryptedDetailRefs,
+    },
+    sampling: {
+      state: usage.overBudget || cardinalityPressure ? "summarized" : "full",
+      adaptive: usage.overBudget || cardinalityPressure,
+    },
+  });
+}
+
 function normalizeModules(value) {
   if (!Array.isArray(value)) return Object.freeze([]);
   return Object.freeze(value
@@ -386,4 +522,67 @@ function isObject(value) {
 function normalizedCount(value) {
   const count = Number(value);
   return Number.isFinite(count) && count >= 0 ? count : 0;
+}
+
+function callExtractor(extractor, event) {
+  return typeof extractor === "function" ? extractor(event) : undefined;
+}
+
+function defaultEventKey(event) {
+  return event?.eventId || event?.event_id || event?.id || "";
+}
+
+function defaultEventTime(event) {
+  return event?.eventTime || event?.event_time || event?.occurredAt || event?.occurred_at || event?.ts || 0;
+}
+
+function defaultObservedTime(event) {
+  return event?.observedAt || event?.observed_at || defaultEventTime(event);
+}
+
+function defaultSchemaVersion(event) {
+  return event?.schemaVersion || event?.schema_version || "";
+}
+
+function defaultSafeFacts(event) {
+  return event?.safeFacts || event?.safe_facts || {};
+}
+
+function defaultTags(event) {
+  return Array.isArray(event?.tags) ? event.tags : [];
+}
+
+function defaultEncryptedDetailRefs(event) {
+  const refs = [];
+  for (const value of [
+    event?.detailRef,
+    event?.detail_ref,
+    event?.encryptedDetailRef,
+    event?.encrypted_detail_ref,
+  ]) {
+    if (value) refs.push(value);
+  }
+  for (const value of [
+    event?.detailRefs,
+    event?.detail_refs,
+    event?.encryptedDetailRefs,
+    event?.encrypted_detail_refs,
+  ]) {
+    if (Array.isArray(value)) refs.push(...value.filter(Boolean));
+  }
+  return refs;
+}
+
+function normalizedTimeMillis(value) {
+  const raw = Number(value || 0);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return raw > 9_999_999_999 ? raw : raw * 1000;
+}
+
+function deepFreeze(value) {
+  if (!isObject(value) && !Array.isArray(value)) return value;
+  for (const child of Object.values(value)) {
+    if ((isObject(child) || Array.isArray(child)) && !Object.isFrozen(child)) deepFreeze(child);
+  }
+  return Object.freeze(value);
 }

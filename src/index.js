@@ -466,6 +466,7 @@ export {
   materializationBudgetLimit,
   materializationBudgetUsage,
   materializationConsumerFloorRecord,
+  materializationEventReplayPosture,
   requireSurfaceMaterializationBudget,
   requireSurfaceModuleRole,
   surfaceAppAttachContext,

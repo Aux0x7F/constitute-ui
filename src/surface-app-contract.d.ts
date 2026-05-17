@@ -155,3 +155,7 @@ export function materializationConsumerFloorRecord(
   budget: Record<string, unknown> | null | undefined,
   options?: Record<string, unknown>,
 ): Record<string, unknown>;
+export function materializationEventReplayPosture(
+  budget: Record<string, unknown> | null | undefined,
+  options?: Record<string, unknown>,
+): Readonly<Record<string, unknown>>;
