@@ -271,6 +271,11 @@ export function renderDataTable(container, {
   return { wrap, table };
 }
 
+export {
+  preparedServiceRegistry,
+  preparedServiceRegistryServices,
+} from "./service-registry-model.js";
+
 export function renderPreparedCapabilityList(container, {
   records = [],
   emptyLabel = "No capabilities",
@@ -447,6 +452,12 @@ export function renderStreamStatus(container, {
 }
 
 export { createRuntimeSurfaceClient } from "./runtime-surface-client.js";
+export {
+  SURFACE_CONTRACT_ROLE_ORDER,
+  defineSurfaceAppContract,
+  surfaceAppAttachContext,
+  surfaceAppContractPosture,
+} from "./surface-app-contract.js";
 
 function appendTableCellValue(cell, value) {
   if (isNodeLike(value)) {
@@ -873,3 +884,16 @@ export function bindFirstPartyShellChrome(shell, {
     closeTransientMenus,
   };
 }
+
+export {
+  projectionCoverage,
+  projectionDeltaFor,
+  projectionForNode,
+  projectionNodePath,
+  projectionPostureSummary,
+  projectionRecordPolicyId,
+  projectionRepairFor,
+  projectionRuntimeKey,
+  projectionUpdatedAt,
+  selectProjectionForNode,
+} from "./projection-read-model.js";
