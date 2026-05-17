@@ -489,6 +489,178 @@ textarea {
   color: var(--cu-muted);
 }
 
+.cuPreparedList {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.cuPreparedListEmpty {
+  padding: 0.85rem;
+  color: var(--cu-muted);
+  border: 1px solid var(--cu-line);
+  border-radius: 8px;
+  background: rgba(5, 10, 20, 0.26);
+}
+
+.cuPreparedRecord,
+.cuStatusPanel {
+  min-width: 0;
+  border: 1px solid var(--cu-line);
+  border-radius: 8px;
+  background: rgba(5, 10, 20, 0.28);
+}
+
+.cuPreparedRecord {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.cuPreparedRecordMain {
+  min-width: 0;
+}
+
+.cuPreparedRecordTitleRow,
+.cuStatusHeader,
+.cuStatusFlags,
+.cuPreparedActions,
+.cuTagList {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.cuPreparedRecordTitleRow,
+.cuStatusHeader {
+  justify-content: space-between;
+}
+
+.cuPreparedRecordTitle,
+.cuStatusTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cuPreparedRecordMeta {
+  margin-top: 0.2rem;
+  color: var(--cu-muted);
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+}
+
+.cuStatusPill,
+.cuStatusFlag,
+.cuTag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  max-width: 100%;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--cu-line);
+  border-radius: 999px;
+  color: var(--cu-muted);
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.78rem;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.cuTagList {
+  flex-wrap: wrap;
+  margin-top: 0.45rem;
+}
+
+.cuPreparedActions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.cuStatusPanel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.8rem;
+}
+
+.cuStatusFlags {
+  flex-wrap: wrap;
+}
+
+.cuStatusFlag-good,
+.cuCountItem-good {
+  color: var(--cu-good);
+  border-color: rgba(89, 211, 145, 0.35);
+}
+
+.cuStatusFlag-warn,
+.cuCountItem-warn {
+  color: var(--cu-warn);
+  border-color: rgba(247, 185, 85, 0.35);
+}
+
+.cuStatusFlag-bad,
+.cuCountItem-bad {
+  color: var(--cu-bad);
+  border-color: rgba(240, 113, 122, 0.35);
+}
+
+.cuStatusFlag-accent {
+  color: var(--cu-accent);
+  border-color: rgba(87, 209, 191, 0.35);
+}
+
+.cuCountStrip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.cuCountItem {
+  min-width: 0;
+  padding: 0.55rem;
+  border: 1px solid var(--cu-line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.cuCountValue,
+.cuCountLabel {
+  display: block;
+}
+
+.cuCountValue {
+  font-size: 1.2rem;
+}
+
+.cuCountLabel {
+  margin-top: 0.1rem;
+  color: var(--cu-muted);
+  font-size: 0.78rem;
+}
+
+.cuKeyValueGrid {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.25rem 0.65rem;
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.cuKeyValueGrid dt {
+  color: var(--cu-muted);
+}
+
+.cuKeyValueGrid dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .accountCenterSummary {
   margin-bottom: 0.65rem;
   line-height: 1.4;
@@ -511,5 +683,28 @@ textarea {
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 560px) {
+  .cuPreparedRecord,
+  .cuStatusHeader {
+    grid-template-columns: 1fr;
+  }
+
+  .cuPreparedRecord {
+    display: grid;
+  }
+
+  .cuPreparedActions,
+  .cuStatusHeader,
+  .cuPreparedRecordTitleRow {
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .cuCountStrip,
+  .cuKeyValueGrid {
+    grid-template-columns: 1fr;
   }
 }

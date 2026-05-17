@@ -17,6 +17,62 @@ export type ActionDescriptor = {
   onSelect?: (action: ActionDescriptor) => void;
 };
 
+export type PreparedActionPayload<T = Record<string, unknown>> = {
+  kind: string;
+  actionId: string;
+  recordId: string;
+  record: T;
+};
+
+export type PreparedAction<TPayload = unknown> = {
+  id: string;
+  label: string;
+  pendingLabel?: string;
+  description?: string;
+  disabled?: boolean;
+  hidden?: boolean;
+  pending?: boolean;
+  tone?: string;
+  payload?: TPayload;
+  onSelect?: (payload: TPayload | PreparedActionPayload) => void;
+};
+
+export type PreparedCapabilityRecord<TPayload = unknown> = {
+  id?: string;
+  capability?: string;
+  name?: string;
+  label?: string;
+  title?: string;
+  namespace?: string;
+  memberRef?: string;
+  serviceRef?: string;
+  scope?: string;
+  status?: string;
+  health?: string;
+  freshness?: string;
+  channels?: string[];
+  channelIds?: string[];
+  capabilities?: string[];
+  actions?: Array<PreparedAction<TPayload>>;
+};
+
+export type PreparedChannelRecord<TPayload = unknown> = {
+  id?: string;
+  channelId?: string;
+  label?: string;
+  displayName?: string;
+  name?: string;
+  kind?: string;
+  policy?: string;
+  owner?: string;
+  status?: string;
+  freshness?: string;
+  capabilities?: string[];
+  capabilityRefs?: string[];
+  recordKinds?: string[];
+  actions?: Array<PreparedAction<TPayload>>;
+};
+
 export type FirstPartyShellOptions = {
   appName?: string;
   navItems?: Array<{ id: string; label: string; hidden?: boolean; active?: boolean }>;
@@ -83,6 +139,8 @@ export function renderAccountCenterSummary(container: HTMLElement, options?: {
   connectionLabel?: string;
   connectionToneClass?: string;
 }): void;
+export type KeyValueRow = readonly [label: string, value: unknown];
+export function createKeyValueGrid(rows?: KeyValueRow[]): HTMLDListElement;
 export function createPanel(options?: { title?: string; hint?: string; className?: string }): {
   el: HTMLElement;
   titleEl: HTMLElement;
@@ -117,6 +175,52 @@ export function renderDataTable<T = Record<string, unknown>>(container: HTMLElem
   getRowClassName?: (row: T, rowIndex: number) => string;
   renderExpandedRow?: (row: T, rowIndex: number) => string | Node | Array<string | Node> | null | undefined | false;
 }): { wrap: HTMLElement; table: HTMLTableElement | null } | null;
+export function renderPreparedCapabilityList<TPayload = unknown>(container: HTMLElement, options?: {
+  records?: Array<PreparedCapabilityRecord<TPayload>>;
+  emptyLabel?: string;
+  onAction?: (payload: TPayload | PreparedActionPayload<PreparedCapabilityRecord<TPayload>>) => void;
+}): { wrap: HTMLElement; items: HTMLElement[] } | null;
+export function renderPreparedChannelList<TPayload = unknown>(container: HTMLElement, options?: {
+  records?: Array<PreparedChannelRecord<TPayload>>;
+  emptyLabel?: string;
+  onAction?: (payload: TPayload | PreparedActionPayload<PreparedChannelRecord<TPayload>>) => void;
+}): { wrap: HTMLElement; items: HTMLElement[] } | null;
+export function renderProjectionSyncStatus<TPayload = unknown>(container: HTMLElement, options?: {
+  projectionId?: string;
+  revision?: string | number;
+  stale?: boolean;
+  gap?: boolean;
+  pending?: boolean;
+  pendingDeltas?: number;
+  repair?: boolean;
+  repairPending?: boolean;
+  repairRequested?: boolean;
+  lastAppliedAt?: string;
+  actions?: Array<PreparedAction<TPayload>>;
+  onAction?: (payload: TPayload | PreparedActionPayload) => void;
+}): { wrap: HTMLElement } | null;
+export function renderSwarmEdgeStatus<TPayload = unknown>(container: HTMLElement, options?: {
+  queued?: number;
+  sent?: number;
+  rejected?: number;
+  lastRejectReason?: string;
+  connected?: boolean;
+  mode?: string;
+  actions?: Array<PreparedAction<TPayload>>;
+  onAction?: (payload: TPayload | PreparedActionPayload) => void;
+}): { wrap: HTMLElement } | null;
+export function renderStreamStatus<TPayload = unknown>(container: HTMLElement, options?: {
+  sessionId?: string;
+  label?: string;
+  state?: string;
+  health?: string;
+  transport?: string;
+  recovering?: boolean;
+  backoff?: string;
+  updatedAt?: string;
+  actions?: Array<PreparedAction<TPayload>>;
+  onAction?: (payload: TPayload | PreparedActionPayload) => void;
+}): { wrap: HTMLElement } | null;
 export function renderFirstPartyShell(root: HTMLDivElement, options?: FirstPartyShellOptions): FirstPartyShell;
 export function bindFirstPartyShellChrome(shell: FirstPartyShell, options?: {
   onNavSelect?: (activity: string, button: HTMLButtonElement) => void;

@@ -1,12 +1,11 @@
-# Constitute UI
+# constitute-ui
 
-Shared first-party UI/framework for Constitution browser apps.
+`constitute-ui` is the shared first-party browser UI layer.
 
-It owns:
-- shared chrome
-- mini account center host surface
-- generic primitives
-- prepared-model subscription helpers
-- named action composition
+It provides reusable presentation primitives, shared chrome, prepared-state
+rendering patterns, app surface layout, and common operator UI conventions for
+Constitution browser apps.
 
-It does not own runtime/session authority. That remains in `constitute-account`.
+Shared UI components render prepared posture and narrow controls. They do not
+own protocol records, route truth, service admission, projection truth, or
+authority state.
