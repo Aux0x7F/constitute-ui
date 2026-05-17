@@ -453,6 +453,13 @@ export function renderStreamStatus(container, {
 
 export { createRuntimeSurfaceClient } from "./runtime-surface-client.js";
 export {
+  createSurfaceModuleRegistry,
+  requireSurfaceModuleImplementation,
+  surfaceAppModuleImplementations,
+  surfaceModuleRegistryPosture,
+} from "./surface-module-registry.js";
+
+export {
   SURFACE_CONTRACT_ROLE_ORDER,
   defineSurfaceAppContract,
   materializationBudgetLimit,

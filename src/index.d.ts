@@ -142,6 +142,8 @@ export function materializationBudgetLimit(
   fallback?: number,
 ): number;
 
+export * from "./surface-module-registry.js";
+
 export type ActionDescriptor = {
   id: string;
   label: string;
