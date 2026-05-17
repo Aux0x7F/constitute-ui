@@ -20,6 +20,11 @@ test("media webrtc adapter owns runtime media transport profile helpers", () => 
   assert.match(adapter, /export function runtimeMediaTransportContract/);
   assert.match(adapter, /export function runtimeMediaTransportBlockedDetail/);
   assert.match(adapter, /export function isRuntimeMediaTransportProfileFailure/);
+  assert.match(adapter, /export type BrowserMediaStreamBindResult/);
+  assert.match(adapter, /export async function bindBrowserMediaStream/);
+  assert.match(adapter, /video\.srcObject !== stream/);
+  assert.match(adapter, /await video\.play\(\)/);
+  assert.match(adapter, /state: "playRequested"/);
   assert.match(adapter, /RUNTIME_MEDIA_TRANSPORT_PROFILE_GET = "runtime\.media\.transport\.profile\.get"/);
   assert.match(adapter, /MEDIA_CORRELATION_MATERIALIZATION_BUDGET_ID = "media-webrtc\.correlation"/);
   assert.match(adapter, /MEDIA_RENDER_WAITING_GRACE_MS = 5_000/);

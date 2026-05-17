@@ -149,6 +149,50 @@ export function browserStreamAvailable(): boolean {
   return typeof RTCPeerConnection === "function";
 }
 
+export type BrowserMediaStreamBindResult = {
+  kind: "browser.mediaStream.bind";
+  ok: boolean;
+  state: "bound" | "playRequested" | "playFailed";
+  reason?: string;
+  autoplay: boolean;
+  muted: boolean;
+  playsInline: boolean;
+  hasSrcObject: boolean;
+};
+
+export async function bindBrowserMediaStream(
+  video: HTMLVideoElement,
+  stream: MediaStream,
+): Promise<BrowserMediaStreamBindResult> {
+  video.autoplay = true;
+  video.muted = true;
+  video.playsInline = true;
+  if (video.srcObject !== stream) video.srcObject = stream;
+  try {
+    await video.play();
+    return {
+      kind: "browser.mediaStream.bind",
+      ok: true,
+      state: "playRequested",
+      autoplay: video.autoplay,
+      muted: video.muted,
+      playsInline: video.playsInline,
+      hasSrcObject: video.srcObject === stream,
+    };
+  } catch (error) {
+    return {
+      kind: "browser.mediaStream.bind",
+      ok: false,
+      state: "playFailed",
+      reason: String((error as Error)?.message || error || "video playback request failed"),
+      autoplay: video.autoplay,
+      muted: video.muted,
+      playsInline: video.playsInline,
+      hasSrcObject: video.srcObject === stream,
+    };
+  }
+}
+
 function descriptionJson(description: RTCSessionDescription | RTCSessionDescriptionInit | null): RTCSessionDescriptionInit {
   if (!description) throw new Error("missing WebRTC session description");
   return {
