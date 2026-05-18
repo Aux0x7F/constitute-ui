@@ -204,6 +204,8 @@ test("surface app helper reduces service manager operation and proof digest post
       grantRefs: ["authority-grant:service-manager:logging"],
       resourceBudget: { maxMemoryMiB: 256, maxCpuPct: 25 },
       evidenceRefs: ["host:manual"],
+      witnessRefs: ["witness:logging-manager:observed"],
+      retentionRefs: ["retention:logging-ui:operations"],
     },
     releasePosture: {
       state: "releaseReady",
@@ -221,6 +223,7 @@ test("surface app helper reduces service manager operation and proof digest post
     requesterRef: "identity:operator",
     state: "succeeded",
     proofRefs: ["proof:logging-ui:browser"],
+    releaseWitnessRefs: ["witness:operator:release-ready"],
     requestedAt: 1234,
     completedAt: 1240,
   });
@@ -234,6 +237,9 @@ test("surface app helper reduces service manager operation and proof digest post
   assert.equal(operation.hostRef, "host:operator-lab");
   assert.deepEqual(operation.grantRefs, ["authority-grant:service-manager:logging"]);
   assert.deepEqual(operation.resourceBudget, { maxMemoryMiB: 256, maxCpuPct: 25 });
+  assert.deepEqual(operation.witnessRefs, ["witness:logging-manager:observed"]);
+  assert.deepEqual(operation.retentionRefs, ["retention:logging-ui:operations"]);
+  assert.deepEqual(operation.releaseWitnessRefs, ["witness:operator:release-ready"]);
   assert.deepEqual(operation.blockedReasons, []);
   assert.deepEqual(operation.evidenceRefs, ["host:manual", "build:logging-ui:local"]);
   assert.equal(assertServiceManagerOperationPosture(operation), operation);
@@ -265,6 +271,17 @@ test("surface app helper reduces service manager operation and proof digest post
   assert.deepEqual(actionability.proofDigestRefs, ["proof-digest:logging-ui:promote"]);
   assertSurfaceAppServiceManagerActionability(actionability);
 
+  const releaseOperation = surfaceServiceManagerOperationPosture(surfaceApp, {
+    operation: "release",
+    requesterRef: "identity:operator",
+    releaseRef: "release:logging-ui:local",
+    releaseWitnessRefs: ["witness:operator:released"],
+    requestedAt: 1234,
+  });
+  assert.equal(releaseOperation.state, "requested");
+  assert.equal(releaseOperation.releaseRef, "release:logging-ui:local");
+  assert.deepEqual(releaseOperation.releaseWitnessRefs, ["witness:operator:released"]);
+
   const blockedRollback = surfaceServiceManagerOperationPosture(surfaceApp, {
     operation: "rollback",
     requestedAt: 1234,
@@ -272,6 +289,14 @@ test("surface app helper reduces service manager operation and proof digest post
   });
   assert.equal(blockedRollback.state, "blocked");
   assert.deepEqual(blockedRollback.blockedReasons, ["missingRollbackRef"]);
+
+  const blockedRelease = surfaceServiceManagerOperationPosture(surfaceApp, {
+    operation: "release",
+    requestedAt: 1234,
+    releasePosture: { state: "releaseReady" },
+  });
+  assert.equal(blockedRelease.state, "blocked");
+  assert.deepEqual(blockedRelease.blockedReasons, ["missingReleaseRef"]);
 
   const blockedDigest = surfaceServiceManagerProofDigest(surfaceApp, {
     operationPosture: operation,

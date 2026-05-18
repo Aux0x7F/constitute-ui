@@ -402,6 +402,7 @@ export function surfaceServiceManagerOperationPosture(surfaceAppOrContract, opti
     ...postureBlockedReasons(releasePosture, "release"),
     ...postureBlockedReasons(secretBoundary, "secretBoundary"),
     ...(operation === "rollback" && !String(options.rollbackRef || releasePosture.rollbackRef || "").trim() ? ["missingRollbackRef"] : []),
+    ...(operation === "release" && !String(options.releaseRef || releasePosture.releaseRef || "").trim() ? ["missingReleaseRef"] : []),
     ...normalizeStringArray(options.blockedReasons),
   ]);
   const requestedAt = Number(options.requestedAt || Date.now());
@@ -441,6 +442,18 @@ export function surfaceServiceManagerOperationPosture(surfaceAppOrContract, opti
     proofRefs: uniqueStrings([
       ...normalizeStringArray(options.proofRefs),
       ...normalizeStringArray(options.artifactRefs),
+    ]),
+    witnessRefs: uniqueStrings([
+      ...normalizeStringArray(serviceManagerPosture.witnessRefs),
+      ...normalizeStringArray(options.witnessRefs),
+    ]),
+    retentionRefs: uniqueStrings([
+      ...normalizeStringArray(serviceManagerPosture.retentionRefs),
+      ...normalizeStringArray(options.retentionRefs),
+    ]),
+    releaseWitnessRefs: uniqueStrings([
+      ...normalizeStringArray(serviceManagerPosture.releaseWitnessRefs),
+      ...normalizeStringArray(options.releaseWitnessRefs),
     ]),
     blockedReasons,
     safeFacts: isObject(options.safeFacts) ? deepFreeze({ ...options.safeFacts }) : undefined,
@@ -1622,7 +1635,7 @@ export function surfaceAppServiceManagerActionability(surfaceAppOrContract, opti
   const managerId = String(options.managerId || serviceManagerPosture.managerId || serviceManagerPosture.serviceManagerRef || `manager:${contract.appId || contract.contractId || "surface-app"}`);
   const managerRef = String(options.managerRef || serviceManagerPosture.managerRef || serviceManagerPosture.managerId || serviceManagerPosture.serviceManagerRef || managerId);
   const subjectRef = surfaceSubjectRef(contract, options.subjectRef);
-  const defaultOperations = ["healthCheck", "install", "update", "start", "stop", "restart", "rollback"];
+  const defaultOperations = ["healthCheck", "secretReady", "install", "update", "start", "stop", "restart", "release", "rollback"];
   const managerObserved = Object.keys(serviceManagerPosture).length > 0;
   const operationNames = uniqueStrings([
     ...normalizeStringArray(options.operationNames),
@@ -3106,9 +3119,12 @@ function serviceManagerOperationToRunnerOperation(operation) {
   switch (String(operation || "")) {
     case "healthCheck":
       return "healthCheck";
+    case "secretReady":
+      return "prepare";
     case "rollback":
       return "rollback";
     case "stop":
+    case "release":
       return "release";
     case "install":
     case "update":

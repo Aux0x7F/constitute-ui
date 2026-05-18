@@ -326,6 +326,9 @@ export type SurfaceServiceManagerOperationPosture = {
   resourcePosture?: Readonly<Record<string, unknown>>;
   evidenceRefs: string[];
   proofRefs: string[];
+  witnessRefs: string[];
+  retentionRefs: string[];
+  releaseWitnessRefs: string[];
   blockedReasons: string[];
   safeFacts?: Readonly<Record<string, unknown>>;
   requestedAt: number;
