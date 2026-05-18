@@ -286,6 +286,411 @@ export function surfaceServiceManagerProofDigest(surfaceAppOrContract, options =
   });
 }
 
+export function surfaceServiceManagerSecretBoundary(surfaceAppOrContract, options = {}) {
+  const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
+    ? surfaceAppOrContract
+    : defineSurfaceAppContract(surfaceAppOrContract);
+  const contract = surfaceApp.contract;
+  const secretBoundary = isObject(options.secretBoundary)
+    ? options.secretBoundary
+    : (isObject(contract.secretBoundary) ? contract.secretBoundary : {});
+  const serviceManagerPosture = isObject(options.serviceManagerPosture)
+    ? options.serviceManagerPosture
+    : (isObject(contract.serviceManagerPosture) ? contract.serviceManagerPosture : {});
+  const secretRefs = uniqueStrings([
+    ...normalizeStringArray(secretBoundary.secretRefs),
+    ...normalizeStringArray(options.secretRefs),
+  ]);
+  const accessGroupRefs = uniqueStrings([
+    ...normalizeStringArray(secretBoundary.accessGroupRefs),
+    ...normalizeStringArray(options.accessGroupRefs),
+  ]);
+  const blockedReasons = uniqueStrings([
+    ...postureBlockedReasons(secretBoundary, "secretBoundary"),
+    ...normalizeStringArray(secretBoundary.blockedReasons),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  const explicitState = String(options.state || secretBoundary.state || "").trim();
+  const required = Boolean(options.required ?? secretBoundary.required ?? false);
+  if (explicitState === "resolved" && !secretRefs.length && !accessGroupRefs.length) {
+    blockedReasons.push("missingSecretOrAccessGroupRef");
+  } else if (required && !secretRefs.length && !accessGroupRefs.length) {
+    blockedReasons.push("missingSecretOrAccessGroupRef");
+  }
+  const state = blockedReasons.length
+    ? "blocked"
+    : (explicitState || (secretRefs.length || accessGroupRefs.length ? "resolved" : "notRequired"));
+  return deepFreeze({
+    kind: "service.manager.secretBoundary",
+    boundaryId: String(options.boundaryId || secretBoundary.boundaryId || `secret-boundary:${contract.contractId || contract.appId || "surface-app"}`),
+    managerId: String(options.managerId || serviceManagerPosture.managerId || `manager:${contract.appId || contract.contractId || "surface-app"}`),
+    subjectRef: surfaceSubjectRef(contract, options.subjectRef),
+    state,
+    secretRefs,
+    accessGroupRefs,
+    authorityRefs: uniqueStrings([
+      ...normalizeStringArray(secretBoundary.authorityRefs),
+      ...normalizeStringArray(options.authorityRefs),
+    ]),
+    evidenceRefs: uniqueStrings([
+      ...normalizeStringArray(secretBoundary.evidenceRefs),
+      ...normalizeStringArray(options.evidenceRefs),
+    ]),
+    blockedReasons,
+    safeFacts: isObject(options.safeFacts) ? deepFreeze({ ...options.safeFacts }) : undefined,
+    issuedAt: Number(options.issuedAt || secretBoundary.issuedAt || Date.now()),
+    expiresAt: options.expiresAt || secretBoundary.expiresAt || contract.expiresAt,
+  });
+}
+
+export function surfaceServiceManagerReleaseContract(surfaceAppOrContract, options = {}) {
+  const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
+    ? surfaceAppOrContract
+    : defineSurfaceAppContract(surfaceAppOrContract);
+  const contract = surfaceApp.contract;
+  const releasePosture = isObject(options.releasePosture)
+    ? options.releasePosture
+    : (isObject(contract.releasePosture) ? contract.releasePosture : {});
+  const rollbackPosture = isObject(options.rollbackPosture)
+    ? options.rollbackPosture
+    : (isObject(contract.rollbackPosture) ? contract.rollbackPosture : {});
+  const serviceManagerPosture = isObject(options.serviceManagerPosture)
+    ? options.serviceManagerPosture
+    : (isObject(contract.serviceManagerPosture) ? contract.serviceManagerPosture : {});
+  const secretBoundary = isObject(options.secretBoundaryRecord)
+    ? options.secretBoundaryRecord
+    : surfaceServiceManagerSecretBoundary(surfaceApp, {
+      secretBoundary: isObject(options.secretBoundary) ? options.secretBoundary : contract.secretBoundary,
+      serviceManagerPosture,
+      required: Boolean(options.secretBoundaryRequired ?? false),
+      issuedAt: options.issuedAt,
+    });
+  const sourceMode = String(options.sourceMode || dominantFulfillmentMode(surfaceApp.modules) || "bundled");
+  const rollbackRequired = Boolean(options.rollbackRequired ?? releasePosture.rollbackRequired ?? sourceMode !== "bundled");
+  const buildRef = String(options.buildRef || releasePosture.buildRef || "").trim();
+  const releaseRef = String(options.releaseRef || releasePosture.releaseRef || "").trim();
+  const rollbackRef = String(options.rollbackRef || rollbackPosture.rollbackRef || releasePosture.rollbackRef || "").trim();
+  const blockedReasons = uniqueStrings([
+    ...surfaceApp.missingRoles.map((role) => `missingModuleRole:${role}`),
+    ...postureBlockedReasons(releasePosture, "release"),
+    ...postureBlockedReasons(rollbackPosture, "rollback"),
+    ...postureBlockedReasons(secretBoundary, "secretBoundary"),
+    ...normalizeStringArray(releasePosture.blockedReasons),
+    ...normalizeStringArray(rollbackPosture.blockedReasons),
+    ...(!buildRef ? ["missingBuildRef"] : []),
+    ...(!releaseRef ? ["missingReleaseRef"] : []),
+    ...(rollbackRequired && !rollbackRef ? ["missingRollbackRef"] : []),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  const explicitState = String(options.state || "").trim();
+  const state = blockedReasons.length
+    ? "blocked"
+    : (explicitState || "ready");
+  return deepFreeze({
+    kind: "service.manager.release.contract",
+    contractId: String(options.contractId || releasePosture.contractId || `release-contract:${contract.contractId || contract.appId || "surface-app"}`),
+    managerId: String(options.managerId || serviceManagerPosture.managerId || `manager:${contract.appId || contract.contractId || "surface-app"}`),
+    subjectRef: surfaceSubjectRef(contract, options.subjectRef),
+    managerRef: String(options.managerRef || serviceManagerPosture.managerRef || serviceManagerPosture.managerId || serviceManagerPosture.serviceManagerRef || `manager:${contract.appId || contract.contractId || "surface-app"}`),
+    state,
+    appContractRef: surfaceAppContractRef(contract, options.appContractRef),
+    version: String(options.version || contract.version || ""),
+    buildRef,
+    releaseRef,
+    rollbackRef,
+    rollbackRequired,
+    compatibilityRefs: uniqueStrings([
+      ...normalizeStringArray(releasePosture.compatibilityRefs),
+      ...normalizeStringArray(options.compatibilityRefs),
+    ]),
+    authorityRefs: uniqueStrings([
+      ...normalizeStringArray(secretBoundary.authorityRefs),
+      ...normalizeStringArray(releasePosture.authorityRefs),
+      ...normalizeStringArray(options.authorityRefs),
+    ]),
+    secretBoundaryRefs: uniqueStrings([
+      secretBoundary.boundaryId,
+      ...normalizeStringArray(releasePosture.secretBoundaryRefs),
+      ...normalizeStringArray(options.secretBoundaryRefs),
+    ]),
+    proofDigestRefs: uniqueStrings([
+      ...normalizeStringArray(releasePosture.proofDigestRefs),
+      ...normalizeStringArray(options.proofDigestRefs),
+    ]),
+    labProofRefs: uniqueStrings([
+      ...normalizeStringArray(releasePosture.labProofRefs),
+      ...normalizeStringArray(options.labProofRefs),
+    ]),
+    evidenceRefs: uniqueStrings([
+      ...normalizeStringArray(releasePosture.evidenceRefs),
+      ...normalizeStringArray(rollbackPosture.evidenceRefs),
+      ...normalizeStringArray(options.evidenceRefs),
+    ]),
+    blockedReasons,
+    secretBoundary,
+    releasePosture: Object.keys(releasePosture).length ? deepFreeze({ ...releasePosture }) : undefined,
+    rollbackPosture: Object.keys(rollbackPosture).length ? deepFreeze({ ...rollbackPosture }) : undefined,
+    safeFacts: isObject(options.safeFacts) ? deepFreeze({ ...options.safeFacts }) : undefined,
+    issuedAt: Number(options.issuedAt || releasePosture.issuedAt || Date.now()),
+    expiresAt: options.expiresAt || releasePosture.expiresAt || contract.expiresAt,
+  });
+}
+
+export function surfaceServiceManagerLabProof(surfaceAppOrContract, options = {}) {
+  const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
+    ? surfaceAppOrContract
+    : defineSurfaceAppContract(surfaceAppOrContract);
+  const contract = surfaceApp.contract;
+  const serviceManagerPosture = isObject(options.serviceManagerPosture)
+    ? options.serviceManagerPosture
+    : (isObject(contract.serviceManagerPosture) ? contract.serviceManagerPosture : {});
+  const artifactRefs = uniqueStrings(normalizeStringArray(options.artifactRefs));
+  const metricsRefs = uniqueStrings(normalizeStringArray(options.metricsRefs));
+  const proofRefs = uniqueStrings(normalizeStringArray(options.proofRefs));
+  const blockedReasons = uniqueStrings([
+    ...postureBlockedReasons(serviceManagerPosture, "serviceManager"),
+    ...(String(options.state || "") === "proved" && !artifactRefs.length && !metricsRefs.length && !proofRefs.length ? ["missingProofRefs"] : []),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  const state = blockedReasons.length ? "blocked" : String(options.state || "pending");
+  return deepFreeze({
+    kind: "service.manager.labProof",
+    proofId: String(options.proofId || `lab-proof:${contract.contractId || contract.appId || "surface-app"}:${String(options.profile || "surfaceLandscape")}`),
+    managerId: String(options.managerId || serviceManagerPosture.managerId || `manager:${contract.appId || contract.contractId || "surface-app"}`),
+    subjectRef: surfaceSubjectRef(contract, options.subjectRef),
+    profile: String(options.profile || "surfaceLandscape"),
+    state,
+    trainRef: String(options.trainRef || ""),
+    releaseContractRef: String(options.releaseContractRef || ""),
+    appContractRef: surfaceAppContractRef(contract, options.appContractRef),
+    surfaceRefs: uniqueStrings([
+      contract.surfaceRef,
+      ...normalizeStringArray(options.surfaceRefs),
+    ]),
+    serviceRefs: uniqueStrings([
+      contract.serviceRef,
+      ...normalizeStringArray(options.serviceRefs),
+    ]),
+    environmentRefs: uniqueStrings(normalizeStringArray(options.environmentRefs)),
+    artifactRefs,
+    metricsRefs,
+    proofRefs,
+    evidenceRefs: uniqueStrings([
+      ...normalizeStringArray(serviceManagerPosture.evidenceRefs),
+      ...normalizeStringArray(options.evidenceRefs),
+    ]),
+    blockedReasons,
+    safeFacts: isObject(options.safeFacts) ? deepFreeze({ ...options.safeFacts }) : undefined,
+    startedAt: Number(options.startedAt || Date.now()),
+    acceptedAt: options.acceptedAt,
+    completedAt: options.completedAt,
+    observedAt: options.observedAt,
+    expiresAt: options.expiresAt || contract.expiresAt,
+  });
+}
+
+export function surfaceServiceManagerTrainDigest(surfaceAppOrContract, options = {}) {
+  const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
+    ? surfaceAppOrContract
+    : defineSurfaceAppContract(surfaceAppOrContract);
+  const contract = surfaceApp.contract;
+  const serviceManagerPosture = isObject(options.serviceManagerPosture)
+    ? options.serviceManagerPosture
+    : (isObject(contract.serviceManagerPosture) ? contract.serviceManagerPosture : {});
+  const releaseContractRefs = uniqueStrings(normalizeStringArray(options.releaseContractRefs));
+  const labProofRefs = uniqueStrings(normalizeStringArray(options.labProofRefs));
+  const proofDigestRefs = uniqueStrings(normalizeStringArray(options.proofDigestRefs));
+  const blockedReasons = uniqueStrings([
+    ...postureBlockedReasons(serviceManagerPosture, "serviceManager"),
+    ...(String(options.state || "") === "proved" && !releaseContractRefs.length ? ["missingReleaseContractRefs"] : []),
+    ...(String(options.state || "") === "proved" && !labProofRefs.length && !proofDigestRefs.length ? ["missingProofRefs"] : []),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  const state = blockedReasons.length ? "blocked" : String(options.state || "pending");
+  return deepFreeze({
+    kind: "service.manager.train.digest",
+    trainId: String(options.trainId || `train:${contract.contractId || contract.appId || "surface-app"}`),
+    managerId: String(options.managerId || serviceManagerPosture.managerId || `manager:${contract.appId || contract.contractId || "surface-app"}`),
+    subjectRef: surfaceSubjectRef(contract, options.subjectRef),
+    state,
+    repoRefs: uniqueStrings(normalizeStringArray(options.repoRefs)),
+    commitRefs: uniqueStrings(normalizeStringArray(options.commitRefs)),
+    appContractRefs: uniqueStrings([
+      surfaceAppContractRef(contract, options.appContractRef),
+      ...normalizeStringArray(options.appContractRefs),
+    ]),
+    releaseContractRefs,
+    operationRefs: uniqueStrings(normalizeStringArray(options.operationRefs)),
+    proofDigestRefs,
+    labProofRefs,
+    metricsRefs: uniqueStrings(normalizeStringArray(options.metricsRefs)),
+    evidenceRefs: uniqueStrings([
+      ...normalizeStringArray(serviceManagerPosture.evidenceRefs),
+      ...normalizeStringArray(options.evidenceRefs),
+    ]),
+    blockedReasons,
+    safeFacts: isObject(options.safeFacts) ? deepFreeze({ ...options.safeFacts }) : undefined,
+    observedAt: Number(options.observedAt || Date.now()),
+    expiresAt: options.expiresAt || contract.expiresAt,
+  });
+}
+
+export function surfaceAppBootstrapContract(surfaceAppOrContract, options = {}) {
+  const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
+    ? surfaceAppOrContract
+    : defineSurfaceAppContract(surfaceAppOrContract);
+  const contract = surfaceApp.contract;
+  const sourceMode = String(options.sourceMode || dominantFulfillmentMode(surfaceApp.modules) || "bundled");
+  const moduleRefs = uniqueStrings([
+    ...surfaceApp.modules.map((module) => module.moduleRef),
+    ...normalizeStringArray(options.moduleRefs),
+  ]);
+  const secretBoundary = isObject(options.secretBoundaryRecord)
+    ? options.secretBoundaryRecord
+    : surfaceServiceManagerSecretBoundary(surfaceApp, {
+      secretBoundary: isObject(options.secretBoundary) ? options.secretBoundary : contract.secretBoundary,
+      serviceManagerPosture: options.serviceManagerPosture,
+      required: Boolean(options.secretBoundaryRequired ?? false),
+      issuedAt: options.issuedAt,
+    });
+  const releaseContract = isObject(options.releaseContract)
+    ? options.releaseContract
+    : null;
+  const releaseContractRef = String(options.releaseContractRef || releaseContract?.contractId || "").trim();
+  const serviceManagerPosture = isObject(options.serviceManagerPosture)
+    ? options.serviceManagerPosture
+    : (isObject(contract.serviceManagerPosture) ? contract.serviceManagerPosture : {});
+  const blockedReasons = uniqueStrings([
+    ...surfaceApp.missingRoles.map((role) => `missingModuleRole:${role}`),
+    ...postureBlockedReasons(secretBoundary, "secretBoundary"),
+    ...(!moduleRefs.length ? ["missingModuleRefs"] : []),
+    ...(nonBundledSourceMode(sourceMode) && !releaseContractRef ? ["missingReleaseContractRef"] : []),
+    ...prefixedBlockedReasons(releaseContract, "release"),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  const explicitState = String(options.state || "").trim();
+  const state = blockedReasons.length
+    ? "blocked"
+    : (explicitState || "ready");
+  return deepFreeze({
+    kind: "surface.app.bootstrap.contract",
+    bootstrapContractId: String(options.bootstrapContractId || `bootstrap-contract:${contract.contractId || contract.appId || "surface-app"}`),
+    appContractRef: surfaceAppContractRef(contract, options.appContractRef),
+    appId: String(contract.appId || ""),
+    state,
+    sourceMode,
+    moduleRefs,
+    serviceManagerRef: String(options.serviceManagerRef || serviceManagerPosture.managerId || serviceManagerPosture.serviceManagerRef || ""),
+    releaseContractRef,
+    secretBoundaryRef: String(options.secretBoundaryRef || secretBoundary.boundaryId || ""),
+    trainDigestRef: String(options.trainDigestRef || ""),
+    labProofProfileRefs: uniqueStrings(normalizeStringArray(options.labProofProfileRefs)),
+    authorityRefs: uniqueStrings([
+      ...normalizeStringArray(secretBoundary.authorityRefs),
+      ...normalizeStringArray(options.authorityRefs),
+    ]),
+    evidenceRefs: uniqueStrings([
+      ...normalizeStringArray(serviceManagerPosture.evidenceRefs),
+      ...normalizeStringArray(options.evidenceRefs),
+    ]),
+    blockedReasons,
+    secretBoundary,
+    releaseContract: releaseContract || undefined,
+    safeFacts: isObject(options.safeFacts) ? deepFreeze({ ...options.safeFacts }) : undefined,
+    issuedAt: Number(options.issuedAt || Date.now()),
+    expiresAt: options.expiresAt || contract.expiresAt,
+  });
+}
+
+export function surfaceAppRunnerPlan(surfaceAppOrContract, options = {}) {
+  const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
+    ? surfaceAppOrContract
+    : defineSurfaceAppContract(surfaceAppOrContract);
+  const contract = surfaceApp.contract;
+  const sourceMode = String(options.sourceMode || dominantFulfillmentMode(surfaceApp.modules) || "bundled");
+  const secretBoundary = surfaceServiceManagerSecretBoundary(surfaceApp, {
+    secretBoundary: isObject(options.secretBoundary) ? options.secretBoundary : contract.secretBoundary,
+    serviceManagerPosture: options.serviceManagerPosture,
+    required: Boolean(options.secretBoundaryRequired ?? false),
+    issuedAt: options.issuedAt,
+  });
+  const needsRelease = Boolean(options.includeReleaseContract || nonBundledSourceMode(sourceMode));
+  const releaseContract = needsRelease
+    ? surfaceServiceManagerReleaseContract(surfaceApp, {
+      ...options.releaseContractOptions,
+      sourceMode,
+      secretBoundaryRecord: secretBoundary,
+      serviceManagerPosture: options.serviceManagerPosture,
+      issuedAt: options.issuedAt,
+    })
+    : null;
+  const labProof = isObject(options.labProofOptions)
+    ? surfaceServiceManagerLabProof(surfaceApp, {
+      ...options.labProofOptions,
+      releaseContractRef: releaseContract?.contractId || options.labProofOptions.releaseContractRef,
+    })
+    : null;
+  const proofDigest = isObject(options.proofDigestOptions)
+    ? surfaceServiceManagerProofDigest(surfaceApp, options.proofDigestOptions)
+    : null;
+  const trainDigest = isObject(options.trainDigestOptions)
+    ? surfaceServiceManagerTrainDigest(surfaceApp, {
+      ...options.trainDigestOptions,
+      releaseContractRefs: uniqueStrings([
+        releaseContract?.contractId,
+        ...normalizeStringArray(options.trainDigestOptions.releaseContractRefs),
+      ]),
+      labProofRefs: uniqueStrings([
+        labProof?.proofId,
+        ...normalizeStringArray(options.trainDigestOptions.labProofRefs),
+      ]),
+      proofDigestRefs: uniqueStrings([
+        proofDigest?.digestId,
+        ...normalizeStringArray(options.trainDigestOptions.proofDigestRefs),
+      ]),
+    })
+    : null;
+  const bootstrapContract = surfaceAppBootstrapContract(surfaceApp, {
+    ...options.bootstrapContractOptions,
+    sourceMode,
+    secretBoundaryRecord: secretBoundary,
+    releaseContract,
+    trainDigestRef: trainDigest?.trainId || options.bootstrapContractOptions?.trainDigestRef,
+    serviceManagerPosture: options.serviceManagerPosture,
+    issuedAt: options.issuedAt,
+  });
+  const modulePostures = deepFreeze(surfaceApp.requiredRoles.map((role) => surfaceModuleRolePosture(surfaceApp, role)));
+  const blockedReasons = uniqueStrings([
+    ...surfaceApp.missingRoles.map((role) => `missingModuleRole:${role}`),
+    ...prefixedBlockedReasons(secretBoundary, "secretBoundary"),
+    ...prefixedBlockedReasons(releaseContract, "release"),
+    ...prefixedBlockedReasons(bootstrapContract, "bootstrap"),
+    ...prefixedBlockedReasons(labProof, "labProof"),
+    ...prefixedBlockedReasons(proofDigest, "proofDigest"),
+    ...prefixedBlockedReasons(trainDigest, "trainDigest"),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  return deepFreeze({
+    kind: "surface.app.runner.plan",
+    planId: String(options.planId || `surface-runner:${contract.contractId || contract.appId || "surface-app"}`),
+    contractId: String(contract.contractId || ""),
+    appId: String(contract.appId || ""),
+    state: blockedReasons.length ? "blocked" : "ready",
+    sourceMode,
+    attachContext: surfaceAppAttachContext(surfaceApp, options.attachContext || {}),
+    modulePostures,
+    secretBoundary,
+    releaseContract,
+    bootstrapContract,
+    labProof,
+    proofDigest,
+    trainDigest,
+    blockedReasons,
+    issuedAt: Number(options.issuedAt || Date.now()),
+    expiresAt: options.expiresAt || contract.expiresAt,
+  });
+}
+
 export function surfaceModuleRolePosture(surfaceAppOrContract, role, options = {}) {
   const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
     ? surfaceAppOrContract
@@ -621,6 +1026,24 @@ export function materializationEventReplayPosture(budget, {
       adaptive: usage.overBudget || cardinalityPressure,
     },
   });
+}
+
+function surfaceSubjectRef(contract, override) {
+  return String(override || contract.serviceRef || contract.appRef || `surface-app:${contract.appId || contract.contractId || "unknown"}`);
+}
+
+function surfaceAppContractRef(contract, override) {
+  return String(override || contract.appRef || contract.contractId || `surface-app:${contract.appId || "unknown"}`);
+}
+
+function nonBundledSourceMode(sourceMode) {
+  return ["swarmPackage", "storageObject", "nativeInstalled"].includes(String(sourceMode || ""));
+}
+
+function prefixedBlockedReasons(posture, prefix) {
+  if (!isObject(posture) || String(posture.state || "") !== "blocked") return [];
+  const reasons = normalizeStringArray(posture.blockedReasons);
+  return reasons.length ? reasons.map((reason) => `${prefix}:${reason}`) : [`${prefix}:blocked`];
 }
 
 function normalizeModules(value) {

@@ -469,12 +469,18 @@ export {
   materializationEventReplayPosture,
   requireSurfaceMaterializationBudget,
   requireSurfaceModuleRole,
+  surfaceAppBootstrapContract,
   surfaceAppAttachContext,
   surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
+  surfaceAppRunnerPlan,
   surfaceMaterializationBudgetPosture,
+  surfaceServiceManagerLabProof,
   surfaceServiceManagerOperationPosture,
   surfaceServiceManagerProofDigest,
+  surfaceServiceManagerReleaseContract,
+  surfaceServiceManagerSecretBoundary,
+  surfaceServiceManagerTrainDigest,
   surfaceModuleRolePosture,
 } from "./surface-app-contract.js";
 

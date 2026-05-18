@@ -9,12 +9,18 @@ import {
   materializationConsumerFloorRecord,
   requireSurfaceMaterializationBudget,
   requireSurfaceModuleRole,
+  surfaceAppBootstrapContract,
   surfaceAppAttachContext,
   surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
+  surfaceAppRunnerPlan,
   surfaceMaterializationBudgetPosture,
+  surfaceServiceManagerLabProof,
   surfaceServiceManagerOperationPosture,
   surfaceServiceManagerProofDigest,
+  surfaceServiceManagerReleaseContract,
+  surfaceServiceManagerSecretBoundary,
+  surfaceServiceManagerTrainDigest,
   surfaceModuleRolePosture,
 } from "../src/surface-app-contract.js";
 
@@ -216,6 +222,137 @@ test("surface app helper reduces service manager operation and proof digest post
   });
   assert.equal(blockedDigest.state, "blocked");
   assert.deepEqual(blockedDigest.blockedReasons, ["missingProofRefs"]);
+});
+
+test("surface app runner composes protected service manager bootstrap contracts", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract({
+    serviceRef: "service:logging",
+    appRef: "surface-app:logging-ui",
+    surfaceRef: "surface:logging-ui",
+    serviceManagerPosture: {
+      managerId: "manager:logging-local",
+      managerRef: "member:logging-manager",
+      state: "ready",
+      evidenceRefs: ["host:manual"],
+    },
+    secretBoundary: {
+      state: "resolved",
+      accessGroupRefs: ["access-group:logging-ui"],
+      authorityRefs: ["grant:logging-ui"],
+      evidenceRefs: ["secret-boundary:operator"],
+    },
+  }));
+
+  const secretBoundary = surfaceServiceManagerSecretBoundary(surfaceApp, { issuedAt: 1234 });
+  assert.equal(secretBoundary.kind, "service.manager.secretBoundary");
+  assert.equal(secretBoundary.state, "resolved");
+  assert.deepEqual(secretBoundary.accessGroupRefs, ["access-group:logging-ui"]);
+  assert.equal(secretBoundary.safeFacts, undefined);
+
+  const releaseContract = surfaceServiceManagerReleaseContract(surfaceApp, {
+    buildRef: "build:logging-ui:abc",
+    releaseRef: "release:logging-ui:abc",
+    rollbackRequired: false,
+    secretBoundaryRecord: secretBoundary,
+    issuedAt: 1234,
+  });
+  assert.equal(releaseContract.kind, "service.manager.release.contract");
+  assert.equal(releaseContract.state, "ready");
+  assert.equal(releaseContract.secretBoundaryRefs[0], secretBoundary.boundaryId);
+  assert.deepEqual(releaseContract.blockedReasons, []);
+
+  const labProof = surfaceServiceManagerLabProof(surfaceApp, {
+    state: "proved",
+    profile: "surfaceLandscape",
+    artifactRefs: ["artifact:surface-landscape"],
+    metricsRefs: ["metrics:surface-landscape"],
+    startedAt: 1234,
+  });
+  assert.equal(labProof.kind, "service.manager.labProof");
+  assert.equal(labProof.state, "proved");
+
+  const trainDigest = surfaceServiceManagerTrainDigest(surfaceApp, {
+    state: "proved",
+    releaseContractRefs: [releaseContract.contractId],
+    labProofRefs: [labProof.proofId],
+    observedAt: 1234,
+  });
+  assert.equal(trainDigest.kind, "service.manager.train.digest");
+  assert.equal(trainDigest.state, "proved");
+
+  const bootstrapContract = surfaceAppBootstrapContract(surfaceApp, {
+    releaseContract,
+    secretBoundaryRecord: secretBoundary,
+    trainDigestRef: trainDigest.trainId,
+    issuedAt: 1234,
+  });
+  assert.equal(bootstrapContract.kind, "surface.app.bootstrap.contract");
+  assert.equal(bootstrapContract.state, "ready");
+  assert.equal(bootstrapContract.releaseContractRef, releaseContract.contractId);
+  assert.equal(bootstrapContract.secretBoundaryRef, secretBoundary.boundaryId);
+
+  const plan = surfaceAppRunnerPlan(surfaceApp, {
+    includeReleaseContract: true,
+    releaseContractOptions: {
+      buildRef: "build:logging-ui:abc",
+      releaseRef: "release:logging-ui:abc",
+      rollbackRequired: false,
+    },
+    labProofOptions: {
+      state: "proved",
+      artifactRefs: ["artifact:surface-landscape"],
+      metricsRefs: ["metrics:surface-landscape"],
+      startedAt: 1234,
+    },
+    trainDigestOptions: {
+      state: "proved",
+      observedAt: 1234,
+    },
+    issuedAt: 1234,
+  });
+  assert.equal(plan.kind, "surface.app.runner.plan");
+  assert.equal(plan.state, "ready");
+  assert.equal(plan.bootstrapContract.state, "ready");
+  assert.equal(plan.releaseContract.state, "ready");
+  assert.equal(plan.labProof.state, "proved");
+  assert.equal(plan.trainDigest.state, "proved");
+  assert.deepEqual(plan.blockedReasons, []);
+});
+
+test("surface app runner blocks non-bundled bootstrap without protected release contract", () => {
+  const contract = makeContract({
+    modules: makeContract().modules.map((module) => ({
+      ...module,
+      fulfillmentMode: "swarmPackage",
+    })),
+  });
+
+  const bootstrap = surfaceAppBootstrapContract(contract, {
+    sourceMode: "swarmPackage",
+    issuedAt: 1234,
+  });
+  assert.equal(bootstrap.state, "blocked");
+  assert.deepEqual(bootstrap.blockedReasons, ["missingReleaseContractRef"]);
+
+  const plan = surfaceAppRunnerPlan(contract, {
+    sourceMode: "swarmPackage",
+    issuedAt: 1234,
+  });
+  assert.equal(plan.state, "blocked");
+  assert(plan.blockedReasons.includes("release:missingBuildRef"));
+  assert(plan.blockedReasons.includes("release:missingReleaseRef"));
+  assert(plan.blockedReasons.includes("release:missingRollbackRef"));
+});
+
+test("surface app runner blocks unresolved required secret boundary", () => {
+  const plan = surfaceAppRunnerPlan(makeContract(), {
+    secretBoundaryRequired: true,
+    issuedAt: 1234,
+  });
+  assert.equal(plan.secretBoundary.kind, "service.manager.secretBoundary");
+  assert.equal(plan.secretBoundary.state, "blocked");
+  assert.deepEqual(plan.secretBoundary.blockedReasons, ["missingSecretOrAccessGroupRef"]);
+  assert(plan.blockedReasons.includes("secretBoundary:missingSecretOrAccessGroupRef"));
 });
 
 test("surface app helper gates bundled module roles by contract", () => {
