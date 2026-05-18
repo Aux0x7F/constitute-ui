@@ -9,7 +9,10 @@ import {
   surfaceModuleBinding,
   surfaceModuleRegistryPosture,
 } from "../src/surface-module-registry.js";
-import { defineSurfaceAppContract } from "../src/surface-app-contract.js";
+import {
+  defineSurfaceAppContract,
+  surfaceAppRuntimeSelectionPosture,
+} from "../src/surface-app-contract.js";
 
 function makeSurfaceApp(overrides = {}) {
   return defineSurfaceAppContract({
@@ -188,3 +191,129 @@ test("surface app module implementation summary preserves role-level blocked rea
   assert.deepEqual(summary.postures.map((posture) => posture.role), ["runtimeClient", "platformAdapter", "productView"]);
   assert.equal(summary.postures[1].blockedReason, "missingModuleImplementation");
 });
+
+test("surface module registry resolves runtime selection posture roles", () => {
+  const registry = createSurfaceModuleRegistry([
+    {
+      moduleRef: "constitute-ui/runtime-surface-client@0.1.0",
+      role: "runtimeClient",
+      version: "0.1.0",
+      implementation: { attach: true },
+    },
+    {
+      moduleRef: "constitute-ui/media-webrtc-adapter@0.1.0",
+      role: "platformAdapter",
+      version: "0.1.0",
+      primitiveRefs: ["media.transport.path"],
+      implementation: { bind: true },
+    },
+    {
+      moduleRef: "constitute-nvr-ui/product-view@0.1.0",
+      role: "productView",
+      version: "0.1.0",
+      implementation: { render: true },
+    },
+  ]);
+  const surfaceApp = makeSurfaceApp();
+  const posture = surfaceAppRuntimeSelectionPosture(makeManifest({
+    requiredModuleRoles: ["runtimeClient", "platformAdapter", "productView"],
+  }), [surfaceApp], {
+    runtimeVersion: "0.1.0",
+    issuedAt: 1234,
+  });
+
+  const bindings = surfaceAppModuleBindings(registry, posture);
+
+  assert.equal(bindings.state, "ready");
+  assert.deepEqual(bindings.roles, ["runtimeClient", "platformAdapter", "productView"]);
+  assert.equal(bindings.byKey.platformAdapter.runtimeSelectionPosture, posture);
+  assert.equal(bindings.byKey.platformAdapter.sourceMode, "bundled");
+  assert.equal(bindings.byKey.platformAdapter.implementation.bind, true);
+});
+
+test("surface module registry blocks untrusted and unsupported remote module sources", () => {
+  const registry = createSurfaceModuleRegistry([
+    {
+      moduleRef: "constitute-ui/media-webrtc-adapter@0.1.0",
+      role: "platformAdapter",
+      version: "0.1.0",
+      implementation: { bind: true },
+    },
+  ]);
+  const surfaceApp = makeSurfaceApp();
+  const untrusted = surfaceAppRuntimeSelectionPosture(makeManifest({
+    sourceMode: "swarmPackage",
+    remoteSourceRefs: [],
+    releaseContractRef: "release:nvr-ui:0.1.0",
+    requiredModuleRoles: ["platformAdapter"],
+  }), [surfaceApp], {
+    runtimeVersion: "0.1.0",
+    issuedAt: 1234,
+  });
+  const blockedTrust = surfaceModuleRegistryPosture(registry, untrusted, "platformAdapter");
+  assert.equal(blockedTrust.state, "blocked");
+  assert.equal(blockedTrust.blockedReason, "manifest:missingRemoteSourceRef");
+
+  const trustedRemote = surfaceAppRuntimeSelectionPosture(makeManifest({
+    sourceMode: "swarmPackage",
+    remoteSourceRefs: ["storage-object:nvr-ui@0.1.0"],
+    releaseContractRef: "release:nvr-ui:0.1.0",
+    requiredModuleRoles: ["platformAdapter"],
+  }), [surfaceApp], {
+    runtimeVersion: "0.1.0",
+    runnerPlanOptions: {
+      releaseContractOptions: {
+        buildRef: "build:nvr-ui:0.1.0",
+        releaseRef: "release:nvr-ui:0.1.0",
+        rollbackRef: "rollback:nvr-ui:0.0.9",
+      },
+    },
+    issuedAt: 1234,
+  });
+  const unsupported = surfaceModuleRegistryPosture(registry, trustedRemote, "platformAdapter");
+  assert.equal(trustedRemote.state, "ready");
+  assert.equal(unsupported.state, "blocked");
+  assert.equal(unsupported.blockedReason, "unsupportedRemoteModuleSource");
+  assert.equal(unsupported.sourceMode, "swarmPackage");
+
+  const allowed = surfaceModuleRegistryPosture(registry, trustedRemote, "platformAdapter", {
+    allowRemote: true,
+  });
+  assert.equal(allowed.state, "ready");
+  assert.equal(allowed.implementation.implementation.bind, true);
+});
+
+function makeManifest(overrides = {}) {
+  const sourceMode = overrides.sourceMode || "bundled";
+  return {
+    kind: "surface.app.manifest",
+    manifestId: "manifest:nvr-ui",
+    appId: "constitute-nvr-ui",
+    currentAppContractRef: "surface-app:nvr-ui",
+    currentVersion: "0.1.0",
+    defaultSourceMode: sourceMode,
+    versions: [
+      {
+        appContractRef: "surface-app:nvr-ui",
+        version: "0.1.0",
+        state: "current",
+        sourceMode,
+        requiredModuleRoles: overrides.requiredModuleRoles || ["runtimeClient", "platformAdapter", "productView"],
+        compatibilityWindow: {
+          minVersion: "0.1.0",
+          maxVersion: "0.1.x",
+          protocolRef: "protocol:surface-app:v1",
+        },
+        bundledSourceRefs: ["bundle:nvr-ui@0.1.0"],
+        remoteSourceRefs: overrides.remoteSourceRefs || [],
+        releaseContractRef: overrides.releaseContractRef || "",
+        runnerRequirementRefs: ["runner:req:nvr-ui"],
+        serviceManagerRequirementRefs: ["service-manager:req:nvr-ui"],
+      },
+    ],
+    requiredModuleRoles: overrides.requiredModuleRoles || ["runtimeClient", "platformAdapter", "productView"],
+    bundledSourceRefs: ["bundle:nvr-ui@0.1.0"],
+    issuedAt: 1234,
+    ...overrides,
+  };
+}

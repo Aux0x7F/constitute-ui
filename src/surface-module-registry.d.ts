@@ -1,8 +1,20 @@
 import type {
   DefinedSurfaceApp,
   SurfaceAppContractShape,
+  SurfaceAppRuntimeSelectionPosture,
   SurfaceAppModuleClaim,
 } from "./surface-app-contract.js";
+
+export type SurfaceModuleResolutionSource =
+  | DefinedSurfaceApp
+  | SurfaceAppContractShape
+  | SurfaceAppRuntimeSelectionPosture;
+
+export type SurfaceModuleResolutionOptions = {
+  moduleRef?: string;
+  primitiveRef?: string;
+  allowRemote?: boolean;
+};
 
 export type SurfaceModuleImplementation<TImplementation = unknown> = {
   moduleRef: string;
@@ -22,14 +34,14 @@ export type SurfaceModuleRegistry<TImplementation = unknown> = {
   get(moduleRef: string): SurfaceModuleImplementation<TImplementation> | null;
   role(role: string): readonly SurfaceModuleImplementation<TImplementation>[];
   resolve(
-    surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+    surfaceAppOrContract: SurfaceModuleResolutionSource,
     role: string,
-    options?: { moduleRef?: string; primitiveRef?: string },
+    options?: SurfaceModuleResolutionOptions,
   ): SurfaceModuleRegistryPosture<TImplementation>;
   require(
-    surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+    surfaceAppOrContract: SurfaceModuleResolutionSource,
     role: string,
-    options?: { moduleRef?: string; primitiveRef?: string },
+    options?: SurfaceModuleResolutionOptions,
   ): SurfaceModuleImplementation<TImplementation>;
 };
 
@@ -42,6 +54,9 @@ export type SurfaceModuleRegistryPosture<TImplementation = unknown> = {
   implementationRef: string;
   fallbackRefs: readonly string[];
   fallbackTried: readonly string[];
+  sourceMode: string;
+  sourcePosture: Readonly<Record<string, unknown>> | null;
+  runtimeSelectionPosture: SurfaceAppRuntimeSelectionPosture | null;
   claim: SurfaceAppModuleClaim | null;
   implementation: SurfaceModuleImplementation<TImplementation> | null;
 };
@@ -62,6 +77,9 @@ export type SurfaceModuleBinding<TImplementation = unknown> = {
   outputs: readonly string[];
   fallbackRefs: readonly string[];
   fallbackTried: readonly string[];
+  sourceMode: string;
+  sourcePosture: Readonly<Record<string, unknown>> | null;
+  runtimeSelectionPosture: SurfaceAppRuntimeSelectionPosture | null;
   claim: SurfaceAppModuleClaim | null;
   implementationRecord: SurfaceModuleImplementation<TImplementation> | null;
   implementation: TImplementation | null;
@@ -96,40 +114,40 @@ export function createSurfaceModuleRegistry<TImplementation = unknown>(
 
 export function surfaceModuleRegistryPosture<TImplementation = unknown>(
   registry: SurfaceModuleRegistry<TImplementation>,
-  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  surfaceAppOrContract: SurfaceModuleResolutionSource,
   role: string,
-  options?: { moduleRef?: string; primitiveRef?: string },
+  options?: SurfaceModuleResolutionOptions,
 ): SurfaceModuleRegistryPosture<TImplementation>;
 
 export function requireSurfaceModuleImplementation<TImplementation = unknown>(
   registry: SurfaceModuleRegistry<TImplementation>,
-  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  surfaceAppOrContract: SurfaceModuleResolutionSource,
   role: string,
-  options?: { moduleRef?: string; primitiveRef?: string },
+  options?: SurfaceModuleResolutionOptions,
 ): SurfaceModuleImplementation<TImplementation>;
 
 export function surfaceModuleBinding<TImplementation = unknown>(
   registry: SurfaceModuleRegistry<TImplementation>,
-  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  surfaceAppOrContract: SurfaceModuleResolutionSource,
   role: string,
-  options?: { moduleRef?: string; primitiveRef?: string },
+  options?: SurfaceModuleResolutionOptions,
 ): SurfaceModuleBinding<TImplementation>;
 
 export function requireSurfaceModuleBinding<TImplementation = unknown>(
   registry: SurfaceModuleRegistry<TImplementation>,
-  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  surfaceAppOrContract: SurfaceModuleResolutionSource,
   role: string,
-  options?: { moduleRef?: string; primitiveRef?: string },
+  options?: SurfaceModuleResolutionOptions,
 ): SurfaceModuleBinding<TImplementation>;
 
 export function surfaceAppModuleBindings<TImplementation = unknown>(
   registry: SurfaceModuleRegistry<TImplementation>,
-  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
-  roleMapOrRoles?: readonly string[] | Record<string, string | { role: string; options?: { moduleRef?: string; primitiveRef?: string } }>,
+  surfaceAppOrContract: SurfaceModuleResolutionSource,
+  roleMapOrRoles?: readonly string[] | Record<string, string | { role: string; options?: SurfaceModuleResolutionOptions }>,
 ): SurfaceAppModuleBindings<TImplementation>;
 
 export function surfaceAppModuleImplementations<TImplementation = unknown>(
   registry: SurfaceModuleRegistry<TImplementation>,
-  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  surfaceAppOrContract: SurfaceModuleResolutionSource,
   roles?: string[],
 ): SurfaceAppModuleImplementationPosture<TImplementation>;

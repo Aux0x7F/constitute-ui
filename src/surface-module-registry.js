@@ -38,9 +38,29 @@ export function createSurfaceModuleRegistry(entries = []) {
 }
 
 export function surfaceModuleRegistryPosture(registry, surfaceAppOrContract, role, options = {}) {
-  const surfaceApp = asSurfaceApp(surfaceAppOrContract);
+  const resolutionSource = surfaceModuleResolutionSource(surfaceAppOrContract);
+  const surfaceApp = resolutionSource.surfaceApp;
   const roleRef = String(role || "");
-  const rolePosture = surfaceModuleRolePosture(surfaceApp, roleRef, {
+  const blockedSourceReason = sourceBlockedReason(resolutionSource, options);
+  if (blockedSourceReason || !surfaceApp) {
+    return Object.freeze({
+      kind: "surface.module.registry.posture",
+      state: "blocked",
+      blockedReason: blockedSourceReason || "missingBundledContract",
+      role: roleRef,
+      moduleRef: String(options.moduleRef || ""),
+      implementationRef: "",
+      fallbackRefs: Object.freeze([]),
+      fallbackTried: Object.freeze([]),
+      sourceMode: resolutionSource.sourceMode,
+      sourcePosture: resolutionSource.sourcePosture,
+      runtimeSelectionPosture: resolutionSource.runtimeSelectionPosture,
+      claim: null,
+      implementation: null,
+    });
+  }
+
+  const rolePosture = resolutionRolePosture(resolutionSource, roleRef, {
     moduleRef: options.moduleRef,
     primitiveRef: options.primitiveRef,
   });
@@ -55,6 +75,9 @@ export function surfaceModuleRegistryPosture(registry, surfaceAppOrContract, rol
       implementationRef: "",
       fallbackRefs: Object.freeze([]),
       fallbackTried: Object.freeze([]),
+      sourceMode: resolutionSource.sourceMode,
+      sourcePosture: resolutionSource.sourcePosture,
+      runtimeSelectionPosture: resolutionSource.runtimeSelectionPosture,
       claim: null,
       implementation: null,
     });
@@ -78,6 +101,9 @@ export function surfaceModuleRegistryPosture(registry, surfaceAppOrContract, rol
       implementationRef: implementation.moduleRef,
       fallbackRefs: Object.freeze([...fallbackRefs]),
       fallbackTried: Object.freeze([...fallbackTried]),
+      sourceMode: resolutionSource.sourceMode,
+      sourcePosture: resolutionSource.sourcePosture,
+      runtimeSelectionPosture: resolutionSource.runtimeSelectionPosture,
       claim,
       implementation,
     });
@@ -92,6 +118,9 @@ export function surfaceModuleRegistryPosture(registry, surfaceAppOrContract, rol
     implementationRef: "",
     fallbackRefs: Object.freeze([...fallbackRefs]),
     fallbackTried: Object.freeze([...fallbackTried]),
+    sourceMode: resolutionSource.sourceMode,
+    sourcePosture: resolutionSource.sourcePosture,
+    runtimeSelectionPosture: resolutionSource.runtimeSelectionPosture,
     claim,
     implementation: null,
   });
@@ -135,6 +164,9 @@ export function surfaceModuleBinding(registry, surfaceAppOrContract, role, optio
     outputs: Object.freeze(normalizeStringArray(claim.outputs)),
     fallbackRefs: posture.fallbackRefs,
     fallbackTried: posture.fallbackTried,
+    sourceMode: posture.sourceMode || "",
+    sourcePosture: posture.sourcePosture || null,
+    runtimeSelectionPosture: posture.runtimeSelectionPosture || null,
     claim: posture.claim,
     implementationRecord: posture.implementation,
     implementation,
@@ -153,10 +185,10 @@ export function requireSurfaceModuleBinding(registry, surfaceAppOrContract, role
 }
 
 export function surfaceAppModuleBindings(registry, surfaceAppOrContract, roleMapOrRoles = []) {
-  const surfaceApp = asSurfaceApp(surfaceAppOrContract);
-  const entries = normalizeRoleEntries(surfaceApp, roleMapOrRoles);
+  const resolutionSource = surfaceModuleResolutionSource(surfaceAppOrContract);
+  const entries = normalizeRoleEntries(resolutionSource, roleMapOrRoles);
   const bindings = entries.map(({ key, role, options }) => {
-    const binding = surfaceModuleBinding(registry, surfaceApp, role, options);
+    const binding = surfaceModuleBinding(registry, surfaceAppOrContract, role, options);
     return Object.freeze({ key, ...binding });
   });
   const blocked = bindings.filter((binding) => binding.state !== "ready");
@@ -186,11 +218,11 @@ export function surfaceAppModuleBindings(registry, surfaceAppOrContract, roleMap
 }
 
 export function surfaceAppModuleImplementations(registry, surfaceAppOrContract, roles = []) {
-  const surfaceApp = asSurfaceApp(surfaceAppOrContract);
+  const resolutionSource = surfaceModuleResolutionSource(surfaceAppOrContract);
   const selectedRoles = Array.isArray(roles) && roles.length
     ? roles.map((role) => String(role || "")).filter(Boolean)
-    : surfaceApp.requiredRoles;
-  const postures = selectedRoles.map((role) => surfaceModuleRegistryPosture(registry, surfaceApp, role));
+    : resolutionSource.requiredRoles;
+  const postures = selectedRoles.map((role) => surfaceModuleRegistryPosture(registry, surfaceAppOrContract, role));
   const blocked = postures.filter((posture) => posture.state !== "ready");
   return Object.freeze({
     kind: "surface.app.module.implementations",
@@ -219,7 +251,7 @@ function normalizeRegistryEntries(entries) {
     .filter((entry) => entry.moduleRef && entry.role));
 }
 
-function normalizeRoleEntries(surfaceApp, roleMapOrRoles) {
+function normalizeRoleEntries(resolutionSource, roleMapOrRoles) {
   if (Array.isArray(roleMapOrRoles) && roleMapOrRoles.length) {
     return roleMapOrRoles
       .map((role) => ({ key: String(role || ""), role: String(role || ""), options: {} }))
@@ -239,12 +271,101 @@ function normalizeRoleEntries(surfaceApp, roleMapOrRoles) {
       })
       .filter((entry) => entry.key && entry.role);
   }
-  return surfaceApp.requiredRoles.map((role) => ({ key: role, role, options: {} }));
+  return resolutionSource.requiredRoles.map((role) => ({ key: role, role, options: {} }));
 }
 
 function asSurfaceApp(surfaceAppOrContract) {
   if (surfaceAppOrContract?.contract && surfaceAppOrContract?.modulesByRole) return surfaceAppOrContract;
   return defineSurfaceAppContract(surfaceAppOrContract);
+}
+
+function surfaceModuleResolutionSource(surfaceAppOrContract) {
+  const runtimeSelectionPosture = isRuntimeSelectionPosture(surfaceAppOrContract)
+    ? surfaceAppOrContract
+    : null;
+  const surfaceApp = runtimeSelectionPosture
+    ? runtimeSelectionPosture.manifestSelection?.surfaceApp || null
+    : asSurfaceApp(surfaceAppOrContract);
+  const sourceMode = String(runtimeSelectionPosture?.sourceMode || dominantFulfillmentMode(surfaceApp?.modules) || "bundled");
+  const sourcePosture = runtimeSelectionPosture?.sourceTrustResult || Object.freeze({
+    kind: "surface.app.runtime.source.trust.result",
+    state: "ready",
+    sourceMode,
+    sourceRefs: Object.freeze([]),
+    releaseContractRef: "",
+    bundled: !nonBundledSourceMode(sourceMode),
+    blockedReasons: Object.freeze([]),
+  });
+  const requiredRoles = uniqueStrings([
+    ...normalizeStringArray(runtimeSelectionPosture?.requiredModuleRoles),
+    ...normalizeStringArray(surfaceApp?.requiredRoles),
+  ]);
+  return Object.freeze({
+    runtimeSelectionPosture,
+    surfaceApp,
+    sourceMode,
+    sourcePosture,
+    requiredRoles: Object.freeze(requiredRoles),
+  });
+}
+
+function resolutionRolePosture(resolutionSource, role, options = {}) {
+  if (!resolutionSource.runtimeSelectionPosture || options.moduleRef || options.primitiveRef) {
+    return surfaceModuleRolePosture(resolutionSource.surfaceApp, role, options);
+  }
+  const posture = (resolutionSource.runtimeSelectionPosture.modulePostures || [])
+    .find((entry) => String(entry?.role || "") === String(role || ""));
+  return posture || surfaceModuleRolePosture(resolutionSource.surfaceApp, role, options);
+}
+
+function sourceBlockedReason(resolutionSource, options = {}) {
+  const selection = resolutionSource.runtimeSelectionPosture;
+  const sourcePosture = resolutionSource.sourcePosture || {};
+  const sourceMode = String(resolutionSource.sourceMode || "");
+  if (selection?.state === "blocked") {
+    return firstReason(selection.blockedReasons, "runtimeSelectionBlocked");
+  }
+  if (sourcePosture.state === "blocked") {
+    return nonBundledSourceMode(sourceMode)
+      ? firstReason(sourcePosture.blockedReasons, "remoteSourceUntrusted")
+      : firstReason(sourcePosture.blockedReasons, "sourceUntrusted");
+  }
+  if (nonBundledSourceMode(sourceMode) && options.allowRemote !== true) {
+    return "unsupportedRemoteModuleSource";
+  }
+  return "";
+}
+
+function isRuntimeSelectionPosture(value) {
+  return Boolean(value && typeof value === "object" && value.kind === "surface.app.runtime.selection.posture");
+}
+
+function firstReason(value, fallback) {
+  const reasons = normalizeStringArray(value);
+  return reasons[0] || fallback;
+}
+
+function nonBundledSourceMode(sourceMode) {
+  return ["swarmPackage", "storageObject", "nativeInstalled"].includes(String(sourceMode || ""));
+}
+
+function dominantFulfillmentMode(modules) {
+  if (!Array.isArray(modules)) return "";
+  const counts = new Map();
+  for (const module of modules) {
+    const mode = String(module?.fulfillmentMode || "").trim();
+    if (!mode) continue;
+    counts.set(mode, (counts.get(mode) || 0) + 1);
+  }
+  let best = "";
+  let bestCount = -1;
+  for (const [mode, count] of counts.entries()) {
+    if (count > bestCount) {
+      best = mode;
+      bestCount = count;
+    }
+  }
+  return best;
 }
 
 function normalizeStringArray(value) {
