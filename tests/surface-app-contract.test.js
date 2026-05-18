@@ -12,6 +12,7 @@ import {
   assertSurfaceAppRuntimeSelectionPosture,
   assertSurfaceAppServiceManagerActionability,
   assertSurfaceAppRunnerPlan,
+  assertAppRunnerFulfillmentLifecycle,
 } from "../../constitute-protocol/src/index.js";
 import {
   SURFACE_ADAPTER_TAXONOMY,
@@ -33,6 +34,7 @@ import {
   surfaceAppInstancePosture,
   surfaceAppManifestSelection,
   surfaceAppRuntimeSelectionPosture,
+  surfaceAppRunnerFulfillmentLifecycle,
   surfaceAppRunnerFulfillmentReadiness,
   surfaceAppRunnerPlan,
   surfaceAppRunnerPlanFromManifest,
@@ -777,14 +779,28 @@ test("surface app instance posture consumes app runner fulfillment proof", () =>
     runnerOperationId: "runner-operation:logging-ui:bootstrap",
     operation: "execute",
     state: "succeeded",
+    requesterRef: "identity:operator",
+    subjectRef: "surface-app:logging-ui@0.1.0",
+    contractRef: "surface-app:logging-ui@0.1.0",
     appContractRef: "surface-app:logging-ui@0.1.0",
     manifestRef: "manifest:logging-ui",
     sourceMode: "bundled",
+    sourceRefs: ["bundle:logging-ui@0.1.0"],
+    grantRefs: ["grant:logging-ui:runner"],
     outputRefs: ["artifact:logging-ui:bootstrap"],
     proofRefs: ["proof:logging-ui:bootstrap"],
     releaseRefs: ["release:logging-ui:bootstrap"],
     evidenceRefs: ["evidence:logging-ui:bootstrap"],
-    resourcePosture: { state: "withinBudget" },
+    resourceBudget: { maxMemoryMiB: 256 },
+    resourcePosture: {
+      kind: "resource.posture",
+      postureId: "resource-posture:logging-ui:bootstrap",
+      profileId: "resource-profile:operator-dev",
+      state: "withinBudget",
+      counts: { memoryMiB: 64, cpuPct: 2 },
+      budgets: { memoryMiB: 256, cpuPct: 25 },
+      sampledAt: 1234,
+    },
     operationPosture: { state: "succeeded" },
     fulfillmentPosture: { state: "succeeded" },
     blockedReasons: [],
@@ -796,6 +812,15 @@ test("surface app instance posture consumes app runner fulfillment proof", () =>
   assert.equal(readiness.state, "ready");
   assert.equal(readiness.reportId, "app-runner:logging-ui:bootstrap");
   assert.deepEqual(readiness.proofRefs, ["proof:logging-ui:bootstrap"]);
+  const lifecycle = surfaceAppRunnerFulfillmentLifecycle(runnerFulfillmentReport, {
+    appContract: contract,
+    witnessRefs: ["witness:logging-ui:operator"],
+  });
+  assert.equal(lifecycle.kind, "app.runner.fulfillment.lifecycle");
+  assert.equal(lifecycle.state, "succeeded");
+  assert.equal(lifecycle.reportId, runnerFulfillmentReport.reportId);
+  assert.deepEqual(lifecycle.witnessRefs, ["witness:logging-ui:operator"]);
+  assertAppRunnerFulfillmentLifecycle(lifecycle);
 
   const instance = surfaceAppInstancePosture(contract, {
     runnerPlan,
@@ -805,6 +830,7 @@ test("surface app instance posture consumes app runner fulfillment proof", () =>
   });
   assert.equal(instance.state, "ready");
   assert.equal(instance.runnerFulfillmentRef, "app-runner:logging-ui:bootstrap");
+  assert.equal(instance.runnerFulfillmentLifecycle.reportId, "app-runner:logging-ui:bootstrap");
   assert.equal(instance.runnerReadiness.reportId, "app-runner:logging-ui:bootstrap");
   assert.deepEqual(instance.runnerFulfillmentReadiness.releaseRefs, ["release:logging-ui:bootstrap"]);
   assert.deepEqual(instance.blockedReasons, []);
@@ -823,6 +849,13 @@ test("surface app instance posture consumes app runner fulfillment proof", () =>
   }, { appContract: contract });
   assert.equal(invalid.state, "blocked");
   assert(invalid.blockedReasons.includes("invalidRunnerFulfillmentReport"));
+
+  const expired = surfaceAppRunnerFulfillmentLifecycle({
+    ...runnerFulfillmentReport,
+    expiresAt: 1300,
+  }, { appContract: contract, now: 1300 });
+  assert.equal(expired.state, "expired");
+  assert(expired.blockedReasons.includes("fulfillmentExpired"));
 });
 
 test("surface app selection read model composes selection, modules, runner, and attach context", () => {
@@ -922,6 +955,7 @@ test("surface app selection read model composes selection, modules, runner, and 
   assert.equal(readModel.bootstrapPosture.trainDigestRef, readModel.runnerPlan.trainDigest.trainId);
   assert.equal(readModel.serviceManagerActionability.kind, "surface.app.runtime.service-manager.actionability");
   assert.equal(readModel.serviceManagerActionability.state, "ready");
+  assert.equal(readModel.runnerFulfillmentLifecycle, null);
   assert.equal(readModel.appInstancePosture.serviceManagerActionability, readModel.serviceManagerActionability);
   assert.equal(readModel.attachContext.serviceManagerActionability, readModel.serviceManagerActionability);
   assert.deepEqual(readModel.blockedReasons, []);

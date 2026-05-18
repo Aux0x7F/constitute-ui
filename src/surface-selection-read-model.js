@@ -182,6 +182,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
     runtimeSelectionPosture,
     moduleBindings: moduleBindings || null,
     runnerPlan,
+    runnerFulfillmentLifecycle: appInstancePosture.runnerFulfillmentLifecycle || null,
     runnerFulfillmentReadiness: appInstancePosture.runnerFulfillmentReadiness || null,
     fulfillmentIdentityPosture,
     authorityAccessPosture,

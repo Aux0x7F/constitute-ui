@@ -502,6 +502,7 @@ export {
   surfaceAppManifestSelection,
   surfaceAppRuntimeSelectionPosture,
   surfaceAppRunnerFulfillmentReadiness,
+  surfaceAppRunnerFulfillmentLifecycle,
   surfaceAppRunnerPlan,
   surfaceAppRunnerPlanFromManifest,
   surfaceAppServiceManagerActionability,

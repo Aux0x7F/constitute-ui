@@ -1914,8 +1914,13 @@ export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
   const runnerFulfillmentReport = isObject(options.runnerFulfillmentReport)
     ? options.runnerFulfillmentReport
     : (isObject(runtimeSelectionPosture?.runnerFulfillmentReport) ? runtimeSelectionPosture.runnerFulfillmentReport : null);
+  const runnerFulfillmentLifecycle = surfaceAppRunnerFulfillmentLifecycle(runnerFulfillmentReport, {
+    appContract: contract,
+    observedAt: options.observedAt,
+  });
   const runnerFulfillmentReadiness = surfaceAppRunnerFulfillmentReadiness(runnerFulfillmentReport, {
     appContract: contract,
+    observedAt: options.observedAt,
   });
   const serviceManagerOperationPosture = isObject(options.serviceManagerOperationPosture)
     ? options.serviceManagerOperationPosture
@@ -2050,6 +2055,7 @@ export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
     serviceManagerActionability,
     runnerPlanRef: String(runnerPlan?.planId || ""),
     runnerFulfillmentRef: String(runnerFulfillmentReport?.reportId || ""),
+    runnerFulfillmentLifecycle,
     runnerFulfillmentReadiness,
     bootstrapContractRef: String(bootstrapContract?.bootstrapContractId || bootstrapContract?.contractId || ""),
     bootstrapPosture,
@@ -2065,23 +2071,13 @@ export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
 
 export function surfaceAppRunnerFulfillmentReadiness(report, options = {}) {
   if (!isObject(report)) return null;
-  const contract = isObject(options.appContract) ? options.appContract : {};
-  const expectedRefs = uniqueStrings([
-    options.appContractRef,
-    contract.appRef,
-    contract.contractId,
-    contract.appId && contract.version ? `${contract.appId}@${contract.version}` : "",
-  ]);
-  const reportAppRef = String(report.appContractRef || report.contractRef || "").trim();
-  const reportKind = String(report.kind || "").trim();
-  const reportState = String(report.state || "unknown").trim();
-  const terminalBlocked = ["blocked", "failed", "rejected", "cancelled"].includes(reportState);
+  const lifecycle = surfaceAppRunnerFulfillmentLifecycle(report, options);
+  if (!lifecycle) return null;
+  const reportState = String(lifecycle.state || "unknown").trim();
+  const terminalBlocked = ["blocked", "failed", "rejected", "cancelled", "expired"].includes(reportState);
   const blockedReasons = uniqueStrings([
-    ...normalizeStringArray(report.blockedReasons),
-    ...(reportKind !== "app.runner.fulfillment.report" ? ["invalidRunnerFulfillmentReport"] : []),
+    ...normalizeStringArray(lifecycle.blockedReasons),
     ...(terminalBlocked ? [`fulfillment:${reportState}`] : []),
-    ...(reportAppRef && expectedRefs.length && !expectedRefs.includes(reportAppRef) ? ["appContractRefMismatch"] : []),
-    ...normalizeStringArray(options.blockedReasons),
   ]);
   const state = blockedReasons.length
     ? "blocked"
@@ -2090,24 +2086,112 @@ export function surfaceAppRunnerFulfillmentReadiness(report, options = {}) {
   return deepFreeze({
     kind: "surface.app.runner.fulfillment.readiness",
     state,
+    reportId: lifecycle.reportId,
+    runnerId: lifecycle.runnerId,
+    runnerRef: lifecycle.runnerRef,
+    hostRef: lifecycle.hostRef,
+    runnerOperationId: lifecycle.runnerOperationId,
+    operation: lifecycle.operation,
+    appContractRef: lifecycle.appContractRef,
+    manifestRef: lifecycle.manifestRef,
+    sourceMode: lifecycle.sourceMode,
+    outputRefs: lifecycle.outputRefs,
+    proofRefs: lifecycle.proofRefs,
+    releaseRefs: lifecycle.releaseRefs,
+    evidenceRefs: lifecycle.evidenceRefs,
+    resourcePosture: lifecycle.resourcePosture,
+    operationPosture: lifecycle.operationPosture,
+    fulfillmentPosture: lifecycle.fulfillmentPosture,
+    blockedReasons,
+    observedAt: lifecycle.observedAt,
+    expiresAt: lifecycle.expiresAt,
+  });
+}
+
+export function surfaceAppRunnerFulfillmentLifecycle(report, options = {}) {
+  if (!isObject(report)) return null;
+  const contract = isObject(options.appContract) ? options.appContract : {};
+  const expectedRefs = uniqueStrings([
+    options.appContractRef,
+    contract.appRef,
+    contract.contractId,
+    contract.appId && contract.version ? `${contract.appId}@${contract.version}` : "",
+  ]);
+  const reportAppRef = String(report.appContractRef || report.contractRef || contract.appRef || contract.contractId || "").trim();
+  const reportKind = String(report.kind || "").trim();
+  const reportObservedAt = Number(report.observedAt || 0);
+  const effectiveObservedAt = Number(options.now || options.observedAt || reportObservedAt || Date.now());
+  const reportState = String(report.state || "unknown").trim();
+  const reportExpiresAt = Number(report.expiresAt || 0);
+  const expired = Boolean(reportExpiresAt && reportExpiresAt <= effectiveObservedAt);
+  const terminalBlocked = ["blocked", "failed", "rejected", "cancelled"].includes(reportState);
+  const blockedReasons = uniqueStrings([
+    ...normalizeStringArray(report.blockedReasons),
+    ...(reportKind !== "app.runner.fulfillment.report" ? ["invalidRunnerFulfillmentReport"] : []),
+    ...(terminalBlocked ? [`fulfillment:${reportState}`] : []),
+    ...(expired ? ["fulfillmentExpired"] : []),
+    ...(reportAppRef && expectedRefs.length && !expectedRefs.includes(reportAppRef) ? ["appContractRefMismatch"] : []),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  const state = blockedReasons.length
+    ? (expired ? "expired" : "blocked")
+    : reportState;
+  const operationPosture = isObject(report.operationPosture) ? deepFreeze({ ...report.operationPosture }) : null;
+  const fulfillmentPosture = isObject(report.fulfillmentPosture) ? deepFreeze({ ...report.fulfillmentPosture }) : null;
+  return deepFreeze({
+    kind: "app.runner.fulfillment.lifecycle",
+    lifecycleId: String(options.lifecycleId || `app-runner-lifecycle:${report.reportId || report.runnerOperationId || "unknown"}`),
     reportId: String(report.reportId || ""),
     runnerId: String(report.runnerId || ""),
     runnerRef: String(report.runnerRef || ""),
     hostRef: String(report.hostRef || ""),
     runnerOperationId: String(report.runnerOperationId || report.operationId || ""),
     operation: String(report.operation || ""),
+    state,
+    requesterRef: String(report.requesterRef || ""),
+    subjectRef: String(report.subjectRef || ""),
+    contractRef: String(report.contractRef || ""),
     appContractRef: reportAppRef,
+    appId: String(report.appId || contract.appId || ""),
+    version: String(report.version || contract.version || ""),
     manifestRef: String(report.manifestRef || ""),
     sourceMode: String(report.sourceMode || ""),
+    sourceRefs: uniqueStrings(normalizeStringArray(report.sourceRefs)),
+    grantRefs: uniqueStrings(normalizeStringArray(report.grantRefs)),
+    capabilityRefs: uniqueStrings(normalizeStringArray(report.capabilityRefs)),
+    inputRefs: uniqueStrings(normalizeStringArray(report.inputRefs)),
     outputRefs: uniqueStrings(normalizeStringArray(report.outputRefs)),
+    evidenceRefs: uniqueStrings(normalizeStringArray(report.evidenceRefs)),
     proofRefs: uniqueStrings(normalizeStringArray(report.proofRefs)),
     releaseRefs: uniqueStrings(normalizeStringArray(report.releaseRefs)),
-    evidenceRefs: uniqueStrings(normalizeStringArray(report.evidenceRefs)),
+    witnessRefs: uniqueStrings([
+      ...normalizeStringArray(report.witnessRefs),
+      ...normalizeStringArray(options.witnessRefs),
+    ]),
+    releaseWitnessRefs: uniqueStrings([
+      ...normalizeStringArray(report.releaseWitnessRefs),
+      ...normalizeStringArray(options.releaseWitnessRefs),
+    ]),
+    resourceBudget: isObject(report.resourceBudget) ? deepFreeze({ ...report.resourceBudget }) : null,
     resourcePosture: isObject(report.resourcePosture) ? deepFreeze({ ...report.resourcePosture }) : null,
-    operationPosture: isObject(report.operationPosture) ? deepFreeze({ ...report.operationPosture }) : null,
-    fulfillmentPosture: isObject(report.fulfillmentPosture) ? deepFreeze({ ...report.fulfillmentPosture }) : null,
+    secretBoundary: isObject(report.secretBoundary) ? deepFreeze({ ...report.secretBoundary }) : undefined,
+    releasePosture: isObject(report.releasePosture) ? deepFreeze({ ...report.releasePosture }) : null,
+    rollbackPosture: isObject(report.rollbackPosture) ? deepFreeze({ ...report.rollbackPosture }) : null,
+    ...(String(report.releaseRef || "").trim() ? { releaseRef: String(report.releaseRef).trim() } : {}),
+    ...(String(report.rollbackRef || "").trim() ? { rollbackRef: String(report.rollbackRef).trim() } : {}),
+    operationPosture,
+    fulfillmentPosture,
+    safeFacts: isObject(report.safeFacts) ? deepFreeze({ ...report.safeFacts }) : undefined,
     blockedReasons,
-    observedAt: Number(report.observedAt || options.observedAt || Date.now()),
+    requestedAt: Number(operationPosture?.requestedAt || report.requestedAt || 0) || undefined,
+    acceptedAt: Number(operationPosture?.acceptedAt || report.acceptedAt || 0) || undefined,
+    startedAt: Number(operationPosture?.startedAt || report.startedAt || 0) || undefined,
+    completedAt: Number(operationPosture?.completedAt || report.completedAt || 0) || undefined,
+    releasedAt: Number(report.releasedAt || (state === "released" ? effectiveObservedAt : 0)) || undefined,
+    rolledBackAt: Number(report.rolledBackAt || (state === "rolledBack" ? effectiveObservedAt : 0)) || undefined,
+    rejectedAt: Number(report.rejectedAt || (["blocked", "failed", "rejected", "cancelled"].includes(state) ? effectiveObservedAt : 0)) || undefined,
+    expiredAt: Number(report.expiredAt || (state === "expired" ? effectiveObservedAt : 0)) || undefined,
+    observedAt: effectiveObservedAt,
     expiresAt: report.expiresAt || options.expiresAt,
   });
 }
