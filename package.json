@@ -35,6 +35,10 @@
       "types": "./src/service-surface-adapter.d.ts",
       "default": "./src/service-surface-adapter.js"
     },
+    "./adapter-lifecycle": {
+      "types": "./src/adapter-lifecycle.d.ts",
+      "default": "./src/adapter-lifecycle.js"
+    },
     "./materialized-event-set": {
       "types": "./src/materialized-event-set.d.ts",
       "default": "./src/materialized-event-set.js"
