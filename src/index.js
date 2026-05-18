@@ -498,6 +498,7 @@ export {
   surfaceAppBootstrapPosture,
   surfaceAppContractResolution,
   surfaceAppContractPosture,
+  surfaceAppDistributionPosture,
   surfaceAppFulfillmentIdentityPosture,
   surfaceAppInstancePosture,
   surfaceAppManifestSelection,

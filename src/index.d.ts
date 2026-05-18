@@ -630,6 +630,14 @@ export type SurfaceAppManifestSelection = {
   requiredModuleRoles: string[];
   bundledSourceRefs: string[];
   remoteSourceRefs: string[];
+  storageObjectRefs: string[];
+  releaseSourceRefs: string[];
+  swarmSourceRefs: string[];
+  digestRefs: string[];
+  signatureRefs: string[];
+  publisherRefs: string[];
+  sourceAuthorityRefs: string[];
+  releaseEvidenceRefs: string[];
   grantRefs: string[];
   runnerRequirementRefs: string[];
   serviceManagerRequirementRefs: string[];
@@ -637,6 +645,7 @@ export type SurfaceAppManifestSelection = {
   compatibilityRefs: string[];
   bootstrapContractRef: string;
   releaseContractRef: string;
+  sourceCandidatePosture: SurfaceAppSourceCandidatePosture;
   evidenceRefs: string[];
   blockedReasons: string[];
   claim: Readonly<Record<string, unknown>> | null;
@@ -655,6 +664,60 @@ export type SurfaceAppManifestRunnerPlan = {
   blockedReasons: string[];
   issuedAt: number;
   expiresAt?: unknown;
+};
+
+export type SurfaceAppSourceClass =
+  | "bundled"
+  | "storagePinned"
+  | "releaseFetched"
+  | "swarmHosted"
+  | "nativeInstalled"
+  | "devOverlay"
+  | "unknown";
+
+export type SurfaceAppSourceCandidatePosture = {
+  kind: "surface.app.source.candidate.posture";
+  state: "ready" | "degraded" | "blocked";
+  sourceMode: string;
+  sourceClass: SurfaceAppSourceClass;
+  candidateRefs: string[];
+  bundledSourceRefs: string[];
+  remoteSourceRefs: string[];
+  storageObjectRefs: string[];
+  releaseSourceRefs: string[];
+  swarmSourceRefs: string[];
+  releaseContractRef: string;
+  digestRefs: string[];
+  signatureRefs: string[];
+  publisherRefs: string[];
+  sourceAuthorityRefs: string[];
+  releaseEvidenceRefs: string[];
+  compatibilityRefs: string[];
+  proofDigestRefs: string[];
+  rollbackRefs: string[];
+  secretBoundaryRefs: string[];
+  trustRefs: string[];
+  evidenceRefs: string[];
+  blockedReasons: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceAppDistributionPosture = {
+  state: "pending" | "retained" | "degraded" | "blocked" | "superseded" | "ignored";
+  sourceMode: string;
+  sourceRefs: string[];
+  storageRefs: string[];
+  pinIntentRefs: string[];
+  pinProjectionRefs: string[];
+  releaseContractRefs: string[];
+  retentionRefs: string[];
+  retentionClass: string;
+  schemaPosture?: Readonly<Record<string, unknown>>;
+  releasePosture: Readonly<Record<string, unknown>>;
+  evidenceRefs: string[];
+  blockedReasons: string[];
+  safeFacts: Readonly<Record<string, unknown>>;
 };
 
 export type SurfaceAppContractResolution = {
@@ -812,6 +875,14 @@ export function surfaceAppContractResolution(
   selection?: Record<string, unknown>,
   options?: Record<string, unknown>,
 ): SurfaceAppContractResolution;
+export function surfaceAppSourceCandidatePosture(
+  selectionOrOptions: Record<string, unknown>,
+  options?: Record<string, unknown>,
+): SurfaceAppSourceCandidatePosture;
+export function surfaceAppDistributionPosture(
+  selectionOrOptions: Record<string, unknown>,
+  options?: Record<string, unknown>,
+): SurfaceAppDistributionPosture;
 export function surfaceAppRunnerPlanFromManifest(
   manifest: Record<string, unknown>,
   surfaceAppsOrContracts: readonly (DefinedSurfaceApp | SurfaceAppContractShape)[] | Record<string, DefinedSurfaceApp | SurfaceAppContractShape>,

@@ -579,11 +579,20 @@ export type SurfaceAppRunnerFulfillmentLifecycle = {
   expiresAt?: unknown;
 };
 
+export type SurfaceAppSourceClass =
+  | "bundled"
+  | "storagePinned"
+  | "releaseFetched"
+  | "swarmHosted"
+  | "nativeInstalled"
+  | "devOverlay"
+  | "unknown";
+
 export type SurfaceAppSourceCandidatePosture = {
   kind: "surface.app.source.candidate.posture";
   state: "ready" | "degraded" | "blocked";
   sourceMode: string;
-  sourceClass: string;
+  sourceClass: SurfaceAppSourceClass;
   candidateRefs: string[];
   bundledSourceRefs: string[];
   remoteSourceRefs: string[];
@@ -591,6 +600,11 @@ export type SurfaceAppSourceCandidatePosture = {
   releaseSourceRefs: string[];
   swarmSourceRefs: string[];
   releaseContractRef: string;
+  digestRefs: string[];
+  signatureRefs: string[];
+  publisherRefs: string[];
+  sourceAuthorityRefs: string[];
+  releaseEvidenceRefs: string[];
   compatibilityRefs: string[];
   proofDigestRefs: string[];
   rollbackRefs: string[];
@@ -617,6 +631,11 @@ export type SurfaceAppManifestSelection = {
   storageObjectRefs: string[];
   releaseSourceRefs: string[];
   swarmSourceRefs: string[];
+  digestRefs: string[];
+  signatureRefs: string[];
+  publisherRefs: string[];
+  sourceAuthorityRefs: string[];
+  releaseEvidenceRefs: string[];
   grantRefs: string[];
   runnerRequirementRefs: string[];
   serviceManagerRequirementRefs: string[];
@@ -643,6 +662,23 @@ export type SurfaceAppManifestRunnerPlan = {
   blockedReasons: string[];
   issuedAt: number;
   expiresAt?: unknown;
+};
+
+export type SurfaceAppDistributionPosture = {
+  state: "pending" | "retained" | "degraded" | "blocked" | "superseded" | "ignored";
+  sourceMode: string;
+  sourceRefs: string[];
+  storageRefs: string[];
+  pinIntentRefs: string[];
+  pinProjectionRefs: string[];
+  releaseContractRefs: string[];
+  retentionRefs: string[];
+  retentionClass: string;
+  schemaPosture?: Readonly<Record<string, unknown>>;
+  releasePosture: Readonly<Record<string, unknown>>;
+  evidenceRefs: string[];
+  blockedReasons: string[];
+  safeFacts: Readonly<Record<string, unknown>>;
 };
 
 export type SurfaceAppContractResolution = {
@@ -838,6 +874,10 @@ export function surfaceAppSourceCandidatePosture(
   selectionOrOptions: Record<string, unknown>,
   options?: Record<string, unknown>,
 ): SurfaceAppSourceCandidatePosture;
+export function surfaceAppDistributionPosture(
+  selectionOrOptions: Record<string, unknown>,
+  options?: Record<string, unknown>,
+): SurfaceAppDistributionPosture;
 export function surfaceAppServiceManagerActionability(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,

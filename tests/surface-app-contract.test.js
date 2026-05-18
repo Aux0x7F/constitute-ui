@@ -8,6 +8,7 @@ import {
   assertSurfaceAppInstancePosture,
   assertSurfaceAppManifestRunnerPlan,
   assertSurfaceAppManifestSelection,
+  assertSurfaceAppDistributionPosture,
   assertSurfaceAppSourceCandidatePosture,
   assertSurfaceAppRuntimeSelectionPosture,
   assertSurfaceAppServiceManagerActionability,
@@ -31,6 +32,7 @@ import {
   surfaceAppBootstrapPosture,
   surfaceAppContractResolution,
   surfaceAppContractPosture,
+  surfaceAppDistributionPosture,
   surfaceAppFulfillmentIdentityPosture,
   surfaceAppInstancePosture,
   surfaceAppManifestSelection,
@@ -1085,6 +1087,11 @@ test("surface app source candidate posture gates non-bundled sources explicitly"
     sourceMode: "storageObject",
     remoteSourceRefs: ["storage-object:logging-ui@0.2.0"],
     releaseContractRef: "release:logging-ui@0.2.0",
+    digestRefs: ["sha256:logging-ui@0.2.0"],
+    signatureRefs: ["sig:logging-ui@0.2.0"],
+    publisherRefs: ["identity:release-publisher"],
+    sourceAuthorityRefs: ["authority:logging-ui:release"],
+    releaseEvidenceRefs: ["evidence:logging-ui:release"],
     compatibilityRefs: ["protocol:surface-app:v1"],
     proofDigestRefs: ["proof-digest:logging-ui@0.2.0"],
     rollbackRefs: ["rollback:logging-ui@0.1.0"],
@@ -1095,7 +1102,59 @@ test("surface app source candidate posture gates non-bundled sources explicitly"
   assert.equal(storagePinned.state, "ready");
   assert.equal(storagePinned.sourceClass, "storagePinned");
   assert.deepEqual(storagePinned.storageObjectRefs, ["storage-object:logging-ui@0.2.0"]);
+  assert.deepEqual(storagePinned.digestRefs, ["sha256:logging-ui@0.2.0"]);
+  assert.deepEqual(storagePinned.signatureRefs, ["sig:logging-ui@0.2.0"]);
   assertSurfaceAppSourceCandidatePosture(storagePinned);
+
+  const retained = surfaceAppDistributionPosture(storagePinned, {
+    state: "retained",
+    pinIntentRefs: ["storage.pin.intent:logging-ui@0.2.0"],
+    retentionRefs: ["retention:logging-ui:release"],
+    releaseContractRefs: ["release:logging-ui@0.2.0"],
+    releasePosture: {
+      state: "releaseReady",
+      buildRef: "build:logging-ui@0.2.0",
+      releaseRef: "release:logging-ui@0.2.0",
+    },
+  });
+  assert.equal(retained.state, "retained");
+  assert.deepEqual(retained.storageRefs, ["storage-object:logging-ui@0.2.0"]);
+  assertSurfaceAppDistributionPosture(retained);
+
+  const releaseFetched = surfaceAppSourceCandidatePosture({
+    sourceMode: "storageObject",
+    sourceClass: "releaseFetched",
+    remoteSourceRefs: ["https-release:logging-ui@0.2.1"],
+    releaseContractRef: "release:logging-ui@0.2.1",
+    digestRefs: ["sha256:logging-ui@0.2.1"],
+    signatureRefs: ["sig:logging-ui@0.2.1"],
+    compatibilityRefs: ["protocol:surface-app:v1"],
+    proofDigestRefs: ["proof-digest:logging-ui@0.2.1"],
+    rollbackRefs: ["rollback:logging-ui@0.2.0"],
+    secretBoundaryRefs: ["secret-boundary:logging-ui"],
+    trustRefs: ["trust:logging-ui@0.2.1"],
+    issuedAt: 1234,
+  });
+  assert.equal(releaseFetched.state, "ready");
+  assert.equal(releaseFetched.sourceClass, "releaseFetched");
+  assert.deepEqual(releaseFetched.releaseSourceRefs, ["https-release:logging-ui@0.2.1"]);
+  assertSurfaceAppSourceCandidatePosture(releaseFetched);
+
+  const nativeInstalled = surfaceAppSourceCandidatePosture({
+    sourceMode: "nativeInstalled",
+    remoteSourceRefs: ["native:logging-ui@0.2.0"],
+    releaseContractRef: "release:logging-ui@0.2.0",
+    digestRefs: ["sha256:logging-ui-native@0.2.0"],
+    signatureRefs: ["sig:logging-ui-native@0.2.0"],
+    compatibilityRefs: ["protocol:surface-app:v1"],
+    proofDigestRefs: ["proof-digest:logging-ui-native@0.2.0"],
+    rollbackRefs: ["rollback:logging-ui-native@0.1.0"],
+    secretBoundaryRefs: ["secret-boundary:logging-ui"],
+    trustRefs: ["trust:logging-ui-native@0.2.0"],
+    issuedAt: 1234,
+  });
+  assert.equal(nativeInstalled.sourceClass, "nativeInstalled");
+  assertSurfaceAppSourceCandidatePosture(nativeInstalled);
 
   const incompleteRemote = surfaceAppSourceCandidatePosture({
     sourceMode: "storageObject",
@@ -1105,6 +1164,8 @@ test("surface app source candidate posture gates non-bundled sources explicitly"
     issuedAt: 1234,
   });
   assert.equal(incompleteRemote.state, "blocked");
+  assert(incompleteRemote.blockedReasons.includes("missingSourceDigestRef"));
+  assert(incompleteRemote.blockedReasons.includes("missingSourceSignatureRef"));
   assert(incompleteRemote.blockedReasons.includes("missingProofDigestRef"));
   assert(incompleteRemote.blockedReasons.includes("missingRollbackRef"));
   assert(incompleteRemote.blockedReasons.includes("missingSecretBoundaryRef"));
