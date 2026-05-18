@@ -377,6 +377,31 @@ export type SurfaceAppManifestRunnerPlan = {
   expiresAt?: unknown;
 };
 
+export type SurfaceAppRuntimeSelectionPosture = {
+  kind: "surface.app.runtime.selection.posture";
+  selectionId: string;
+  state: "ready" | "degraded" | "blocked";
+  requestedAppRef: string;
+  requestedVersion: string;
+  manifestId: string;
+  appId: string;
+  pinnedAppContractRef: string;
+  pinnedVersion: string;
+  sourceMode: string;
+  requiredModuleRoles: string[];
+  compatibilityResult: Readonly<Record<string, unknown>>;
+  sourceTrustResult: Readonly<Record<string, unknown>>;
+  modulePostures: readonly SurfaceModuleRolePosture[];
+  runnerReadiness: Readonly<Record<string, unknown>>;
+  serviceManagerReadiness: Readonly<Record<string, unknown>>;
+  manifestSelection: SurfaceAppManifestSelection;
+  manifestRunnerPlan: SurfaceAppManifestRunnerPlan;
+  runnerPlan: SurfaceAppRunnerPlan | null;
+  blockedReasons: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
 export type DefinedSurfaceApp = {
   contract: SurfaceAppContractShape;
   modules: readonly SurfaceAppModuleClaim[];
@@ -449,6 +474,11 @@ export function surfaceAppRunnerPlanFromManifest(
   surfaceAppsOrContracts: readonly (DefinedSurfaceApp | SurfaceAppContractShape)[] | Record<string, DefinedSurfaceApp | SurfaceAppContractShape>,
   options?: Record<string, unknown>,
 ): SurfaceAppManifestRunnerPlan;
+export function surfaceAppRuntimeSelectionPosture(
+  manifest: Record<string, unknown>,
+  surfaceAppsOrContracts: readonly (DefinedSurfaceApp | SurfaceAppContractShape)[] | Record<string, DefinedSurfaceApp | SurfaceAppContractShape>,
+  options?: Record<string, unknown>,
+): SurfaceAppRuntimeSelectionPosture;
 export function surfaceAppRunnerPlan(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,

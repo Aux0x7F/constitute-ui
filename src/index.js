@@ -478,6 +478,7 @@ export {
   surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
   surfaceAppManifestSelection,
+  surfaceAppRuntimeSelectionPosture,
   surfaceAppRunnerPlan,
   surfaceAppRunnerPlanFromManifest,
   surfaceMaterializationBudgetPosture,

@@ -886,6 +886,92 @@ export function surfaceAppRunnerPlanFromManifest(manifest, surfaceAppsOrContract
   });
 }
 
+export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContracts, options = {}) {
+  const issuedAt = Number(options.issuedAt || Date.now());
+  const requestedAppRef = String(options.requestedAppRef || options.appContractRef || manifest?.currentAppContractRef || "").trim();
+  const requestedVersion = String(options.requestedVersion || options.version || manifest?.currentVersion || "").trim();
+  const manifestRunnerPlan = surfaceAppRunnerPlanFromManifest(manifest, surfaceAppsOrContracts, {
+    ...options,
+    selection: {
+      ...(isObject(options.selection) ? options.selection : {}),
+      appContractRef: String(options.selection?.appContractRef || options.appContractRef || requestedAppRef || "").trim(),
+      version: String(options.selection?.version || options.version || requestedVersion || "").trim(),
+    },
+    issuedAt,
+  });
+  const selection = manifestRunnerPlan.manifestSelection;
+  const surfaceApp = selection.surfaceApp;
+  const requiredModuleRoles = uniqueStrings([
+    ...normalizeStringArray(selection.requiredModuleRoles),
+    ...(surfaceApp ? normalizeStringArray(surfaceApp.requiredRoles) : []),
+  ]);
+  const modulePostures = deepFreeze(requiredModuleRoles.map((role) => (
+    surfaceApp
+      ? surfaceModuleRolePosture(surfaceApp, role)
+      : Object.freeze({
+        kind: "surface.module.role.posture",
+        state: "blocked",
+        blockedReason: "missingBundledContract",
+        role,
+        moduleRef: "",
+        primitiveRef: "",
+        moduleCount: 0,
+        modules: Object.freeze([]),
+      })
+  )));
+  const compatibilityResult = surfaceAppCompatibilityResult(selection, options);
+  const sourceTrustResult = surfaceAppSourceTrustResult(selection, options);
+  const runnerReadiness = deepFreeze({
+    kind: "surface.app.runtime.runner.readiness",
+    state: manifestRunnerPlan.state,
+    runnerRequirementRefs: Object.freeze([...selection.runnerRequirementRefs]),
+    planId: manifestRunnerPlan.planId,
+    runnerPlanId: String(manifestRunnerPlan.runnerPlan?.planId || ""),
+    blockedReasons: Object.freeze([...manifestRunnerPlan.blockedReasons]),
+  });
+  const serviceManagerReadiness = surfaceAppServiceManagerReadiness(selection, options);
+  const blockedReasons = uniqueStrings([
+    ...selection.blockedReasons.map((reason) => `manifest:${reason}`),
+    ...compatibilityResult.blockedReasons.map((reason) => `compatibility:${reason}`),
+    ...sourceTrustResult.blockedReasons.map((reason) => `source:${reason}`),
+    ...modulePostures
+      .filter((posture) => posture.state === "blocked")
+      .map((posture) => `module:${posture.role}:${posture.blockedReason}`),
+    ...prefixedBlockedReasons(runnerReadiness, "runner"),
+    ...prefixedBlockedReasons(serviceManagerReadiness, "serviceManager"),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  const degraded = [
+    compatibilityResult,
+    sourceTrustResult,
+    serviceManagerReadiness,
+  ].some((posture) => String(posture.state || "") === "degraded" || String(posture.state || "") === "unchecked");
+  return deepFreeze({
+    kind: "surface.app.runtime.selection.posture",
+    selectionId: String(options.selectionId || `runtime-selection:${selection.manifestId || selection.appId || "surface-app"}`),
+    state: blockedReasons.length ? "blocked" : (degraded ? "degraded" : "ready"),
+    requestedAppRef,
+    requestedVersion,
+    manifestId: selection.manifestId,
+    appId: selection.appId,
+    pinnedAppContractRef: selection.appContractRef,
+    pinnedVersion: selection.version,
+    sourceMode: selection.sourceMode,
+    requiredModuleRoles,
+    compatibilityResult,
+    sourceTrustResult,
+    modulePostures,
+    runnerReadiness,
+    serviceManagerReadiness,
+    manifestSelection: selection,
+    manifestRunnerPlan,
+    runnerPlan: manifestRunnerPlan.runnerPlan,
+    blockedReasons,
+    issuedAt,
+    expiresAt: options.expiresAt || selection.expiresAt,
+  });
+}
+
 export function surfaceAppRunnerPlan(surfaceAppOrContract, options = {}) {
   const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
     ? surfaceAppOrContract
@@ -1494,6 +1580,72 @@ function surfaceAppContractRef(contract, override) {
   return String(override || contract.appRef || contract.contractId || `surface-app:${contract.appId || "unknown"}`);
 }
 
+function surfaceAppCompatibilityResult(selection, options = {}) {
+  const window = isObject(selection.compatibilityWindow) ? selection.compatibilityWindow : null;
+  const runtimeVersion = String(options.runtimeVersion || options.runtimeBuildId || "").trim();
+  const blockedReasons = uniqueStrings([
+    ...(options.compatible === false ? ["incompatibleRuntimeVersion"] : []),
+    ...(options.requireRuntimeVersion && window && !runtimeVersion ? ["missingRuntimeVersion"] : []),
+    ...(window && runtimeVersion && versionBelow(runtimeVersion, window.minVersion) ? ["runtimeVersionTooOld"] : []),
+    ...(window && runtimeVersion && versionAbove(runtimeVersion, window.maxVersion) ? ["runtimeVersionTooNew"] : []),
+    ...normalizeStringArray(options.compatibilityBlockedReasons),
+  ]);
+  return deepFreeze({
+    kind: "surface.app.runtime.compatibility.result",
+    state: blockedReasons.length ? "blocked" : (window ? "ready" : "unchecked"),
+    runtimeVersion,
+    minVersion: String(window?.minVersion || ""),
+    maxVersion: String(window?.maxVersion || ""),
+    protocolRef: String(window?.protocolRef || ""),
+    compatibilityRefs: Object.freeze([...selection.compatibilityRefs]),
+    blockedReasons,
+  });
+}
+
+function surfaceAppSourceTrustResult(selection, options = {}) {
+  const sourceMode = String(selection.sourceMode || "").trim();
+  const bundled = !nonBundledSourceMode(sourceMode);
+  const sourceRefs = bundled ? selection.bundledSourceRefs : selection.remoteSourceRefs;
+  const blockedReasons = uniqueStrings([
+    ...(bundled && sourceRefs.length === 0 && !selection.surfaceApp ? ["missingBundledSourceRef"] : []),
+    ...(!bundled && sourceRefs.length === 0 ? ["missingRemoteSourceRef"] : []),
+    ...(!bundled && !selection.releaseContractRef ? ["missingReleaseContractRef"] : []),
+    ...(options.sourceTrusted === false ? ["sourceUntrusted"] : []),
+    ...normalizeStringArray(options.sourceBlockedReasons),
+  ]);
+  return deepFreeze({
+    kind: "surface.app.runtime.source.trust.result",
+    state: blockedReasons.length ? "blocked" : "ready",
+    sourceMode,
+    sourceRefs: Object.freeze([...sourceRefs]),
+    releaseContractRef: selection.releaseContractRef,
+    bundled,
+    blockedReasons,
+  });
+}
+
+function surfaceAppServiceManagerReadiness(selection, options = {}) {
+  const posture = isObject(options.serviceManagerPosture)
+    ? options.serviceManagerPosture
+    : (isObject(selection.contract?.serviceManagerPosture) ? selection.contract.serviceManagerPosture : {});
+  const postureState = String(posture.state || "").trim();
+  const postureReasons = normalizeStringArray(posture.blockedReasons);
+  const blockedReasons = uniqueStrings([
+    ...((postureState === "blocked" || postureState === "unavailable")
+      ? (postureReasons.length ? postureReasons : [postureState])
+      : []),
+    ...normalizeStringArray(options.serviceManagerBlockedReasons),
+  ]);
+  return deepFreeze({
+    kind: "surface.app.runtime.service-manager.readiness",
+    state: blockedReasons.length ? "blocked" : (postureIsDegraded(posture) ? "degraded" : (postureState || "unknown")),
+    serviceManagerRequirementRefs: Object.freeze([...selection.serviceManagerRequirementRefs]),
+    managerId: String(posture.managerId || posture.serviceManagerRef || ""),
+    evidenceRefs: Object.freeze(normalizeStringArray(posture.evidenceRefs)),
+    blockedReasons,
+  });
+}
+
 function indexSurfaceApps(surfaceAppsOrContracts) {
   const entries = Array.isArray(surfaceAppsOrContracts)
     ? surfaceAppsOrContracts
@@ -1517,6 +1669,40 @@ function indexSurfaceApps(surfaceAppsOrContracts) {
 
 function nonBundledSourceMode(sourceMode) {
   return ["swarmPackage", "storageObject", "nativeInstalled"].includes(String(sourceMode || ""));
+}
+
+function versionParts(value) {
+  return String(value || "")
+    .replace(/^runtime-/, "")
+    .split(".")
+    .map((part) => {
+      if (part === "x" || part === "*") return Number.NaN;
+      const parsed = Number.parseInt(part, 10);
+      return Number.isFinite(parsed) ? parsed : 0;
+    });
+}
+
+function compareVersionLike(left, right) {
+  if (!right) return 0;
+  const a = versionParts(left);
+  const b = versionParts(right);
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i += 1) {
+    const bv = b[i] ?? 0;
+    if (Number.isNaN(bv)) return 0;
+    const av = a[i] ?? 0;
+    if (av < bv) return -1;
+    if (av > bv) return 1;
+  }
+  return 0;
+}
+
+function versionBelow(version, minVersion) {
+  return Boolean(minVersion) && compareVersionLike(version, minVersion) < 0;
+}
+
+function versionAbove(version, maxVersion) {
+  return Boolean(maxVersion) && compareVersionLike(version, maxVersion) > 0;
 }
 
 function prefixedBlockedReasons(posture, prefix) {

@@ -19,6 +19,7 @@ import {
   surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
   surfaceAppManifestSelection,
+  surfaceAppRuntimeSelectionPosture,
   surfaceAppRunnerPlan,
   surfaceAppRunnerPlanFromManifest,
   surfaceMaterializationBudgetPosture,
@@ -497,6 +498,55 @@ test("surface app manifest selection pins bundled app contracts by version", () 
   assert.equal(plan.runnerPlan.bootstrapContract.appContractRef, "surface-app:logging-ui@0.1.0");
 });
 
+test("surface app runtime selection posture reduces manifest runner and module readiness", () => {
+  const contract = makeContract({
+    contractId: "surface-app:logging-ui@0.1.0",
+  });
+  const manifest = {
+    kind: "surface.app.manifest",
+    manifestId: "manifest:logging-ui",
+    appId: "constitute-logging-ui",
+    currentAppContractRef: "surface-app:logging-ui@0.1.0",
+    currentVersion: "0.1.0",
+    defaultSourceMode: "bundled",
+    versions: [
+      {
+        appContractRef: "surface-app:logging-ui@0.1.0",
+        version: "0.1.0",
+        state: "current",
+        sourceMode: "bundled",
+        requiredModuleRoles: ["runtimeClient", "productView"],
+        compatibilityWindow: {
+          minVersion: "0.1.0",
+          maxVersion: "0.1.x",
+          protocolRef: "protocol:surface-app:v1",
+        },
+        bundledSourceRefs: ["bundle:logging-ui@0.1.0"],
+        runnerRequirementRefs: ["runner:req:logging-ui"],
+        serviceManagerRequirementRefs: ["service-manager:req:logging-ui"],
+      },
+    ],
+    issuedAt: 1234,
+  };
+
+  const posture = surfaceAppRuntimeSelectionPosture(manifest, [contract], {
+    runtimeVersion: "0.1.0",
+    issuedAt: 1234,
+  });
+
+  assert.equal(posture.kind, "surface.app.runtime.selection.posture");
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.requestedAppRef, "surface-app:logging-ui@0.1.0");
+  assert.equal(posture.pinnedVersion, "0.1.0");
+  assert.equal(posture.compatibilityResult.state, "ready");
+  assert.equal(posture.sourceTrustResult.state, "ready");
+  assert.equal(posture.runnerReadiness.state, "ready");
+  assert.equal(posture.serviceManagerReadiness.state, "unknown");
+  assert.deepEqual(posture.requiredModuleRoles, ["runtimeClient", "productView", "projectionModel"]);
+  assert.equal(posture.modulePostures.every((entry) => entry.state === "ready"), true);
+  assert.deepEqual(posture.blockedReasons, []);
+});
+
 test("surface app manifest selection blocks missing bundles and unproven remote sources", () => {
   const manifest = {
     kind: "surface.app.manifest",
@@ -525,6 +575,14 @@ test("surface app manifest selection blocks missing bundles and unproven remote 
   const plan = surfaceAppRunnerPlanFromManifest(manifest, [makeContract()], { issuedAt: 1234 });
   assert.equal(plan.state, "blocked");
   assert.equal(plan.runnerPlan, null);
+
+  const posture = surfaceAppRuntimeSelectionPosture(manifest, [makeContract()], {
+    runtimeVersion: "0.1.0",
+    issuedAt: 1234,
+  });
+  assert.equal(posture.state, "blocked");
+  assert(posture.blockedReasons.includes("manifest:missingRemoteSourceRef"));
+  assert(posture.blockedReasons.includes("source:missingRemoteSourceRef"));
 });
 
 test("surface app helper gates bundled module roles by contract", () => {
