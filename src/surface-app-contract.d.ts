@@ -162,8 +162,8 @@ export type SurfaceServiceManagerOperationPosture = {
   runnerOperationRef?: string;
   runnerRef?: string;
   hostRef?: string;
-  releaseRef: string;
-  rollbackRef: string;
+  releaseRef?: string;
+  rollbackRef?: string;
   secretBoundary: Readonly<Record<string, unknown>>;
   releasePosture?: Readonly<Record<string, unknown>>;
   rollbackPosture?: Readonly<Record<string, unknown>>;

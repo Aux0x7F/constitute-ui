@@ -38,6 +38,8 @@ import {
   surfaceServiceManagerTrainDigest,
   surfaceModuleRolePosture,
 } from "../src/surface-app-contract.js";
+import { surfaceAppSelectionReadModel } from "../src/surface-selection-read-model.js";
+import { createSurfaceModuleRegistry } from "../src/surface-module-registry.js";
 
 const RESOLVED_RUNNER_REF = "4a29ff60c5c3837e9e20555bfeb2a046be3eb140818144628691fcf7efb1d2f1";
 
@@ -621,6 +623,77 @@ test("surface app instance posture composes runtime, runner, module, and bootstr
   assert.deepEqual(instance.blockedReasons, []);
   assert.equal(assertSurfaceAppRunnerPlan(runnerPlan), runnerPlan);
   assert.equal(assertSurfaceAppInstancePosture(instance), instance);
+});
+
+test("surface app selection read model composes selection, modules, runner, and attach context", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract({
+    contractId: "surface-app:logging-ui@0.1.0",
+    appRef: "surface-app:logging-ui@0.1.0",
+  }));
+  const manifest = {
+    kind: "surface.app.manifest",
+    manifestId: "manifest:logging-ui",
+    appId: "constitute-logging-ui",
+    currentAppContractRef: "surface-app:logging-ui@0.1.0",
+    currentVersion: "0.1.0",
+    defaultSourceMode: "bundled",
+    versions: [
+      {
+        appContractRef: "surface-app:logging-ui@0.1.0",
+        version: "0.1.0",
+        state: "current",
+        sourceMode: "bundled",
+        compatibilityWindow: {
+          minVersion: "0.1.0",
+          maxVersion: "0.1.x",
+          protocolRef: "protocol:surface-app:v1",
+        },
+        bundledSourceRefs: ["bundle:logging-ui@0.1.0"],
+      },
+    ],
+    issuedAt: 1234,
+  };
+  const moduleRegistry = createSurfaceModuleRegistry(surfaceApp.modules.map((module) => ({
+    moduleRef: module.moduleRef,
+    role: module.role,
+    version: module.version,
+    primitiveRefs: module.primitiveRefs,
+    implementation: { moduleRef: module.moduleRef },
+  })));
+
+  const readModel = surfaceAppSelectionReadModel({
+    surfaceApp,
+    manifest,
+    moduleRegistry,
+    moduleRoles: {
+      runtimeClient: "runtimeClient",
+      projectionModel: "projectionModel",
+      productView: "productView",
+    },
+    productSurface: "constitute-logging-ui",
+    runtimeVersion: "0.1.0",
+    issuedAt: 1234,
+    serviceManagerOperationOptions: {
+      operation: "healthCheck",
+      operationId: "operation:logging-ui:bootstrap-health",
+      requestedAt: 1234,
+    },
+    serviceManagerProofDigestOptions: {
+      digestId: "proof-digest:logging-ui:bootstrap",
+      observedAt: 1234,
+    },
+  });
+
+  assert.equal(readModel.kind, "surface.app.selection.readModel");
+  assert.equal(readModel.state, "ready");
+  assert.equal(readModel.runtimeSelectionPosture.kind, "surface.app.runtime.selection.posture");
+  assert.equal(readModel.moduleBindings.state, "ready");
+  assert.equal(readModel.runnerPlan.kind, "surface.app.runner.plan");
+  assert.equal(readModel.appInstancePosture.kind, "surface.app.instance.posture");
+  assert.equal(readModel.attachContext.appInstancePosture, readModel.appInstancePosture);
+  assert.equal(readModel.attachContext.runtimeSelectionPosture, readModel.runtimeSelectionPosture);
+  assert.equal(readModel.attachContext.runnerPlan, readModel.runnerPlan);
+  assert.deepEqual(readModel.blockedReasons, []);
 });
 
 test("surface app manifest selection blocks missing bundles and unproven remote sources", () => {

@@ -217,8 +217,6 @@ export function surfaceServiceManagerOperationPosture(surfaceAppOrContract, opti
       ...normalizeStringArray(secretBoundary.authorityRefs),
       ...normalizeStringArray(options.authorityRefs),
     ]),
-    releaseRef: String(options.releaseRef || releasePosture.releaseRef || ""),
-    rollbackRef: String(options.rollbackRef || releasePosture.rollbackRef || ""),
     secretBoundary: deepFreeze(Object.keys(secretBoundary).length ? { ...secretBoundary } : { state: "notRequired" }),
     releasePosture: Object.keys(releasePosture).length ? deepFreeze({ ...releasePosture }) : undefined,
     evidenceRefs: uniqueStrings([
@@ -239,6 +237,8 @@ export function surfaceServiceManagerOperationPosture(surfaceAppOrContract, opti
     observedAt: options.observedAt,
     expiresAt: options.expiresAt || serviceManagerPosture.expiresAt || contract.expiresAt,
   };
+  assignIfPresent(record, "releaseRef", options.releaseRef || releasePosture.releaseRef);
+  assignIfPresent(record, "rollbackRef", options.rollbackRef || releasePosture.rollbackRef);
   assignIfPresent(record, "runnerOperationRef", options.runnerOperationRef);
   const runnerRef = String(options.runnerRef || serviceManagerPosture.runnerRef || "").trim();
   if (runnerRef) record.runnerRef = requireResolvedMemberRef(runnerRef, "service manager operation runnerRef");

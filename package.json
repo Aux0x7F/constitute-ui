@@ -19,6 +19,10 @@
       "types": "./src/surface-app-contract.d.ts",
       "default": "./src/surface-app-contract.js"
     },
+    "./surface-selection-read-model": {
+      "types": "./src/surface-selection-read-model.d.ts",
+      "default": "./src/surface-selection-read-model.js"
+    },
     "./surface-module-registry": {
       "types": "./src/surface-module-registry.d.ts",
       "default": "./src/surface-module-registry.js"
