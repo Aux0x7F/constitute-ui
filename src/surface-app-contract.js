@@ -1274,6 +1274,120 @@ export function materializationEventReplayPosture(budget, {
   });
 }
 
+export function materializationEnforcementPosture(budget, {
+  sourceCount = 0,
+  materializedCount = sourceCount,
+  sourceLimitKey = "maxSourceItems",
+  materializedLimitKey = "maxItems",
+  blockedReason = "materializationBudgetPressure",
+  consumerFloor = undefined,
+  replayPosture = undefined,
+  upstreamPosture = undefined,
+  upstreamBudget = undefined,
+  referenceRefs = undefined,
+  evidenceRefs = undefined,
+  reason = "",
+  blockedReasons = [],
+  sampledAt = Date.now(),
+  expiresInMs = 60_000,
+} = {}) {
+  const usage = materializationBudgetUsage(budget, {
+    sourceCount,
+    materializedCount,
+    sourceLimitKey,
+    materializedLimitKey,
+    blockedReason,
+    sampledAt,
+  });
+  const floor = isObject(consumerFloor)
+    ? consumerFloor
+    : materializationConsumerFloorRecord(budget, {
+      sourceCount,
+      materializedCount,
+      sourceLimitKey,
+      materializedLimitKey,
+      sampledAt,
+    });
+  const replay = isObject(replayPosture) ? replayPosture : null;
+  const upstream = materializationUpstreamPosture(upstreamPosture, upstreamBudget);
+  const copyBoundary = materializationCopyBoundaryPosture(budget, {
+    referenceRefs,
+    evidenceRefs,
+    sampledAt,
+  });
+  const floorReason = String(floor.reason || "").trim();
+  const floorLagState = String(floor.lagState || "unknown").trim() || "unknown";
+  const releaseBlockedReasons = uniqueStrings([
+    ...normalizeStringArray(blockedReasons),
+    ...usage.blockedReasons,
+    ...normalizeStringArray(replay?.blockedReasons),
+    ...normalizeStringArray(upstream.blockedReasons),
+    ...normalizeStringArray(copyBoundary.blockedReasons),
+    ...(reason ? [reason] : []),
+    ...(floorReason ? [floorReason] : []),
+  ]);
+  const hardBlocked = releaseBlockedReasons.some((entry) => [
+    "schemaPostureQuarantined",
+    "materializationCopyBoundaryBlocked",
+    "missingReferenceRef",
+  ].includes(entry) || entry.startsWith("upstream:blocked"));
+  const degraded = usage.overBudget
+    || ["lagging", "stale", "blocked"].includes(floorLagState)
+    || ["pressure", "blocked"].includes(String(replay?.state || ""))
+    || upstream.state !== "absent" && upstream.state !== "ready"
+    || copyBoundary.state !== "ready"
+    || releaseBlockedReasons.length > 0;
+  const state = hardBlocked || floorLagState === "blocked"
+    ? "blocked"
+    : (degraded ? "pressure" : "ready");
+  const issuedAt = Number(sampledAt || Date.now());
+  const releaseState = state === "ready" ? "releasable" : "held";
+  return deepFreeze({
+    kind: "surface.materialization.enforcement.posture",
+    budgetId: String(budget?.budgetId || ""),
+    state,
+    blockedReasons: releaseBlockedReasons,
+    sourceAuthority: String(budget?.sourceAuthority || ""),
+    consumerRef: String(budget?.consumerRef || ""),
+    payloadClass: String(budget?.payloadClass || ""),
+    copyRole: String(budget?.copyRole || ""),
+    transferMode: String(budget?.transferMode || ""),
+    privacyTier: String(budget?.privacyTier || ""),
+    usage,
+    consumerFloor: floor,
+    replayPosture: replay,
+    upstream,
+    copyBoundary,
+    bitemporal: isObject(replay?.bitemporal) ? replay.bitemporal : {
+      observedTimeFloor: floor.observedTimeFloor || sampledAt,
+      ...(floor.eventTimeFloor !== undefined ? { eventTimeFloor: floor.eventTimeFloor } : {}),
+    },
+    schema: isObject(replay?.schema) ? replay.schema : (isObject(budget?.schema) ? budget.schema : null),
+    privacy: isObject(replay?.privacy) ? replay.privacy : {
+      tiers: String(budget?.privacyTier || "") ? [String(budget.privacyTier)] : [],
+    },
+    cardinality: isObject(replay?.cardinality) ? replay.cardinality : (isObject(budget?.cardinality) ? budget.cardinality : null),
+    sampling: isObject(replay?.sampling) ? replay.sampling : {
+      state: usage.overBudget ? "summarized" : "full",
+      adaptive: usage.overBudget,
+    },
+    releasePosture: {
+      state: releaseState,
+      blockedReasons: releaseBlockedReasons,
+      issuedAt,
+      releaseAfter: Math.max(Number(budget?.releaseAfter || issuedAt), issuedAt),
+      expiresAt: Number(budget?.expiresAt || (issuedAt + expiresInMs)),
+    },
+    referenceRefs: Object.freeze(referenceRefs === undefined
+      ? normalizeStringArray(budget?.referenceRefs)
+      : normalizeStringArray(referenceRefs)),
+    evidenceRefs: Object.freeze(evidenceRefs === undefined
+      ? normalizeStringArray(budget?.evidenceRefs)
+      : normalizeStringArray(evidenceRefs)),
+    sampledAt: issuedAt,
+  });
+}
+
 function surfaceSubjectRef(contract, override) {
   return String(override || contract.serviceRef || contract.appRef || `surface-app:${contract.appId || contract.contractId || "unknown"}`);
 }
@@ -1504,6 +1618,65 @@ function uniqueStrings(value) {
     out.push(normalized);
   }
   return out;
+}
+
+function materializationUpstreamPosture(upstreamPosture, upstreamBudget) {
+  const posture = isObject(upstreamPosture) ? upstreamPosture : null;
+  const budget = isObject(upstreamBudget) ? upstreamBudget : null;
+  if (!posture && !budget) {
+    return Object.freeze({
+      state: "absent",
+      blockedReasons: Object.freeze([]),
+      budgetId: "",
+      consumerFloor: null,
+    });
+  }
+  const blockedReasons = uniqueStrings([
+    ...normalizeStringArray(posture?.blockedReasons).map((entry) => `upstream:${entry}`),
+    ...normalizeStringArray(budget?.blockedReasons).map((entry) => `upstream:${entry}`),
+  ]);
+  const postureState = String(posture?.state || "").trim();
+  const budgetState = String(budget?.state || "").trim();
+  const lagState = String(posture?.consumerFloor?.lagState || budget?.consumerFloor?.lagState || "").trim();
+  const state = postureState === "blocked" || budgetState === "blocked" || lagState === "blocked"
+    ? "blocked"
+    : (postureState === "pressure" || budgetState === "pressure" || ["lagging", "stale"].includes(lagState) || blockedReasons.length
+      ? "pressure"
+      : "ready");
+  return deepFreeze({
+    state,
+    blockedReasons,
+    budgetId: String(budget?.budgetId || posture?.budgetId || ""),
+    consumerFloor: posture?.consumerFloor || budget?.consumerFloor || null,
+    replayState: postureState || "unknown",
+    budgetState: budgetState || "unknown",
+    privacy: posture?.privacy || null,
+    cardinality: posture?.cardinality || null,
+    schema: posture?.schema || budget?.schema || null,
+  });
+}
+
+function materializationCopyBoundaryPosture(budget, { referenceRefs, evidenceRefs, sampledAt = Date.now() } = {}) {
+  const transferMode = String(budget?.transferMode || "");
+  const payloadClass = String(budget?.payloadClass || "");
+  const refs = referenceRefs === undefined ? normalizeStringArray(budget?.referenceRefs) : normalizeStringArray(referenceRefs);
+  const evidence = evidenceRefs === undefined ? normalizeStringArray(budget?.evidenceRefs) : normalizeStringArray(evidenceRefs);
+  const blockedReasons = uniqueStrings([
+    ...(payloadClass === "media" && transferMode === "clone" ? ["mediaCloneTransferBlocked"] : []),
+    ...(payloadClass === "retainedRaw" && !String(budget?.privacyTier || "").startsWith("encrypted") ? ["retainedRawRequiresEncryptedPrivacy"] : []),
+    ...(transferMode === "referenceOnly" && !refs.length ? ["missingReferenceRef"] : []),
+  ]);
+  return deepFreeze({
+    state: blockedReasons.length ? "blocked" : "ready",
+    blockedReasons,
+    payloadClass,
+    copyRole: String(budget?.copyRole || ""),
+    transferMode,
+    privacyTier: String(budget?.privacyTier || ""),
+    referenceRefs: Object.freeze(refs),
+    evidenceRefs: Object.freeze(evidence),
+    sampledAt,
+  });
 }
 
 function isDefinedSurfaceApp(value) {

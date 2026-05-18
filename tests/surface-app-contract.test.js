@@ -7,6 +7,7 @@ import {
 import {
   defineSurfaceAppContract,
   materializationBudgetRecord,
+  materializationEnforcementPosture,
   materializationEventReplayPosture,
   materializationBudgetLimit,
   materializationBudgetUsage,
@@ -663,4 +664,38 @@ test("surface app helper reduces event replay privacy and bitemporal posture", (
   assert.equal(posture.consumerFloor.kind, "consumer.floor");
   assert.equal(posture.consumerFloor.lagState, "caughtUp");
   assert.deepEqual(posture.blockedReasons, ["schemaPostureQuarantined", "labelCardinalityPressure"]);
+});
+
+test("surface app helper composes materialization enforcement posture", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract());
+  const budget = requireSurfaceMaterializationBudget(surfaceApp, "logging-ui.event-table");
+  const replayPosture = materializationEventReplayPosture(budget, {
+    sourceEvents: [{ eventId: "event-1", schemaVersion: 1, observedAt: 1700000000000 }],
+    materializedEvents: [{ eventId: "event-1", schemaVersion: 1, observedAt: 1700000000000 }],
+    expectedSchemaVersion: 1,
+    sampledAt: 1700000001000,
+  });
+  const enforcement = materializationEnforcementPosture(budget, {
+    sourceCount: 1,
+    materializedCount: 1,
+    replayPosture,
+    upstreamPosture: {
+      state: "pressure",
+      blockedReasons: ["upstreamConsumerLag"],
+      consumerFloor: { floorId: "floor:upstream", lagState: "lagging" },
+    },
+    upstreamBudget: { budgetId: "service.events", state: "withinBudget" },
+    referenceRefs: ["logging-ui.events"],
+    sampledAt: 1700000001000,
+  });
+
+  assert.equal(enforcement.kind, "surface.materialization.enforcement.posture");
+  assert.equal(enforcement.state, "pressure");
+  assert.equal(enforcement.budgetId, "logging-ui.event-table");
+  assert.equal(enforcement.usage.state, "withinBudget");
+  assert.equal(enforcement.copyBoundary.state, "ready");
+  assert.equal(enforcement.upstream.state, "pressure");
+  assert.deepEqual(enforcement.blockedReasons, ["upstream:upstreamConsumerLag"]);
+  assert.equal(enforcement.releasePosture.state, "held");
+  assert.equal(enforcement.bitemporal.observedTimeFloor, 1700000000000);
 });

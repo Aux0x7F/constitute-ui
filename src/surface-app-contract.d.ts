@@ -492,3 +492,7 @@ export function materializationEventReplayPosture(
   budget: Record<string, unknown> | null | undefined,
   options?: Record<string, unknown>,
 ): Readonly<Record<string, unknown>>;
+export function materializationEnforcementPosture(
+  budget: Record<string, unknown> | null | undefined,
+  options?: Record<string, unknown>,
+): Readonly<Record<string, unknown>>;
