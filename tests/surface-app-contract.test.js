@@ -1,8 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  assertRunnerOperation,
+  assertServiceManagerOperationPosture,
+  assertSurfaceAppAuthorityAccessPosture,
+  assertSurfaceAppFulfillmentIdentityPosture,
+  assertSurfaceAppInstancePosture,
+  assertSurfaceAppManifestRunnerPlan,
+  assertSurfaceAppManifestSelection,
+  assertSurfaceAppRuntimeSelectionPosture,
+  assertSurfaceAppRunnerPlan,
+} from "../../constitute-protocol/src/index.js";
+import {
   defineSurfaceAppContract,
   materializationBudgetRecord,
+  materializationEnforcementPosture,
   materializationEventReplayPosture,
   materializationBudgetLimit,
   materializationBudgetUsage,
@@ -11,20 +23,29 @@ import {
   requireSurfaceModuleRole,
   surfaceAppBootstrapContract,
   surfaceAppAttachContext,
+  surfaceAppAuthorityAccessPosture,
   surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
+  surfaceAppFulfillmentIdentityPosture,
+  surfaceAppInstancePosture,
   surfaceAppManifestSelection,
+  surfaceAppRuntimeSelectionPosture,
   surfaceAppRunnerPlan,
   surfaceAppRunnerPlanFromManifest,
   surfaceMaterializationBudgetPosture,
   surfaceServiceManagerLabProof,
   surfaceServiceManagerOperationPosture,
   surfaceServiceManagerProofDigest,
+  surfaceRunnerOperation,
   surfaceServiceManagerReleaseContract,
   surfaceServiceManagerSecretBoundary,
   surfaceServiceManagerTrainDigest,
   surfaceModuleRolePosture,
 } from "../src/surface-app-contract.js";
+import { surfaceAppSelectionReadModel } from "../src/surface-selection-read-model.js";
+import { createSurfaceModuleRegistry } from "../src/surface-module-registry.js";
+
+const RESOLVED_RUNNER_REF = "4a29ff60c5c3837e9e20555bfeb2a046be3eb140818144628691fcf7efb1d2f1";
 
 function makeContract(overrides = {}) {
   return {
@@ -162,9 +183,13 @@ test("surface app helper reduces service manager operation and proof digest post
     serviceManagerPosture: {
       managerId: "manager:logging-local",
       managerRef: "member:logging-manager",
+      runnerRef: RESOLVED_RUNNER_REF,
+      hostRef: "host:operator-lab",
       state: "ready",
       serviceRefs: ["service:logging"],
       capabilityRefs: ["service.manage"],
+      grantRefs: ["authority-grant:service-manager:logging"],
+      resourceBudget: { maxMemoryMiB: 256, maxCpuPct: 25 },
       evidenceRefs: ["host:manual"],
     },
     releasePosture: {
@@ -192,8 +217,13 @@ test("surface app helper reduces service manager operation and proof digest post
   assert.equal(operation.subjectRef, "service:logging");
   assert.equal(operation.managerRef, "member:logging-manager");
   assert.equal(operation.releaseRef, "release:logging-ui:local");
+  assert.equal(operation.runnerRef, RESOLVED_RUNNER_REF);
+  assert.equal(operation.hostRef, "host:operator-lab");
+  assert.deepEqual(operation.grantRefs, ["authority-grant:service-manager:logging"]);
+  assert.deepEqual(operation.resourceBudget, { maxMemoryMiB: 256, maxCpuPct: 25 });
   assert.deepEqual(operation.blockedReasons, []);
   assert.deepEqual(operation.evidenceRefs, ["host:manual", "build:logging-ui:local"]);
+  assert.equal(assertServiceManagerOperationPosture(operation), operation);
 
   const digest = surfaceServiceManagerProofDigest(surfaceApp, {
     operationPosture: operation,
@@ -224,6 +254,160 @@ test("surface app helper reduces service manager operation and proof digest post
   });
   assert.equal(blockedDigest.state, "blocked");
   assert.deepEqual(blockedDigest.blockedReasons, ["missingProofRefs"]);
+});
+
+test("surface app helper composes execution-bound runner operations", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract({
+    serviceRef: "service:logging",
+    serviceContractRef: "service:logging",
+    serviceRouteRefs: ["route:service:logging"],
+    appRef: "surface-app:logging-ui",
+    surfaceRef: "surface:logging-ui",
+    serviceManagerPosture: {
+      managerId: "manager:logging-local",
+      managerRef: "member:logging-manager",
+      runnerId: "runner:logging-local",
+      runnerRef: RESOLVED_RUNNER_REF,
+      hostRef: "host:operator-lab",
+      state: "ready",
+      serviceRefs: ["service:logging"],
+      capabilityRefs: ["service.manage"],
+      grantRefs: ["authority-grant:service-manager:logging"],
+      resourceBudget: { maxMemoryMiB: 256, maxCpuPct: 25 },
+      evidenceRefs: ["host:manual"],
+    },
+    releasePosture: {
+      state: "releaseReady",
+      releaseRef: "release:logging-ui:local",
+      rollbackRef: "rollback:logging-ui:previous",
+      evidenceRefs: ["build:logging-ui:local"],
+    },
+    secretBoundary: {
+      state: "notRequired",
+    },
+  }));
+  const operationPosture = surfaceServiceManagerOperationPosture(surfaceApp, {
+    operation: "healthCheck",
+    operationId: "operation:logging-ui:health",
+    requesterRef: "identity:operator",
+    state: "accepted",
+    requestedAt: 1234,
+    acceptedAt: 1235,
+  });
+  const runnerOperation = surfaceRunnerOperation(surfaceApp, {
+    operationPosture,
+    inputRefs: ["surface-app:logging-ui@0.1.0"],
+    outputRefs: ["proof:logging-ui:health"],
+    requestedAt: 1234,
+  });
+
+  assert.equal(runnerOperation.kind, "runner.operation");
+  assert.equal(runnerOperation.operation, "healthCheck");
+  assert.equal(runnerOperation.state, "accepted");
+  assert.equal(runnerOperation.runnerRef, RESOLVED_RUNNER_REF);
+  assert.equal(runnerOperation.hostRef, "host:operator-lab");
+  assert.deepEqual(runnerOperation.grantRefs, ["authority-grant:service-manager:logging"]);
+  assert.deepEqual(runnerOperation.resourceBudget, { maxMemoryMiB: 256, maxCpuPct: 25 });
+  assert.equal(assertRunnerOperation(runnerOperation), runnerOperation);
+
+  assert.throws(() => surfaceRunnerOperation(surfaceApp, {
+    operationPosture,
+    runnerRef: "member:unresolved",
+    grantRefs: ["authority-grant:service-manager:logging"],
+    resourceBudget: { maxMemoryMiB: 256 },
+  }), /requires resolved member ref/);
+
+  const noGrantSurfaceApp = defineSurfaceAppContract(makeContract({
+    serviceManagerPosture: {
+      managerId: "manager:logging-local",
+      runnerRef: RESOLVED_RUNNER_REF,
+      state: "ready",
+      resourceBudget: { maxMemoryMiB: 256 },
+    },
+  }));
+  assert.throws(() => surfaceRunnerOperation(noGrantSurfaceApp, {
+    resourceBudget: { maxMemoryMiB: 256 },
+  }), /requires grantRefs/);
+});
+
+test("surface app helper separates app, service, host, runner, and route identity", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract({
+    serviceContractRef: "service:logging",
+    serviceRef: "service:logging",
+    serviceRouteRefs: ["route:service:logging"],
+    hostRefs: ["host:operator-lab"],
+    rootRefs: ["root:aux"],
+    deviceRefs: ["device:aux-browser"],
+    grantRefs: ["grant:app:logging-ui:run"],
+    accessGroupRefs: ["access-group:logging-ui:events"],
+    requiredContentClasses: ["uiProjection"],
+    appRef: "surface-app:logging-ui",
+    surfaceRef: "surface:logging-ui",
+    serviceManagerPosture: {
+      managerId: "manager:logging-local",
+      managerRef: "member:logging-manager",
+      runnerRef: RESOLVED_RUNNER_REF,
+      hostRef: "host:operator-lab",
+      state: "ready",
+      serviceRefs: ["service:logging"],
+      capabilityRefs: ["service.manage"],
+      grantRefs: ["authority-grant:service-manager:logging"],
+      evidenceRefs: ["host:manual"],
+    },
+  }));
+  const posture = surfaceAppFulfillmentIdentityPosture(surfaceApp, { issuedAt: 1234 });
+
+  assert.equal(posture.kind, "surface.app.fulfillment.identity.posture");
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.appContractRef, "surface-app:logging-ui");
+  assert.equal(posture.serviceContractRef, "service:logging");
+  assert.deepEqual(posture.serviceRouteRefs, ["service:logging", "route:service:logging"]);
+  assert.deepEqual(posture.hostRefs, ["host:operator-lab"]);
+  assert.deepEqual(posture.runnerRefs, [RESOLVED_RUNNER_REF]);
+  assert.deepEqual(posture.memberRefs, [RESOLVED_RUNNER_REF]);
+  assert.equal(assertSurfaceAppFulfillmentIdentityPosture(posture).state, "ready");
+
+  const blocked = surfaceAppFulfillmentIdentityPosture(surfaceApp, {
+    serviceRef: "service:logging-route-only",
+    runnerRef: "member:unresolved",
+    issuedAt: 1234,
+  });
+  assert.equal(blocked.state, "blocked");
+  assert(blocked.blockedReasons.includes("serviceRefMismatch"));
+  assert(blocked.blockedReasons.includes("unresolvedRunnerRef"));
+  assert.equal(assertSurfaceAppFulfillmentIdentityPosture(blocked).state, "blocked");
+
+  const authorityAccess = surfaceAppAuthorityAccessPosture(surfaceApp, {
+    fulfillmentIdentityPosture: posture,
+    issuedAt: 1234,
+  });
+  assert.equal(authorityAccess.kind, "surface.app.authority.access.posture");
+  assert.equal(authorityAccess.state, "ready");
+  assert.equal(authorityAccess.actionRequired, true);
+  assert.equal(authorityAccess.accessRequired, true);
+  assert.deepEqual(authorityAccess.rootRefs, ["root:aux"]);
+  assert.deepEqual(authorityAccess.deviceRefs, ["device:aux-browser"]);
+  assert.deepEqual(authorityAccess.grantRefs, ["grant:app:logging-ui:run", "authority-grant:service-manager:logging"]);
+  assert.deepEqual(authorityAccess.accessGroupRefs, ["access-group:logging-ui:events"]);
+  assert.deepEqual(authorityAccess.requiredContentClasses, ["uiProjection"]);
+  assert.equal(assertSurfaceAppAuthorityAccessPosture(authorityAccess).state, "ready");
+
+  const missingGrant = surfaceAppAuthorityAccessPosture(makeContract(), {
+    actionRequired: true,
+    grantRefs: [],
+    fulfillmentIdentityPosture: { grantRefs: [] },
+    serviceManagerPosture: { grantRefs: [] },
+    issuedAt: 1234,
+  });
+  assert.equal(missingGrant.state, "blocked");
+  assert(missingGrant.blockedReasons.includes("missingActionGrant"));
+  assert.equal(assertSurfaceAppAuthorityAccessPosture(missingGrant).state, "blocked");
+
+  const missingAccess = surfaceAppAuthorityAccessPosture(makeContract({
+    requiredContentClasses: ["uiProjection"],
+  }), { accessGroupRefs: [], issuedAt: 1234 });
+  assert.equal(missingAccess.state, "blocked");
+  assert(missingAccess.blockedReasons.includes("missingAccessGroup"));
 });
 
 test("surface app runner composes protected service manager bootstrap contracts", () => {
@@ -374,9 +558,21 @@ test("surface app manifest selection pins bundled app contracts by version", () 
         version: "0.1.0",
         state: "current",
         sourceMode: "bundled",
+        requiredModuleRoles: ["runtimeClient", "productView"],
+        compatibilityWindow: {
+          minVersion: "0.1.0",
+          maxVersion: "0.1.x",
+          protocolRef: "protocol:surface-app:v1",
+        },
+        bundledSourceRefs: ["bundle:logging-ui@0.1.0"],
+        grantRefs: ["grant:app:logging-ui:run"],
+        runnerRequirementRefs: ["runner:req:logging-ui"],
+        serviceManagerRequirementRefs: ["service-manager:req:logging-ui"],
         compatibilityRefs: ["protocol:surface-app:v1"],
       },
     ],
+    requiredModuleRoles: ["runtimeClient"],
+    bundledSourceRefs: ["bundle:logging-ui@0.1.0"],
     issuedAt: 1234,
   };
 
@@ -384,6 +580,12 @@ test("surface app manifest selection pins bundled app contracts by version", () 
   assert.equal(selection.kind, "surface.app.manifest.selection");
   assert.equal(selection.state, "ready");
   assert.equal(selection.contract.contractId, "surface-app:logging-ui@0.1.0");
+  assert.equal(Object.prototype.propertyIsEnumerable.call(selection, "contract"), false);
+  assert.equal(Object.prototype.propertyIsEnumerable.call(selection, "surfaceApp"), false);
+  assert.equal(assertSurfaceAppManifestSelection(selection), selection);
+  assert.deepEqual(selection.requiredModuleRoles, ["runtimeClient", "productView"]);
+  assert.deepEqual(selection.bundledSourceRefs, ["bundle:logging-ui@0.1.0"]);
+  assert.deepEqual(selection.runnerRequirementRefs, ["runner:req:logging-ui"]);
   assert.deepEqual(selection.blockedReasons, []);
 
   const plan = surfaceAppRunnerPlanFromManifest(manifest, [contract], { issuedAt: 1234 });
@@ -391,6 +593,200 @@ test("surface app manifest selection pins bundled app contracts by version", () 
   assert.equal(plan.state, "ready");
   assert.equal(plan.runnerPlan.state, "ready");
   assert.equal(plan.runnerPlan.bootstrapContract.appContractRef, "surface-app:logging-ui@0.1.0");
+  assert.equal(assertSurfaceAppManifestRunnerPlan(plan), plan);
+});
+
+test("surface app runtime selection posture reduces manifest runner and module readiness", () => {
+  const contract = makeContract({
+    contractId: "surface-app:logging-ui@0.1.0",
+  });
+  const manifest = {
+    kind: "surface.app.manifest",
+    manifestId: "manifest:logging-ui",
+    appId: "constitute-logging-ui",
+    currentAppContractRef: "surface-app:logging-ui@0.1.0",
+    currentVersion: "0.1.0",
+    defaultSourceMode: "bundled",
+    versions: [
+      {
+        appContractRef: "surface-app:logging-ui@0.1.0",
+        version: "0.1.0",
+        state: "current",
+        sourceMode: "bundled",
+        requiredModuleRoles: ["runtimeClient", "productView"],
+        compatibilityWindow: {
+          minVersion: "0.1.0",
+          maxVersion: "0.1.x",
+          protocolRef: "protocol:surface-app:v1",
+        },
+        bundledSourceRefs: ["bundle:logging-ui@0.1.0"],
+        runnerRequirementRefs: ["runner:req:logging-ui"],
+        serviceManagerRequirementRefs: ["service-manager:req:logging-ui"],
+      },
+    ],
+    issuedAt: 1234,
+  };
+
+  const posture = surfaceAppRuntimeSelectionPosture(manifest, [contract], {
+    runtimeVersion: "0.1.0",
+    issuedAt: 1234,
+  });
+
+  assert.equal(posture.kind, "surface.app.runtime.selection.posture");
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.requestedAppRef, "surface-app:logging-ui@0.1.0");
+  assert.equal(posture.pinnedVersion, "0.1.0");
+  assert.equal(posture.compatibilityResult.state, "ready");
+  assert.equal(posture.sourceTrustResult.state, "ready");
+  assert.equal(posture.runnerReadiness.state, "ready");
+  assert.equal(posture.serviceManagerReadiness.state, "unknown");
+  assert.deepEqual(posture.requiredModuleRoles, ["runtimeClient", "productView", "projectionModel"]);
+  assert.equal(posture.modulePostures.every((entry) => entry.state === "ready"), true);
+  assert.deepEqual(posture.blockedReasons, []);
+  assert.equal(Object.prototype.propertyIsEnumerable.call(posture.manifestSelection, "surfaceApp"), false);
+  assert.equal(Object.prototype.propertyIsEnumerable.call(posture.manifestSelection, "contract"), false);
+  assert.equal(assertSurfaceAppRuntimeSelectionPosture(posture), posture);
+});
+
+test("surface app instance posture composes runtime, runner, module, and bootstrap posture", () => {
+  const contract = defineSurfaceAppContract(makeContract({
+    contractId: "surface-app:logging-ui@0.1.0",
+    appRef: "surface-app:logging-ui@0.1.0",
+  }));
+  const manifest = {
+    kind: "surface.app.manifest",
+    manifestId: "manifest:logging-ui",
+    appId: "constitute-logging-ui",
+    currentAppContractRef: "surface-app:logging-ui@0.1.0",
+    currentVersion: "0.1.0",
+    defaultSourceMode: "bundled",
+    versions: [
+      {
+        appContractRef: "surface-app:logging-ui@0.1.0",
+        version: "0.1.0",
+        state: "current",
+        sourceMode: "bundled",
+        compatibilityWindow: {
+          minVersion: "0.1.0",
+          maxVersion: "0.1.x",
+          protocolRef: "protocol:surface-app:v1",
+        },
+        bundledSourceRefs: ["bundle:logging-ui@0.1.0"],
+      },
+    ],
+    issuedAt: 1234,
+  };
+  const runtimeSelectionPosture = surfaceAppRuntimeSelectionPosture(manifest, [contract], {
+    runtimeVersion: "0.1.0",
+    issuedAt: 1234,
+  });
+  const runnerPlan = surfaceAppRunnerPlan(contract, { issuedAt: 1234 });
+  const instance = surfaceAppInstancePosture(contract, {
+    runtimeSelectionPosture,
+    runnerPlan,
+    bootstrapContract: runnerPlan.bootstrapContract,
+    bootstrapPosture: surfaceAppBootstrapPosture(contract, { issuedAt: 1234 }),
+    moduleBindings: {
+      kind: "surface.app.module.bindings",
+      state: "ready",
+      roles: ["runtimeClient", "projectionModel", "productView"],
+      keys: ["runtimeClient", "projectionModel", "productView"],
+      bindings: [
+        { state: "ready", role: "runtimeClient", moduleRef: "constitute-ui/runtime-surface-client@0.1.0" },
+      ],
+    },
+    issuedAt: 1234,
+  });
+
+  assert.equal(instance.kind, "surface.app.instance.posture");
+  assert.equal(instance.state, "ready");
+  assert.equal(instance.appId, "constitute-logging-ui");
+  assert.equal(instance.manifestId, "manifest:logging-ui");
+  assert.equal(instance.pinnedAppContractRef, "surface-app:logging-ui@0.1.0");
+  assert.equal(instance.runnerPlanRef, runnerPlan.planId);
+  assert.equal(instance.bootstrapContractRef, runnerPlan.bootstrapContract.bootstrapContractId);
+  assert.equal(instance.moduleBindingPosture.state, "ready");
+  assert.equal(instance.fulfillmentIdentityPosture.state, "ready");
+  assert.equal(instance.fulfillmentIdentityPosture.appContractRef, "surface-app:logging-ui@0.1.0");
+  assert.deepEqual(instance.blockedReasons, []);
+  assert.equal(assertSurfaceAppRunnerPlan(runnerPlan), runnerPlan);
+  assert.equal(assertSurfaceAppInstancePosture(instance), instance);
+});
+
+test("surface app selection read model composes selection, modules, runner, and attach context", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract({
+    contractId: "surface-app:logging-ui@0.1.0",
+    appRef: "surface-app:logging-ui@0.1.0",
+  }));
+  const manifest = {
+    kind: "surface.app.manifest",
+    manifestId: "manifest:logging-ui",
+    appId: "constitute-logging-ui",
+    currentAppContractRef: "surface-app:logging-ui@0.1.0",
+    currentVersion: "0.1.0",
+    defaultSourceMode: "bundled",
+    versions: [
+      {
+        appContractRef: "surface-app:logging-ui@0.1.0",
+        version: "0.1.0",
+        state: "current",
+        sourceMode: "bundled",
+        compatibilityWindow: {
+          minVersion: "0.1.0",
+          maxVersion: "0.1.x",
+          protocolRef: "protocol:surface-app:v1",
+        },
+        bundledSourceRefs: ["bundle:logging-ui@0.1.0"],
+      },
+    ],
+    issuedAt: 1234,
+  };
+  const moduleRegistry = createSurfaceModuleRegistry(surfaceApp.modules.map((module) => ({
+    moduleRef: module.moduleRef,
+    role: module.role,
+    version: module.version,
+    primitiveRefs: module.primitiveRefs,
+    implementation: { moduleRef: module.moduleRef },
+  })));
+
+  const readModel = surfaceAppSelectionReadModel({
+    surfaceApp,
+    manifest,
+    moduleRegistry,
+    moduleRoles: {
+      runtimeClient: "runtimeClient",
+      projectionModel: "projectionModel",
+      productView: "productView",
+    },
+    productSurface: "constitute-logging-ui",
+    runtimeVersion: "0.1.0",
+    issuedAt: 1234,
+    serviceManagerOperationOptions: {
+      operation: "healthCheck",
+      operationId: "operation:logging-ui:bootstrap-health",
+      requestedAt: 1234,
+    },
+    serviceManagerProofDigestOptions: {
+      digestId: "proof-digest:logging-ui:bootstrap",
+      observedAt: 1234,
+    },
+  });
+
+  assert.equal(readModel.kind, "surface.app.selection.readModel");
+  assert.equal(readModel.state, "ready");
+  assert.equal(readModel.runtimeSelectionPosture.kind, "surface.app.runtime.selection.posture");
+  assert.equal(readModel.moduleBindings.state, "ready");
+  assert.equal(readModel.runnerPlan.kind, "surface.app.runner.plan");
+  assert.equal(readModel.fulfillmentIdentityPosture.kind, "surface.app.fulfillment.identity.posture");
+  assert.equal(readModel.authorityAccessPosture.kind, "surface.app.authority.access.posture");
+  assert.equal(readModel.attachContext.fulfillmentIdentityPosture, readModel.fulfillmentIdentityPosture);
+  assert.equal(readModel.attachContext.authorityAccessPosture, readModel.authorityAccessPosture);
+  assert.equal(readModel.appInstancePosture.kind, "surface.app.instance.posture");
+  assert.equal(readModel.appInstancePosture.authorityAccessPosture, readModel.authorityAccessPosture);
+  assert.equal(readModel.attachContext.appInstancePosture, readModel.appInstancePosture);
+  assert.equal(readModel.attachContext.runtimeSelectionPosture, readModel.runtimeSelectionPosture);
+  assert.equal(readModel.attachContext.runnerPlan, readModel.runnerPlan);
+  assert.deepEqual(readModel.blockedReasons, []);
 });
 
 test("surface app manifest selection blocks missing bundles and unproven remote sources", () => {
@@ -416,10 +812,19 @@ test("surface app manifest selection blocks missing bundles and unproven remote 
   assert.equal(selection.state, "blocked");
   assert(selection.blockedReasons.includes("missingBundledContract"));
   assert(selection.blockedReasons.includes("missingReleaseContractRef"));
+  assert(selection.blockedReasons.includes("missingRemoteSourceRef"));
 
   const plan = surfaceAppRunnerPlanFromManifest(manifest, [makeContract()], { issuedAt: 1234 });
   assert.equal(plan.state, "blocked");
   assert.equal(plan.runnerPlan, null);
+
+  const posture = surfaceAppRuntimeSelectionPosture(manifest, [makeContract()], {
+    runtimeVersion: "0.1.0",
+    issuedAt: 1234,
+  });
+  assert.equal(posture.state, "blocked");
+  assert(posture.blockedReasons.includes("manifest:missingRemoteSourceRef"));
+  assert(posture.blockedReasons.includes("source:missingRemoteSourceRef"));
 });
 
 test("surface app helper gates bundled module roles by contract", () => {
@@ -575,4 +980,38 @@ test("surface app helper reduces event replay privacy and bitemporal posture", (
   assert.equal(posture.consumerFloor.kind, "consumer.floor");
   assert.equal(posture.consumerFloor.lagState, "caughtUp");
   assert.deepEqual(posture.blockedReasons, ["schemaPostureQuarantined", "labelCardinalityPressure"]);
+});
+
+test("surface app helper composes materialization enforcement posture", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract());
+  const budget = requireSurfaceMaterializationBudget(surfaceApp, "logging-ui.event-table");
+  const replayPosture = materializationEventReplayPosture(budget, {
+    sourceEvents: [{ eventId: "event-1", schemaVersion: 1, observedAt: 1700000000000 }],
+    materializedEvents: [{ eventId: "event-1", schemaVersion: 1, observedAt: 1700000000000 }],
+    expectedSchemaVersion: 1,
+    sampledAt: 1700000001000,
+  });
+  const enforcement = materializationEnforcementPosture(budget, {
+    sourceCount: 1,
+    materializedCount: 1,
+    replayPosture,
+    upstreamPosture: {
+      state: "pressure",
+      blockedReasons: ["upstreamConsumerLag"],
+      consumerFloor: { floorId: "floor:upstream", lagState: "lagging" },
+    },
+    upstreamBudget: { budgetId: "service.events", state: "withinBudget" },
+    referenceRefs: ["logging-ui.events"],
+    sampledAt: 1700000001000,
+  });
+
+  assert.equal(enforcement.kind, "surface.materialization.enforcement.posture");
+  assert.equal(enforcement.state, "pressure");
+  assert.equal(enforcement.budgetId, "logging-ui.event-table");
+  assert.equal(enforcement.usage.state, "withinBudget");
+  assert.equal(enforcement.copyBoundary.state, "ready");
+  assert.equal(enforcement.upstream.state, "pressure");
+  assert.deepEqual(enforcement.blockedReasons, ["upstream:upstreamConsumerLag"]);
+  assert.equal(enforcement.releasePosture.state, "held");
+  assert.equal(enforcement.bitemporal.observedTimeFloor, 1700000000000);
 });

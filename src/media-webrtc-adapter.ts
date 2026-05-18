@@ -39,6 +39,7 @@ export type BrowserStreamSession = {
   lastRenderCurrentTime: number;
   lastRenderAdvancedAt: number;
   renderPendingSince: number;
+  mediaEvidenceBudget: Map<string, MediaEvidenceBudgetEntry>;
   mediaStatsTimer: number;
   issuedAt: number;
   expiresAt: number;
@@ -84,6 +85,11 @@ export type RuntimeMediaTransportProfile = {
   expiresAt?: number;
 };
 
+type MediaEvidenceBudgetEntry = {
+  signature: string;
+  emittedAt: number;
+};
+
 export const DEFAULT_BROWSER_STREAM_ICE_SERVERS: RTCIceServer[] = [];
 export const BROWSER_STREAM_ADAPTER_REF = "adapter:media-webrtc:browser";
 const MEDIA_CORRELATION_MATERIALIZATION_BUDGET_ID = "media-webrtc.correlation";
@@ -92,6 +98,8 @@ const INBOUND_RTP_STALL_GRACE_MS = 15_000;
 export const MEDIA_RENDER_WAITING_GRACE_MS = 5_000;
 export const MEDIA_RENDER_BLOCKED_GRACE_MS = 10_000;
 const MEDIA_RENDER_CURRENT_TIME_EPSILON = 0.05;
+const MEDIA_EVIDENCE_PENDING_HEARTBEAT_MS = 5_000;
+const MEDIA_EVIDENCE_STABLE_HEARTBEAT_MS = 15_000;
 const RUNTIME_MEDIA_TRANSPORT_PROFILE_GET = "runtime.media.transport.profile.get";
 
 export function runtimeMediaIceServers(profile: RuntimeMediaTransportProfile | null): RTCIceServer[] {
@@ -439,6 +447,90 @@ export function mediaTransportObservationFromFulfillmentEvidence(
   return assertMediaTransportObservation(record) as MediaTransportObservation;
 }
 
+function mediaEvidenceBudgetFacts(evidence: MediaFulfillmentEvidence): Record<string, unknown> {
+  return evidence.safeFacts && typeof evidence.safeFacts === "object"
+    ? evidence.safeFacts as Record<string, unknown>
+    : {};
+}
+
+function mediaEvidenceBudgetKey(evidence: MediaFulfillmentEvidence): string {
+  return String(evidence.evidenceKind || "unknown").trim() || "unknown";
+}
+
+function mediaEvidenceBudgetSignature(evidence: MediaFulfillmentEvidence): string {
+  const facts = mediaEvidenceBudgetFacts(evidence);
+  const evidenceKind = mediaEvidenceBudgetKey(evidence);
+  const blockedReason = String((evidence as MediaFulfillmentEvidence & { blockedReason?: string }).blockedReason || "").trim();
+  const base = [
+    evidenceKind,
+    String(evidence.state || "").trim(),
+    blockedReason,
+  ];
+  if (evidenceKind === SWARM.MEDIA_FULFILLMENT_EVIDENCE_KIND.RENDER_STATE) {
+    base.push(
+      String(facts.readinessState || "").trim(),
+      facts.visibleFrame === true ? "visible" : "hidden",
+      Number(facts.videoWidth || 0) > 0 && Number(facts.videoHeight || 0) > 0 ? "nonzero" : "zero",
+      facts.paused === true ? "paused" : "playing",
+      facts.ended === true ? "ended" : "not-ended",
+    );
+  } else if (evidenceKind === SWARM.MEDIA_FULFILLMENT_EVIDENCE_KIND.INBOUND_STATS) {
+    base.push(
+      Number(facts.inboundVideoCount || 0) > 0 ? "inbound" : "no-inbound",
+      facts.advanced === true ? "advanced" : "not-advanced",
+      Number(facts.stalledMs || 0) > 0 ? "stalling" : "not-stalling",
+    );
+  } else if (evidenceKind === SWARM.MEDIA_FULFILLMENT_EVIDENCE_KIND.SELECTED_CANDIDATE_PAIR) {
+    base.push(
+      facts.selectedPair === true ? "selected" : "not-selected",
+      String(facts.pairState || "").trim(),
+      facts.nominated === true ? "nominated" : "not-nominated",
+    );
+  } else if (evidenceKind === SWARM.MEDIA_FULFILLMENT_EVIDENCE_KIND.TRANSPORT_STATE) {
+    base.push(
+      String(facts.connectionState || "").trim(),
+      String(facts.iceConnectionState || "").trim(),
+      String(facts.iceGatheringState || "").trim(),
+      String(facts.localCandidateCount || 0),
+      String(facts.remoteCandidateCount || 0),
+    );
+  } else if (evidenceKind === SWARM.MEDIA_FULFILLMENT_EVIDENCE_KIND.TRACK_STATE) {
+    base.push(
+      String(facts.trackReadyState || "").trim(),
+      facts.muted === true ? "muted" : "unmuted",
+      facts.enabled === false ? "disabled" : "enabled",
+    );
+  }
+  return base.join("|");
+}
+
+export function shouldReportMediaFulfillmentEvidence(
+  session: BrowserStreamSession,
+  evidence: MediaFulfillmentEvidence,
+  observedAt = Date.now(),
+): boolean {
+  if (!session.mediaEvidenceBudget) {
+    session.mediaEvidenceBudget = new Map<string, MediaEvidenceBudgetEntry>();
+  }
+  const key = mediaEvidenceBudgetKey(evidence);
+  const signature = mediaEvidenceBudgetSignature(evidence);
+  const state = String(evidence.state || "").trim();
+  const previous = session.mediaEvidenceBudget.get(key);
+  const mustReport = state === SWARM.MEDIA_FULFILLMENT_STATE.BLOCKED
+    || state === SWARM.MEDIA_FULFILLMENT_STATE.RELEASED
+    || !previous
+    || previous.signature !== signature;
+  const heartbeatMs = state === SWARM.MEDIA_FULFILLMENT_STATE.USABLE
+    ? MEDIA_EVIDENCE_STABLE_HEARTBEAT_MS
+    : MEDIA_EVIDENCE_PENDING_HEARTBEAT_MS;
+  const heartbeatDue = previous
+    ? observedAt - previous.emittedAt >= heartbeatMs
+    : true;
+  if (!mustReport && !heartbeatDue) return false;
+  session.mediaEvidenceBudget.set(key, { signature, emittedAt: observedAt });
+  return true;
+}
+
 export function mediaFulfillmentEvidenceFromAdapterState(
   session: BrowserStreamSession,
   state: BrowserStreamAdapterState,
@@ -709,6 +801,7 @@ export async function createBrowserStreamOffer(options: BrowserStreamAdapterOpti
     lastRenderCurrentTime: 0,
     lastRenderAdvancedAt: 0,
     renderPendingSince: 0,
+    mediaEvidenceBudget: new Map<string, MediaEvidenceBudgetEntry>(),
     mediaStatsTimer: 0,
     issuedAt,
     expiresAt: issuedAt + (2 * 60_000),

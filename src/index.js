@@ -452,10 +452,14 @@ export function renderStreamStatus(container, {
 }
 
 export { createRuntimeSurfaceClient } from "./runtime-surface-client.js";
+export { surfaceAppSelectionReadModel } from "./surface-selection-read-model.js";
 export {
   createSurfaceModuleRegistry,
+  requireSurfaceModuleBinding,
   requireSurfaceModuleImplementation,
+  surfaceAppModuleBindings,
   surfaceAppModuleImplementations,
+  surfaceModuleBinding,
   surfaceModuleRegistryPosture,
 } from "./surface-module-registry.js";
 
@@ -463,6 +467,7 @@ export {
   SURFACE_CONTRACT_ROLE_ORDER,
   defineSurfaceAppContract,
   materializationBudgetRecord,
+  materializationEnforcementPosture,
   materializationBudgetLimit,
   materializationBudgetUsage,
   materializationConsumerFloorRecord,
@@ -471,15 +476,20 @@ export {
   requireSurfaceModuleRole,
   surfaceAppBootstrapContract,
   surfaceAppAttachContext,
+  surfaceAppAuthorityAccessPosture,
   surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
+  surfaceAppFulfillmentIdentityPosture,
+  surfaceAppInstancePosture,
   surfaceAppManifestSelection,
+  surfaceAppRuntimeSelectionPosture,
   surfaceAppRunnerPlan,
   surfaceAppRunnerPlanFromManifest,
   surfaceMaterializationBudgetPosture,
   surfaceServiceManagerLabProof,
   surfaceServiceManagerOperationPosture,
   surfaceServiceManagerProofDigest,
+  surfaceRunnerOperation,
   surfaceServiceManagerReleaseContract,
   surfaceServiceManagerSecretBoundary,
   surfaceServiceManagerTrainDigest,

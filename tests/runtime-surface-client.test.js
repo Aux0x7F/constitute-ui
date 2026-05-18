@@ -34,6 +34,12 @@ class FakeSharedWorker {
   }
 }
 
+class ThrowingSharedWorker {
+  constructor() {
+    throw new Error("module workers are unavailable");
+  }
+}
+
 test("runtime surface client attaches and settles correlated responses", async () => {
   const previousSharedWorker = globalThis.SharedWorker;
   globalThis.SharedWorker = FakeSharedWorker;
@@ -75,6 +81,7 @@ test("runtime surface client attaches and settles correlated responses", async (
     });
     assert.equal(await ready, port);
     assert.equal(client.attached, true);
+    assert.equal(client.attachPosture.state, "attached");
     assert.deepEqual(snapshots, [{ buildId: "runtime-test" }]);
     assert.deepEqual(budgets, [{ kind: "materialization.budget", budgetId: "budget-1" }]);
     assert.deepEqual(floors, [{ kind: "consumer.floor", floorId: "floor-1" }]);
@@ -102,6 +109,32 @@ test("runtime surface client attaches and settles correlated responses", async (
       surface: "surface",
     });
     assert.equal(port.closed, true);
+  } finally {
+    globalThis.SharedWorker = previousSharedWorker;
+  }
+});
+
+test("runtime surface client exposes degraded attach posture when attach fails", () => {
+  const previousSharedWorker = globalThis.SharedWorker;
+  globalThis.SharedWorker = ThrowingSharedWorker;
+  try {
+    const postures = [];
+    const errors = [];
+    const client = createRuntimeSurfaceClient({
+      clientId: "surface-client",
+      surface: "surface",
+      workerUrl: "/runtime.worker.js",
+      workerName: "runtime-test",
+      onAttachPosture: (posture) => postures.push(posture),
+      onAttachError: (error) => errors.push(error),
+    });
+
+    assert.equal(client.attach(), null);
+    assert.equal(errors.length, 1);
+    assert.equal(client.attachPosture.state, "failed");
+    assert.equal(client.attachPosture.severity, "degraded");
+    assert.match(client.attachPosture.reason, /module workers are unavailable/);
+    assert.deepEqual(postures.map((posture) => posture.state), ["failed"]);
   } finally {
     globalThis.SharedWorker = previousSharedWorker;
   }

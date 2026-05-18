@@ -29,6 +29,11 @@ test("media webrtc adapter owns runtime media transport profile helpers", () => 
   assert.match(adapter, /MEDIA_CORRELATION_MATERIALIZATION_BUDGET_ID = "media-webrtc\.correlation"/);
   assert.match(adapter, /MEDIA_RENDER_WAITING_GRACE_MS = 5_000/);
   assert.match(adapter, /MEDIA_RENDER_BLOCKED_GRACE_MS = 10_000/);
+  assert.match(adapter, /MEDIA_EVIDENCE_PENDING_HEARTBEAT_MS = 5_000/);
+  assert.match(adapter, /MEDIA_EVIDENCE_STABLE_HEARTBEAT_MS = 15_000/);
+  assert.match(adapter, /export function shouldReportMediaFulfillmentEvidence/);
+  assert.match(adapter, /mediaEvidenceBudgetSignature/);
+  assert.match(adapter, /session\.mediaEvidenceBudget\.set/);
   assert.match(adapter, /moduleRef\?: string/);
   assert.match(adapter, /adapterModuleRef: String\(options\.moduleRef \|\| ""\)/);
   assert.match(adapter, /adapterModuleRef: session\.adapterModuleRef \|\| BROWSER_STREAM_ADAPTER_REF/);

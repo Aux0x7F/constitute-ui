@@ -26,7 +26,18 @@ export type SurfaceAppContractShape = {
   contractId: string;
   appId: string;
   appRef?: string;
+  serviceContractRef?: string;
   serviceRef?: string;
+  serviceRouteRefs?: string[];
+  hostRefs?: string[];
+  routeRefs?: string[];
+  rootRefs?: string[];
+  deviceRefs?: string[];
+  grantRefs?: string[];
+  authorityRefs?: string[];
+  accessGroupRefs?: string[];
+  requiredContentClasses?: string[];
+  revocationRefs?: string[];
   surfaceRef?: string;
   version: string;
   displayName?: string;
@@ -79,10 +90,13 @@ export type SurfaceAppAttachContext = {
   contractId: string;
   appId: string;
   appRef: string;
+  serviceContractRef: string;
   serviceRef: string;
   surfaceRef: string;
   version: string;
   displayName: string;
+  fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
+  authorityAccessPosture: SurfaceAppAuthorityAccessPosture;
   posture: SurfaceAppPosture;
   requiredModuleRoles: string[];
   moduleRefs: Array<{
@@ -96,6 +110,62 @@ export type SurfaceAppAttachContext = {
   materializationBudgetRefs: string[];
   updatePosture?: Record<string, unknown>;
   [key: string]: unknown;
+};
+
+export type SurfaceAppFulfillmentIdentityPosture = {
+  kind: "surface.app.fulfillment.identity.posture";
+  identityId: string;
+  state: "ready" | "degraded" | "blocked" | "unknown" | "unchecked";
+  appContractRef: string;
+  appId: string;
+  version: string;
+  surfaceRef: string;
+  serviceRequired: boolean;
+  serviceContractRef?: string;
+  serviceRef?: string;
+  serviceRouteRefs: string[];
+  routeRefs: string[];
+  hostRefs: string[];
+  managerRefs: string[];
+  runnerRefs: string[];
+  memberRefs: string[];
+  capabilityRefs: string[];
+  grantRefs: string[];
+  authorityRefs: string[];
+  evidenceRefs: string[];
+  identityPosture: Readonly<Record<string, unknown>>;
+  safeFacts: Readonly<Record<string, unknown>>;
+  blockedReasons: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceAppAuthorityAccessPosture = {
+  kind: "surface.app.authority.access.posture";
+  postureId: string;
+  state: "ready" | "degraded" | "blocked" | "unknown" | "unchecked";
+  appContractRef: string;
+  appId: string;
+  actionRequired: boolean;
+  accessRequired: boolean;
+  rootRefs: string[];
+  deviceRefs: string[];
+  grantRefs: string[];
+  authorityRefs: string[];
+  accessGroupRefs: string[];
+  requiredContentClasses: string[];
+  revocationRefs: string[];
+  exerciseRefs: string[];
+  evidenceRefs: string[];
+  actionPosture: Readonly<Record<string, unknown>>;
+  accessPosture: Readonly<Record<string, unknown>>;
+  revocationPosture: Readonly<Record<string, unknown>>;
+  expiryPosture: Readonly<Record<string, unknown>>;
+  revocationState?: string;
+  safeFacts: Readonly<Record<string, unknown>>;
+  blockedReasons: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
 };
 
 export type SurfaceAppBootstrapPosture = {
@@ -117,6 +187,75 @@ export type SurfaceAppBootstrapPosture = {
   expiresAt?: unknown;
 };
 
+export type SurfaceAppInstancePosture = {
+  kind: "surface.app.instance.posture";
+  instanceId: string;
+  state: "ready" | "degraded" | "blocked";
+  contractId: string;
+  appId: string;
+  appRef: string;
+  serviceRef: string;
+  surfaceRef: string;
+  displayName: string;
+  version: string;
+  manifestId: string;
+  pinnedAppContractRef: string;
+  pinnedVersion: string;
+  sourceMode: string;
+  sourceTrustResult: Readonly<Record<string, unknown>> | null;
+  compatibilityResult: Readonly<Record<string, unknown>> | null;
+  requiredModuleRoles: string[];
+  moduleRefs: string[];
+  modulePostures: Readonly<Record<string, unknown>>[];
+  moduleBindingPosture: Readonly<Record<string, unknown>> | null;
+  materializationBudgetRefs: string[];
+  runtimeSelectionPosture: Readonly<Record<string, unknown>> | null;
+  runnerReadiness: Readonly<Record<string, unknown>> | null;
+  serviceManagerReadiness: Readonly<Record<string, unknown>> | null;
+  fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
+  authorityAccessPosture: SurfaceAppAuthorityAccessPosture;
+  runnerPlanRef: string;
+  bootstrapContractRef: string;
+  bootstrapPosture: Readonly<Record<string, unknown>> | null;
+  serviceManagerOperationRef: string;
+  serviceManagerProofRef: string;
+  blockedReasons: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceAppSelectionReadModel = {
+  kind: "surface.app.selection.readModel";
+  state: "ready" | "degraded" | "blocked";
+  blockedReasons: string[];
+  contractId: string;
+  appId: string;
+  appRef: string;
+  serviceRef: string;
+  surfaceRef: string;
+  productSurface: string;
+  manifestId: string;
+  pinnedAppContractRef: string;
+  pinnedVersion: string;
+  sourceMode: string;
+  runtimeSelectionPosture: SurfaceAppRuntimeSelectionPosture;
+  moduleBindings: Readonly<Record<string, unknown>> | null;
+  runnerPlan: SurfaceAppRunnerPlan;
+  fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
+  authorityAccessPosture: SurfaceAppAuthorityAccessPosture;
+  serviceManagerSecretBoundary: SurfaceServiceManagerSecretBoundary;
+  bootstrapContract: Readonly<Record<string, unknown>>;
+  bootstrapPosture: SurfaceAppBootstrapPosture;
+  serviceManagerOperationPosture: SurfaceServiceManagerOperationPosture;
+  serviceManagerProofDigest: SurfaceServiceManagerProofDigest;
+  appInstancePosture: SurfaceAppInstancePosture;
+  attachContext: SurfaceAppAttachContext;
+  materializationBudgetRefs: string[];
+  moduleRefs: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
 export type SurfaceServiceManagerOperationPosture = {
   kind: "service.manager.operation.posture";
   operationId: string;
@@ -129,11 +268,54 @@ export type SurfaceServiceManagerOperationPosture = {
   serviceRefs: string[];
   capabilityRefs: string[];
   authorityRefs: string[];
-  releaseRef: string;
-  rollbackRef: string;
+  grantRefs?: string[];
+  runnerOperationRef?: string;
+  runnerRef?: string;
+  hostRef?: string;
+  releaseRef?: string;
+  rollbackRef?: string;
   secretBoundary: Readonly<Record<string, unknown>>;
+  releasePosture?: Readonly<Record<string, unknown>>;
+  rollbackPosture?: Readonly<Record<string, unknown>>;
+  resourceBudget?: Readonly<Record<string, unknown>>;
+  resourcePosture?: Readonly<Record<string, unknown>>;
   evidenceRefs: string[];
   proofRefs: string[];
+  blockedReasons: string[];
+  safeFacts?: Readonly<Record<string, unknown>>;
+  requestedAt: number;
+  acceptedAt?: unknown;
+  startedAt?: unknown;
+  completedAt?: unknown;
+  observedAt?: unknown;
+  expiresAt?: unknown;
+};
+
+export type SurfaceRunnerOperation = {
+  kind: "runner.operation";
+  operationId: string;
+  runnerId: string;
+  runnerRef: string;
+  hostRef: string;
+  requesterRef: string;
+  subjectRef: string;
+  contractRef: string;
+  operation: string;
+  state: string;
+  grantRefs: string[];
+  capabilityRefs: string[];
+  inputRefs: string[];
+  outputRefs: string[];
+  evidenceRefs: string[];
+  proofRefs: string[];
+  releaseRefs: string[];
+  resourceBudget: Readonly<Record<string, unknown>>;
+  resourcePosture?: Readonly<Record<string, unknown>>;
+  secretBoundary: Readonly<Record<string, unknown>>;
+  releasePosture?: Readonly<Record<string, unknown>>;
+  rollbackPosture?: Readonly<Record<string, unknown>>;
+  releaseRef?: string;
+  rollbackRef?: string;
   blockedReasons: string[];
   safeFacts?: Readonly<Record<string, unknown>>;
   requestedAt: number;
@@ -310,6 +492,13 @@ export type SurfaceAppManifestSelection = {
   version: string;
   sourceMode: string;
   claimState: string;
+  requiredModuleRoles: string[];
+  bundledSourceRefs: string[];
+  remoteSourceRefs: string[];
+  grantRefs: string[];
+  runnerRequirementRefs: string[];
+  serviceManagerRequirementRefs: string[];
+  compatibilityWindow: unknown;
   compatibilityRefs: string[];
   bootstrapContractRef: string;
   releaseContractRef: string;
@@ -327,6 +516,33 @@ export type SurfaceAppManifestRunnerPlan = {
   planId: string;
   state: "ready" | "blocked";
   manifestSelection: SurfaceAppManifestSelection;
+  runnerPlan: SurfaceAppRunnerPlan | null;
+  blockedReasons: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceAppRuntimeSelectionPosture = {
+  kind: "surface.app.runtime.selection.posture";
+  selectionId: string;
+  state: "ready" | "degraded" | "blocked";
+  requestedAppRef: string;
+  requestedVersion: string;
+  manifestId: string;
+  appId: string;
+  pinnedAppContractRef: string;
+  pinnedVersion: string;
+  sourceMode: string;
+  requiredModuleRoles: string[];
+  compatibilityResult: Readonly<Record<string, unknown>>;
+  sourceTrustResult: Readonly<Record<string, unknown>>;
+  modulePostures: readonly SurfaceModuleRolePosture[];
+  runnerReadiness: Readonly<Record<string, unknown>>;
+  serviceManagerReadiness: Readonly<Record<string, unknown>>;
+  fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture | null;
+  authorityAccessPosture: SurfaceAppAuthorityAccessPosture | null;
+  manifestSelection: SurfaceAppManifestSelection;
+  manifestRunnerPlan: SurfaceAppManifestRunnerPlan;
   runnerPlan: SurfaceAppRunnerPlan | null;
   blockedReasons: string[];
   issuedAt: number;
@@ -360,6 +576,18 @@ export function surfaceAppBootstrapPosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
 ): SurfaceAppBootstrapPosture;
+export function surfaceAppFulfillmentIdentityPosture(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceAppFulfillmentIdentityPosture;
+export function surfaceAppAuthorityAccessPosture(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceAppAuthorityAccessPosture;
+export function surfaceAppInstancePosture(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceAppInstancePosture;
 export function surfaceServiceManagerOperationPosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
@@ -368,6 +596,10 @@ export function surfaceServiceManagerProofDigest(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
 ): SurfaceServiceManagerProofDigest;
+export function surfaceRunnerOperation(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceRunnerOperation;
 export function surfaceServiceManagerSecretBoundary(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
@@ -398,10 +630,51 @@ export function surfaceAppRunnerPlanFromManifest(
   surfaceAppsOrContracts: readonly (DefinedSurfaceApp | SurfaceAppContractShape)[] | Record<string, DefinedSurfaceApp | SurfaceAppContractShape>,
   options?: Record<string, unknown>,
 ): SurfaceAppManifestRunnerPlan;
+export function surfaceAppRuntimeSelectionPosture(
+  manifest: Record<string, unknown>,
+  surfaceAppsOrContracts: readonly (DefinedSurfaceApp | SurfaceAppContractShape)[] | Record<string, DefinedSurfaceApp | SurfaceAppContractShape>,
+  options?: Record<string, unknown>,
+): SurfaceAppRuntimeSelectionPosture;
 export function surfaceAppRunnerPlan(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
 ): SurfaceAppRunnerPlan;
+
+export function surfaceAppSelectionReadModel(options?: {
+  surfaceApp?: DefinedSurfaceApp;
+  surfaceAppContract?: SurfaceAppContractShape;
+  contract?: SurfaceAppContractShape;
+  manifest?: Record<string, unknown>;
+  surfaceAppsOrContracts?: readonly (DefinedSurfaceApp | SurfaceAppContractShape)[] | Record<string, DefinedSurfaceApp | SurfaceAppContractShape>;
+  moduleRegistry?: Record<string, unknown>;
+  moduleRoles?: unknown;
+  moduleBindingMode?: "bindings" | "implementations" | string;
+  productSurface?: string;
+  runtimeVersion?: string;
+  runtimeSelectionPosture?: SurfaceAppRuntimeSelectionPosture;
+  runtimeSelectionOptions?: Record<string, unknown>;
+  moduleBindings?: Record<string, unknown>;
+  moduleBindingPosture?: Record<string, unknown>;
+  runnerPlan?: SurfaceAppRunnerPlan;
+  runnerPlanOptions?: Record<string, unknown>;
+  fulfillmentIdentityPosture?: SurfaceAppFulfillmentIdentityPosture;
+  fulfillmentIdentityOptions?: Record<string, unknown>;
+  authorityAccessPosture?: SurfaceAppAuthorityAccessPosture;
+  authorityAccessOptions?: Record<string, unknown>;
+  serviceManagerSecretBoundary?: SurfaceServiceManagerSecretBoundary;
+  bootstrapContract?: Record<string, unknown>;
+  bootstrapPosture?: SurfaceAppBootstrapPosture;
+  bootstrapPostureOptions?: Record<string, unknown>;
+  serviceManagerOperationPosture?: SurfaceServiceManagerOperationPosture;
+  serviceManagerOperationOptions?: Record<string, unknown>;
+  serviceManagerProofDigest?: SurfaceServiceManagerProofDigest;
+  serviceManagerProofDigestOptions?: Record<string, unknown>;
+  appInstancePosture?: SurfaceAppInstancePosture;
+  appInstanceOptions?: Record<string, unknown>;
+  attachContextOptions?: Record<string, unknown>;
+  issuedAt?: number;
+  expiresAt?: unknown;
+}): SurfaceAppSelectionReadModel;
 export function surfaceModuleRolePosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   role: string,
@@ -440,6 +713,10 @@ export function materializationConsumerFloorRecord(
   options?: Record<string, unknown>,
 ): Record<string, unknown>;
 export function materializationEventReplayPosture(
+  budget: Record<string, unknown> | null | undefined,
+  options?: Record<string, unknown>,
+): Readonly<Record<string, unknown>>;
+export function materializationEnforcementPosture(
   budget: Record<string, unknown> | null | undefined,
   options?: Record<string, unknown>,
 ): Readonly<Record<string, unknown>>;
