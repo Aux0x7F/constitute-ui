@@ -473,6 +473,12 @@ export {
 } from "./surface-module-registry.js";
 
 export {
+  defaultEventMaterializationKey,
+  defaultMergeMaterializedEvent,
+  materializeEventSet,
+} from "./materialized-event-set.js";
+
+export {
   SURFACE_ADAPTER_TAXONOMY,
   SURFACE_CONTRACT_ROLE_ORDER,
   SURFACE_MODULE_ROLE_TAXONOMY,
