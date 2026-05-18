@@ -85,6 +85,32 @@ export type SurfaceModuleBinding<TImplementation = unknown> = {
   implementation: TImplementation | null;
 };
 
+export type SurfaceAdapterBindingPosture<TImplementation = unknown> = {
+  kind: "surface.adapter.binding.posture";
+  state: "ready" | "blocked";
+  blockedReason: string;
+  blockedReasons: readonly string[];
+  role: string;
+  taxonomyKey: string;
+  moduleRef: string;
+  implementationRef: string;
+  version: string;
+  participantSide: string;
+  fulfillmentMode: string;
+  primitiveRefs: readonly string[];
+  requiredCapabilities: readonly string[];
+  evidenceChannels: readonly string[];
+  lifecycle: Readonly<Record<string, unknown>>;
+  transportProfileRefs: readonly string[];
+  renderEvidenceBudgetRef: string;
+  materializationBudgetRefs: readonly string[];
+  releaseRefs: readonly string[];
+  sourceMode: string;
+  sourcePosture: Readonly<Record<string, unknown>> | null;
+  runtimeSelectionPosture: SurfaceAppRuntimeSelectionPosture | null;
+  moduleBinding: SurfaceModuleBinding<TImplementation>;
+};
+
 export type SurfaceAppModuleBindings<TImplementation = unknown> = {
   kind: "surface.app.module.bindings";
   state: "ready" | "blocked";
@@ -132,6 +158,66 @@ export function surfaceModuleBinding<TImplementation = unknown>(
   role: string,
   options?: SurfaceModuleResolutionOptions,
 ): SurfaceModuleBinding<TImplementation>;
+
+export function surfaceAdapterBindingPosture<TImplementation = unknown>(
+  registry: SurfaceModuleRegistry<TImplementation>,
+  surfaceAppOrContract: SurfaceModuleResolutionSource,
+  options?: SurfaceModuleResolutionOptions & {
+    role?: string;
+    blockedReasons?: readonly string[];
+    evidenceChannels?: readonly string[];
+    lifecycle?: Readonly<Record<string, unknown>>;
+    materializationBudgetRefs?: readonly string[];
+    releaseRefs?: readonly string[];
+    transportProfileRefs?: readonly string[];
+    renderEvidenceBudgetRef?: string;
+  },
+): SurfaceAdapterBindingPosture<TImplementation>;
+
+export function surfacePlatformAdapterBindingPosture<TImplementation = unknown>(
+  registry: SurfaceModuleRegistry<TImplementation>,
+  surfaceAppOrContract: SurfaceModuleResolutionSource,
+  options?: SurfaceModuleResolutionOptions & {
+    role?: string;
+    blockedReasons?: readonly string[];
+    evidenceChannels?: readonly string[];
+    lifecycle?: Readonly<Record<string, unknown>>;
+    materializationBudgetRefs?: readonly string[];
+    releaseRefs?: readonly string[];
+    transportProfileRefs?: readonly string[];
+    renderEvidenceBudgetRef?: string;
+  },
+): SurfaceAdapterBindingPosture<TImplementation>;
+
+export function surfaceServiceSurfaceAdapterBindingPosture<TImplementation = unknown>(
+  registry: SurfaceModuleRegistry<TImplementation>,
+  surfaceAppOrContract: SurfaceModuleResolutionSource,
+  options?: SurfaceModuleResolutionOptions & {
+    role?: string;
+    blockedReasons?: readonly string[];
+    evidenceChannels?: readonly string[];
+    lifecycle?: Readonly<Record<string, unknown>>;
+    materializationBudgetRefs?: readonly string[];
+    releaseRefs?: readonly string[];
+    transportProfileRefs?: readonly string[];
+    renderEvidenceBudgetRef?: string;
+  },
+): SurfaceAdapterBindingPosture<TImplementation>;
+
+export function surfaceServiceEdgeAdapterBindingPosture<TImplementation = unknown>(
+  registry: SurfaceModuleRegistry<TImplementation>,
+  surfaceAppOrContract: SurfaceModuleResolutionSource,
+  options?: SurfaceModuleResolutionOptions & {
+    role?: string;
+    blockedReasons?: readonly string[];
+    evidenceChannels?: readonly string[];
+    lifecycle?: Readonly<Record<string, unknown>>;
+    materializationBudgetRefs?: readonly string[];
+    releaseRefs?: readonly string[];
+    transportProfileRefs?: readonly string[];
+    renderEvidenceBudgetRef?: string;
+  },
+): SurfaceAdapterBindingPosture<TImplementation>;
 
 export function requireSurfaceModuleBinding<TImplementation = unknown>(
   registry: SurfaceModuleRegistry<TImplementation>,

@@ -31,6 +31,14 @@
       "types": "./src/runtime-stream-session.d.ts",
       "default": "./src/runtime-stream-session.js"
     },
+    "./service-surface-adapter": {
+      "types": "./src/service-surface-adapter.d.ts",
+      "default": "./src/service-surface-adapter.js"
+    },
+    "./materialized-event-set": {
+      "types": "./src/materialized-event-set.d.ts",
+      "default": "./src/materialized-event-set.js"
+    },
     "./styles.css": "./src/styles.css"
   },
   "scripts": {

@@ -22,6 +22,11 @@ export type BrowserStreamSession = {
   routePending: boolean;
   routeState: string;
   adapterModuleRef: string;
+  adapterBindingState: string;
+  adapterBindingBlockedReason: string;
+  transportProfileRefs: string[];
+  renderEvidenceBudgetRef: string;
+  releaseRefs: string[];
   adapterFailed: boolean;
   adapterFailureReason: string;
   adapterFailureNotified: boolean;
@@ -68,6 +73,7 @@ export type BrowserStreamAdapterOptions = {
   sessionId: string;
   sourceId: string;
   moduleRef?: string;
+  adapterBindingPosture?: SurfaceAdapterBindingPosture | null;
   iceServers?: RTCIceServer[];
   onCandidate?: (candidate: RTCIceCandidateInit) => void;
   onStateChange?: (state: BrowserStreamAdapterState, session: BrowserStreamSession) => void;
@@ -83,6 +89,45 @@ export type RuntimeMediaTransportProfile = {
   iceServers?: RTCIceServer[];
   issuedAt?: number;
   expiresAt?: number;
+};
+
+export type SurfaceAdapterBindingPosture = {
+  kind?: string;
+  state?: string;
+  blockedReason?: string;
+  blockedReasons?: readonly string[];
+  role?: string;
+  taxonomyKey?: string;
+  moduleRef?: string;
+  implementationRef?: string;
+  participantSide?: string;
+  primitiveRefs?: readonly string[];
+  evidenceChannels?: readonly string[];
+  lifecycle?: Record<string, unknown>;
+  transportProfileRefs?: readonly string[];
+  renderEvidenceBudgetRef?: string;
+  materializationBudgetRefs?: readonly string[];
+  releaseRefs?: readonly string[];
+};
+
+export type MediaWebRtcAdapterBindingProfile = {
+  kind: "media.webrtc.adapter.binding.profile";
+  state: string;
+  blockedReason: string;
+  blockedReasons: readonly string[];
+  role: string;
+  taxonomyKey: string;
+  participantSide: string;
+  contractModuleRef: string;
+  implementationRef: string;
+  adapterModuleRef: string;
+  primitiveRefs: readonly string[];
+  evidenceChannels: readonly string[];
+  lifecycle: Readonly<Record<string, unknown>>;
+  transportProfileRefs: readonly string[];
+  renderEvidenceBudgetRef: string;
+  materializationBudgetRefs: readonly string[];
+  releaseRefs: readonly string[];
 };
 
 type MediaEvidenceBudgetEntry = {
@@ -101,6 +146,85 @@ const MEDIA_RENDER_CURRENT_TIME_EPSILON = 0.05;
 const MEDIA_EVIDENCE_PENDING_HEARTBEAT_MS = 5_000;
 const MEDIA_EVIDENCE_STABLE_HEARTBEAT_MS = 15_000;
 const RUNTIME_MEDIA_TRANSPORT_PROFILE_GET = "runtime.media.transport.profile.get";
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item) => item !== null && item !== undefined && item !== "")
+    .map((item) => String(item).trim())
+    .filter(Boolean);
+}
+
+function uniqueStrings(value: unknown[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of value) {
+    const normalized = String(item || "").trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
+
+function firstString(...values: unknown[]): string {
+  for (const value of values) {
+    const text = String(value || "").trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+export function mediaWebRtcAdapterBindingProfile(
+  posture?: SurfaceAdapterBindingPosture | null,
+  options: { moduleRef?: string } = {},
+): MediaWebRtcAdapterBindingProfile {
+  const binding = posture && typeof posture === "object" ? posture : {};
+  const adapterModuleRef = firstString(
+    options.moduleRef,
+    binding.implementationRef,
+    binding.moduleRef,
+    BROWSER_STREAM_ADAPTER_REF,
+  );
+  const blockedReasons = uniqueStrings([
+    binding.blockedReason,
+    ...normalizeStringArray(binding.blockedReasons),
+    ...(adapterModuleRef ? [] : ["missingAdapterModuleRef"]),
+  ]);
+  const declaredState = String(binding.state || "").trim();
+  const state = blockedReasons.length
+    ? "blocked"
+    : (declaredState || (adapterModuleRef ? "ready" : "blocked"));
+  return Object.freeze({
+    kind: "media.webrtc.adapter.binding.profile",
+    state,
+    blockedReason: blockedReasons[0] || "",
+    blockedReasons: Object.freeze(blockedReasons),
+    role: firstString(binding.role, "platformAdapter"),
+    taxonomyKey: firstString(binding.taxonomyKey, "platformAdapter"),
+    participantSide: firstString(binding.participantSide, "window"),
+    contractModuleRef: firstString(binding.moduleRef),
+    implementationRef: firstString(binding.implementationRef),
+    adapterModuleRef,
+    primitiveRefs: Object.freeze(uniqueStrings([
+      ...normalizeStringArray(binding.primitiveRefs),
+      "media.transport.path",
+    ])),
+    evidenceChannels: Object.freeze(uniqueStrings([
+      ...normalizeStringArray(binding.evidenceChannels),
+      "adapter.evidence",
+      "media.transport.observation",
+    ])),
+    lifecycle: Object.freeze({
+      state: "platformBinding",
+      ...(binding.lifecycle && typeof binding.lifecycle === "object" ? binding.lifecycle : {}),
+    }),
+    transportProfileRefs: Object.freeze(normalizeStringArray(binding.transportProfileRefs)),
+    renderEvidenceBudgetRef: firstString(binding.renderEvidenceBudgetRef),
+    materializationBudgetRefs: Object.freeze(normalizeStringArray(binding.materializationBudgetRefs)),
+    releaseRefs: Object.freeze(normalizeStringArray(binding.releaseRefs)),
+  });
+}
 
 export function runtimeMediaIceServers(profile: RuntimeMediaTransportProfile | null): RTCIceServer[] {
   return Array.isArray(profile?.iceServers)
@@ -281,6 +405,11 @@ function mediaEvidenceBase(
   const evidenceSafeFacts = {
     ...safeFacts,
     adapterModuleRef: session.adapterModuleRef || BROWSER_STREAM_ADAPTER_REF,
+    adapterBindingState: session.adapterBindingState,
+    adapterBindingBlockedReason: session.adapterBindingBlockedReason,
+    transportProfileRefs: session.transportProfileRefs,
+    renderEvidenceBudgetRef: session.renderEvidenceBudgetRef,
+    releaseRefs: session.releaseRefs,
   };
   const record = {
     kind: SWARM.RECORD_KIND.MEDIA_FULFILLMENT_EVIDENCE,
@@ -326,12 +455,13 @@ function mediaCorrelationKeys(options: BrowserStreamAdapterOptions): Set<string>
 function mediaCorrelationMaterializationBudget(
   keys: Set<string>,
   issuedAt = Date.now(),
+  sourceAuthority = BROWSER_STREAM_ADAPTER_REF,
 ): MaterializationBudget {
   const overBudget = keys.size > MEDIA_CORRELATION_KEY_LIMIT;
   return assertMaterializationBudget({
     kind: SWARM.RECORD_KIND.MATERIALIZATION_BUDGET,
     budgetId: MEDIA_CORRELATION_MATERIALIZATION_BUDGET_ID,
-    sourceAuthority: BROWSER_STREAM_ADAPTER_REF,
+    sourceAuthority: sourceAuthority || BROWSER_STREAM_ADAPTER_REF,
     consumerRef: "runtime.media.transport",
     payloadClass: SWARM.MATERIALIZATION_PAYLOAD_CLASS.EVIDENCE,
     copyRole: SWARM.MATERIALIZATION_COPY_ROLE.EVIDENCE,
@@ -769,13 +899,16 @@ export async function createBrowserStreamOffer(options: BrowserStreamAdapterOpti
   });
   const issuedAt = Date.now();
   const correlationKeys = mediaCorrelationKeys(options);
+  const adapterBinding = mediaWebRtcAdapterBindingProfile(options.adapterBindingPosture, {
+    moduleRef: options.moduleRef,
+  });
   const candidates: RTCIceCandidateInit[] = [];
   const session: BrowserStreamSession = {
     sourceId: options.sourceId,
     sessionId: options.sessionId,
     frameId: "",
     correlationKeys,
-    correlationBudget: mediaCorrelationMaterializationBudget(correlationKeys, issuedAt),
+    correlationBudget: mediaCorrelationMaterializationBudget(correlationKeys, issuedAt, adapterBinding.adapterModuleRef),
     serviceAccepted: false,
     serviceRejected: false,
     answerReceived: false,
@@ -783,7 +916,12 @@ export async function createBrowserStreamOffer(options: BrowserStreamAdapterOpti
     healthStatus: "",
     routePending: false,
     routeState: "",
-    adapterModuleRef: String(options.moduleRef || ""),
+    adapterModuleRef: adapterBinding.adapterModuleRef,
+    adapterBindingState: adapterBinding.state,
+    adapterBindingBlockedReason: adapterBinding.blockedReason,
+    transportProfileRefs: [...adapterBinding.transportProfileRefs],
+    renderEvidenceBudgetRef: adapterBinding.renderEvidenceBudgetRef,
+    releaseRefs: [...adapterBinding.releaseRefs],
     adapterFailed: false,
     adapterFailureReason: "",
     adapterFailureNotified: false,

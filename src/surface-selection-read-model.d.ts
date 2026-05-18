@@ -7,6 +7,7 @@ import type {
   SurfaceAppFulfillmentIdentityPosture,
   SurfaceAppInstancePosture,
   SurfaceAppRuntimeSelectionPosture,
+  SurfaceAppRunnerFulfillmentReadiness,
   SurfaceAppRunnerPlan,
   SurfaceServiceManagerOperationPosture,
   SurfaceServiceManagerProofDigest,
@@ -30,6 +31,7 @@ export type SurfaceAppSelectionReadModel = {
   runtimeSelectionPosture: SurfaceAppRuntimeSelectionPosture;
   moduleBindings: Readonly<Record<string, unknown>> | null;
   runnerPlan: SurfaceAppRunnerPlan;
+  runnerFulfillmentReadiness: SurfaceAppRunnerFulfillmentReadiness | null;
   fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
   authorityAccessPosture: SurfaceAppAuthorityAccessPosture;
   serviceManagerSecretBoundary: SurfaceServiceManagerSecretBoundary;
@@ -62,6 +64,7 @@ export function surfaceAppSelectionReadModel(options?: {
   moduleBindingPosture?: Record<string, unknown>;
   runnerPlan?: SurfaceAppRunnerPlan;
   runnerPlanOptions?: Record<string, unknown>;
+  runnerFulfillmentReport?: Record<string, unknown>;
   fulfillmentIdentityPosture?: SurfaceAppFulfillmentIdentityPosture;
   fulfillmentIdentityOptions?: Record<string, unknown>;
   authorityAccessPosture?: SurfaceAppAuthorityAccessPosture;

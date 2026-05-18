@@ -452,19 +452,36 @@ export function renderStreamStatus(container, {
 }
 
 export { createRuntimeSurfaceClient } from "./runtime-surface-client.js";
+export {
+  createServiceSurfaceAdapter,
+  normalizeServiceSurfaceAdapterError,
+  serviceSurfaceActionTimeoutMs,
+  serviceSurfaceAdapterPosture,
+} from "./service-surface-adapter.js";
 export { surfaceAppSelectionReadModel } from "./surface-selection-read-model.js";
 export {
   createSurfaceModuleRegistry,
   requireSurfaceModuleBinding,
   requireSurfaceModuleImplementation,
+  surfaceAdapterBindingPosture,
   surfaceAppModuleBindings,
   surfaceAppModuleImplementations,
   surfaceModuleBinding,
   surfaceModuleRegistryPosture,
+  surfacePlatformAdapterBindingPosture,
+  surfaceServiceSurfaceAdapterBindingPosture,
 } from "./surface-module-registry.js";
 
 export {
+  defaultEventMaterializationKey,
+  defaultMergeMaterializedEvent,
+  materializeEventSet,
+} from "./materialized-event-set.js";
+
+export {
+  SURFACE_ADAPTER_TAXONOMY,
   SURFACE_CONTRACT_ROLE_ORDER,
+  SURFACE_MODULE_ROLE_TAXONOMY,
   defineSurfaceAppContract,
   materializationBudgetRecord,
   materializationEnforcementPosture,
@@ -474,6 +491,7 @@ export {
   materializationEventReplayPosture,
   requireSurfaceMaterializationBudget,
   requireSurfaceModuleRole,
+  surfaceAdapterTaxonomyPosture,
   surfaceAppBootstrapContract,
   surfaceAppAttachContext,
   surfaceAppAuthorityAccessPosture,
@@ -483,9 +501,11 @@ export {
   surfaceAppInstancePosture,
   surfaceAppManifestSelection,
   surfaceAppRuntimeSelectionPosture,
+  surfaceAppRunnerFulfillmentReadiness,
   surfaceAppRunnerPlan,
   surfaceAppRunnerPlanFromManifest,
   surfaceMaterializationBudgetPosture,
+  surfaceModuleTaxonomyPosture,
   surfaceServiceManagerLabProof,
   surfaceServiceManagerOperationPosture,
   surfaceServiceManagerProofDigest,

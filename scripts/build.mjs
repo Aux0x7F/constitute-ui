@@ -21,4 +21,6 @@ await cp(resolve(root, "src", "projection-read-model.js"), resolve(dist, "projec
 await cp(resolve(root, "src", "projection-read-model.d.ts"), resolve(dist, "projection-read-model.d.ts"));
 await cp(resolve(root, "src", "runtime-stream-session.js"), resolve(dist, "runtime-stream-session.js"));
 await cp(resolve(root, "src", "runtime-stream-session.d.ts"), resolve(dist, "runtime-stream-session.d.ts"));
+await cp(resolve(root, "src", "service-surface-adapter.js"), resolve(dist, "service-surface-adapter.js"));
+await cp(resolve(root, "src", "service-surface-adapter.d.ts"), resolve(dist, "service-surface-adapter.d.ts"));
 await cp(resolve(root, "src", "styles.css"), resolve(dist, "styles.css"));

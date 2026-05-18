@@ -62,6 +62,13 @@ export function surfaceAppSelectionReadModel(options = {}) {
   );
   const bootstrapPosture = options.bootstrapPosture || surfaceAppBootstrapPosture(surfaceApp, {
     ...(isObject(options.bootstrapPostureOptions) ? options.bootstrapPostureOptions : {}),
+    runnerPlan,
+    bootstrapContract,
+    releaseContract: options.bootstrapPostureOptions?.releaseContract || runnerPlan.releaseContract,
+    secretBoundary: options.bootstrapPostureOptions?.secretBoundary || serviceManagerSecretBoundary,
+    labProof: options.bootstrapPostureOptions?.labProof || runnerPlan.labProof,
+    proofDigest: options.bootstrapPostureOptions?.proofDigest || runnerPlan.proofDigest,
+    trainDigest: options.bootstrapPostureOptions?.trainDigest || runnerPlan.trainDigest,
     issuedAt,
   });
   const serviceManagerOperationPosture = assertServiceManagerOperationPosture(
@@ -102,6 +109,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
       runnerPlan,
       bootstrapContract,
       bootstrapPosture,
+      runnerFulfillmentReport: options.runnerFulfillmentReport,
       fulfillmentIdentityPosture,
       authorityAccessPosture,
       serviceManagerOperationPosture,
@@ -156,6 +164,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
     runtimeSelectionPosture,
     moduleBindings: moduleBindings || null,
     runnerPlan,
+    runnerFulfillmentReadiness: appInstancePosture.runnerFulfillmentReadiness || null,
     fulfillmentIdentityPosture,
     authorityAccessPosture,
     serviceManagerSecretBoundary,

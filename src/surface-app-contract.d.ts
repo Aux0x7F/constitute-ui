@@ -68,6 +68,48 @@ export type SurfaceModuleRolePosture = {
   modules: readonly SurfaceAppModuleClaim[];
 };
 
+export type SurfaceModuleTaxonomyRole = {
+  taxonomyKey: string;
+  role: string;
+  participantSides: readonly string[];
+  evidenceChannels: readonly string[];
+  lifecycle: Record<string, unknown>;
+};
+
+export type SurfaceModuleTaxonomyRolePosture = {
+  kind: "surface.module.taxonomy.role.posture";
+  state: "ready" | "optional" | "blocked";
+  blockedReason: string;
+  blockedReasons: readonly string[];
+  taxonomyKey: string;
+  role: string;
+  required: boolean;
+  moduleRefs: readonly string[];
+  participantSides: readonly string[];
+  evidenceChannels: readonly string[];
+  lifecycle: Record<string, unknown>;
+  materializationBudgetRefs: readonly string[];
+  releaseRefs: readonly string[];
+  moduleCount: number;
+  modules: readonly SurfaceAppModuleClaim[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceModuleTaxonomyPosture = {
+  kind: "surface.module.taxonomy.posture";
+  state: "ready" | "blocked";
+  blockedReasons: readonly string[];
+  roleOrder: readonly string[];
+  roles: readonly SurfaceModuleTaxonomyRolePosture[];
+  byRole: Readonly<Record<string, SurfaceModuleTaxonomyRolePosture>>;
+  moduleCount: number;
+  materializationBudgetRefs: readonly string[];
+  releaseRefs: readonly string[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
 export type SurfaceMaterializationBudgetPosture = {
   kind: "surface.materialization.budget.posture";
   state: "ready" | "blocked";
@@ -170,11 +212,19 @@ export type SurfaceAppBootstrapPosture = {
   state: "ready" | "degraded" | "blocked";
   sourceMode: string;
   moduleRefs: string[];
+  bootstrapContractRef?: string;
+  releaseContractRef?: string;
+  secretBoundaryRef?: string;
+  trainDigestRef?: string;
+  labProofRefs?: string[];
+  proofDigestRefs?: string[];
+  compatibilityRefs?: string[];
   serviceManagerRef: string;
   serviceManagerPosture: Readonly<Record<string, unknown>>;
   secretBoundary: Readonly<Record<string, unknown>>;
   releasePosture: Readonly<Record<string, unknown>>;
   rollbackPosture?: Readonly<Record<string, unknown>>;
+  bootstrapContract?: Readonly<Record<string, unknown>>;
   blockedReasons: string[];
   evidenceRefs: string[];
   issuedAt: number;
@@ -205,16 +255,42 @@ export type SurfaceAppInstancePosture = {
   materializationBudgetRefs: string[];
   runtimeSelectionPosture: Readonly<Record<string, unknown>> | null;
   runnerReadiness: Readonly<Record<string, unknown>> | null;
+  runnerFulfillmentReadiness?: SurfaceAppRunnerFulfillmentReadiness | null;
   serviceManagerReadiness: Readonly<Record<string, unknown>> | null;
   fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
   authorityAccessPosture: SurfaceAppAuthorityAccessPosture;
   runnerPlanRef: string;
+  runnerFulfillmentRef?: string;
   bootstrapContractRef: string;
   bootstrapPosture: Readonly<Record<string, unknown>> | null;
   serviceManagerOperationRef: string;
   serviceManagerProofRef: string;
   blockedReasons: string[];
   issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceAppRunnerFulfillmentReadiness = {
+  kind: "surface.app.runner.fulfillment.readiness";
+  state: "ready" | "degraded" | "blocked" | string;
+  reportId: string;
+  runnerId: string;
+  runnerRef: string;
+  hostRef: string;
+  runnerOperationId: string;
+  operation: string;
+  appContractRef: string;
+  manifestRef: string;
+  sourceMode: string;
+  outputRefs: string[];
+  proofRefs: string[];
+  releaseRefs: string[];
+  evidenceRefs: string[];
+  resourcePosture: Readonly<Record<string, unknown>> | null;
+  operationPosture: Readonly<Record<string, unknown>> | null;
+  fulfillmentPosture: Readonly<Record<string, unknown>> | null;
+  blockedReasons: string[];
+  observedAt: number;
   expiresAt?: unknown;
 };
 
@@ -525,6 +601,8 @@ export type DefinedSurfaceApp = {
 };
 
 export const SURFACE_CONTRACT_ROLE_ORDER: readonly string[];
+export const SURFACE_MODULE_ROLE_TAXONOMY: Readonly<Record<string, SurfaceModuleTaxonomyRole>>;
+export const SURFACE_ADAPTER_TAXONOMY: Readonly<Record<string, SurfaceModuleTaxonomyRole>>;
 
 export function defineSurfaceAppContract(
   contract: SurfaceAppContractShape,
@@ -532,6 +610,11 @@ export function defineSurfaceAppContract(
 ): DefinedSurfaceApp;
 
 export function surfaceAppContractPosture(surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape): SurfaceAppPosture;
+export function surfaceModuleTaxonomyPosture(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceModuleTaxonomyPosture;
+export const surfaceAdapterTaxonomyPosture: typeof surfaceModuleTaxonomyPosture;
 
 export function surfaceAppAttachContext(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
@@ -553,6 +636,10 @@ export function surfaceAppInstancePosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
 ): SurfaceAppInstancePosture;
+export function surfaceAppRunnerFulfillmentReadiness(
+  report: Record<string, unknown> | null | undefined,
+  options?: Record<string, unknown>,
+): SurfaceAppRunnerFulfillmentReadiness | null;
 export function surfaceServiceManagerOperationPosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
