@@ -88,3 +88,35 @@ test("materialized event set replace reports removed entries and schema pressure
   assert.equal(result.enforcementPosture.state, "blocked");
   assert(result.enforcementPosture.blockedReasons.includes("schemaPostureQuarantined"));
 });
+
+test("materialized event set enforces byte budget before UI fanout", () => {
+  const result = materializeEventSet({
+    incomingEvents: [
+      event("a", "info", 1, { payload: "x".repeat(80) }),
+      event("b", "warn", 2, { payload: "y".repeat(80) }),
+      event("c", "error", 3, { payload: "z".repeat(80) }),
+    ],
+    budget: {
+      ...budget,
+      limits: {
+        ...budget.limits,
+        maxItems: 10,
+        maxSourceItems: 10,
+        maxMaterializedBytes: 220,
+      },
+    },
+    expectedSchemaVersion: "v1",
+    floorId: "floor:logging-ui.event-table",
+    consumerRef: "logging-ui.events",
+    subjectRef: "logging.events",
+    referenceRefs: ["logging-ui.events"],
+    sampledAt: 10_000,
+  });
+
+  assert.equal(result.merge.received, 3);
+  assert.equal(result.merge.droppedByByte > 0, true);
+  assert.equal(result.merge.materializedBytes <= 220, true);
+  assert.equal(result.materializationBudget.state, "pressure");
+  assert.equal(result.materializationBudget.limits.droppedByByteCount, result.merge.droppedByByte);
+  assert(result.enforcementPosture.blockedReasons.includes("materializationBytePressure"));
+});

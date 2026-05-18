@@ -22,6 +22,16 @@ function stableStringify(value) {
   return JSON.stringify(value);
 }
 
+function estimatedJsonBytes(value) {
+  const text = stableStringify(value);
+  if (typeof TextEncoder !== "undefined") {
+    try {
+      return new TextEncoder().encode(text).byteLength;
+    } catch {}
+  }
+  return text.length;
+}
+
 function uniqueJson(values) {
   const seen = new Set();
   const out = [];
@@ -171,7 +181,19 @@ export function materializeEventSet({
   const maxItems = materializationBudgetLimit(budget, materializedLimitKey, 0);
   const beforeCap = events.length;
   if (maxItems > 0 && events.length > maxItems) events = events.slice(0, maxItems);
-  const dropped = Math.max(0, beforeCap - events.length);
+  const droppedByItem = Math.max(0, beforeCap - events.length);
+  const maxMaterializedBytes = materializationBudgetLimit(budget, "maxMaterializedBytes", Number.POSITIVE_INFINITY);
+  let materializedBytes = estimatedJsonBytes(events);
+  let droppedByByte = 0;
+  if (Number.isFinite(maxMaterializedBytes) && maxMaterializedBytes > 0) {
+    while (events.length > 0 && materializedBytes > maxMaterializedBytes) {
+      events.pop();
+      droppedByByte += 1;
+      materializedBytes = estimatedJsonBytes(events);
+    }
+  }
+  const dropped = droppedByItem + droppedByByte;
+  const pressureReason = droppedByByte ? "materializationBytePressure" : blockedReason;
   const replayPosture = materializationEventReplayPosture(budget, {
     sourceEvents: source,
     materializedEvents: events,
@@ -205,7 +227,7 @@ export function materializeEventSet({
     cursor: events.length ? String(callExtractor(eventKey, events[events.length - 1], "") || "") : "",
     eventTimeFloor: replayPosture.bitemporal?.eventTimeFloor,
     observedTimeFloor: replayPosture.bitemporal?.observedTimeFloor || sampledAt,
-    reason: dropped ? blockedReason : (postureReason || (lagRequiresReason ? "consumer floor lag" : "")),
+    reason: dropped ? pressureReason : (postureReason || (lagRequiresReason ? "consumer floor lag" : "")),
     replay: replayPosture.consumerFloor?.replay || { mode: replayMode, sourceCount: source.length, materializedCount: events.length },
     redelivery: replayPosture.consumerFloor?.redelivery || { mode: redeliveryMode, duplicatePolicy },
     sampledAt,
@@ -221,7 +243,7 @@ export function materializeEventSet({
     materializedCount: events.length,
     sourceLimitKey,
     materializedLimitKey,
-    blockedReason,
+    blockedReason: pressureReason,
     consumerFloor: normalizedFloor,
     replayPosture,
     upstreamPosture,
@@ -230,17 +252,21 @@ export function materializeEventSet({
     evidenceRefs,
     sampledAt,
   });
-  const materializationBudget = materializationBudgetRecord(budget, {
+  const baseMaterializationBudget = materializationBudgetRecord(budget, {
     sourceCount: source.length,
     materializedCount: events.length,
     sourceLimitKey,
     materializedLimitKey,
-    blockedReason,
+    blockedReason: pressureReason,
     limits: {
       ...(isObject(limits) ? limits : {}),
       sourceCount: source.length,
       materializedCount: events.length,
       droppedCount: dropped,
+      droppedByItemCount: droppedByItem,
+      droppedByByteCount: droppedByByte,
+      materializedBytes,
+      maxMaterializedBytes,
     },
     snapshotPolicy,
     deltaPolicy,
@@ -264,6 +290,16 @@ export function materializeEventSet({
     retentionClass,
     sampledAt,
   });
+  const materializationBudget = dropped
+    ? {
+        ...baseMaterializationBudget,
+        state: "pressure",
+        blockedReasons: Object.freeze(uniqueJson([
+          ...normalizeArray(baseMaterializationBudget.blockedReasons),
+          pressureReason,
+        ]).map(String)),
+      }
+    : baseMaterializationBudget;
   return Object.freeze({
     events: Object.freeze(events),
     merge: Object.freeze({
@@ -272,8 +308,11 @@ export function materializeEventSet({
       updated,
       removed,
       dropped,
+      droppedByItem,
+      droppedByByte,
       materialized: events.length,
       source: source.length,
+      materializedBytes,
     }),
     replayPosture,
     consumerFloor: normalizedFloor,
