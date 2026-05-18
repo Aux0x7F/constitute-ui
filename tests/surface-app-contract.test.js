@@ -363,6 +363,9 @@ test("surface app helper separates app, service, host, runner, and route identit
     deviceRefs: ["device:aux-browser"],
     grantRefs: ["grant:app:logging-ui:run"],
     accessGroupRefs: ["access-group:logging-ui:events"],
+    accessEpochRefs: ["access-epoch:logging-ui:events:3"],
+    privateEnvelopeRefs: ["private-envelope:logging-ui:events:latest"],
+    syncRefs: ["witness:logging-ui:manifest:observed"],
     requiredContentClasses: ["uiProjection"],
     appRef: "surface-app:logging-ui",
     surfaceRef: "surface:logging-ui",
@@ -408,10 +411,14 @@ test("surface app helper separates app, service, host, runner, and route identit
   assert.equal(authorityAccess.state, "ready");
   assert.equal(authorityAccess.actionRequired, true);
   assert.equal(authorityAccess.accessRequired, true);
+  assert.equal(authorityAccess.syncRequired, true);
   assert.deepEqual(authorityAccess.rootRefs, ["root:aux"]);
   assert.deepEqual(authorityAccess.deviceRefs, ["device:aux-browser"]);
   assert.deepEqual(authorityAccess.grantRefs, ["grant:app:logging-ui:run", "authority-grant:service-manager:logging"]);
   assert.deepEqual(authorityAccess.accessGroupRefs, ["access-group:logging-ui:events"]);
+  assert.deepEqual(authorityAccess.accessEpochRefs, ["access-epoch:logging-ui:events:3"]);
+  assert.deepEqual(authorityAccess.privateEnvelopeRefs, ["private-envelope:logging-ui:events:latest"]);
+  assert.deepEqual(authorityAccess.syncRefs, ["witness:logging-ui:manifest:observed"]);
   assert.deepEqual(authorityAccess.requiredContentClasses, ["uiProjection"]);
   assert.equal(assertSurfaceAppAuthorityAccessPosture(authorityAccess).state, "ready");
 
@@ -431,6 +438,30 @@ test("surface app helper separates app, service, host, runner, and route identit
   }), { accessGroupRefs: [], issuedAt: 1234 });
   assert.equal(missingAccess.state, "blocked");
   assert(missingAccess.blockedReasons.includes("missingAccessGroup"));
+
+  const syncWithoutRead = surfaceAppAuthorityAccessPosture(makeContract(), {
+    syncRequired: true,
+    syncRefs: ["witness:surface:observed"],
+    accessRequired: false,
+    grantRefs: [],
+    fulfillmentIdentityPosture: { grantRefs: [] },
+    serviceManagerPosture: { grantRefs: [] },
+    issuedAt: 1234,
+  });
+  assert.equal(syncWithoutRead.state, "ready");
+  assert.equal(syncWithoutRead.accessRequired, false);
+  assert.equal(syncWithoutRead.actionRequired, false);
+  assert.deepEqual(syncWithoutRead.syncRefs, ["witness:surface:observed"]);
+
+  const missingSync = surfaceAppAuthorityAccessPosture(makeContract(), {
+    syncRequired: true,
+    syncRefs: [],
+    fulfillmentIdentityPosture: { grantRefs: [] },
+    serviceManagerPosture: { grantRefs: [] },
+    issuedAt: 1234,
+  });
+  assert.equal(missingSync.state, "blocked");
+  assert(missingSync.blockedReasons.includes("missingSyncWitness"));
 });
 
 test("surface app runner composes protected service manager bootstrap contracts", () => {

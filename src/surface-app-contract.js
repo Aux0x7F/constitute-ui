@@ -1655,6 +1655,21 @@ export function surfaceAppAuthorityAccessPosture(surfaceAppOrContract, options =
     ...normalizeStringArray(secretBoundary.accessGroupRefs),
     ...normalizeStringArray(options.accessGroupRefs),
   ]);
+  const accessEpochRefs = uniqueStrings([
+    ...normalizeStringArray(contract.accessEpochRefs),
+    ...normalizeStringArray(secretBoundary.accessEpochRefs),
+    ...normalizeStringArray(options.accessEpochRefs),
+  ]);
+  const privateEnvelopeRefs = uniqueStrings([
+    ...normalizeStringArray(contract.privateEnvelopeRefs),
+    ...normalizeStringArray(secretBoundary.privateEnvelopeRefs),
+    ...normalizeStringArray(options.privateEnvelopeRefs),
+  ]);
+  const syncRefs = uniqueStrings([
+    ...normalizeStringArray(contract.syncRefs),
+    ...normalizeStringArray(manifestSelection.syncRefs),
+    ...normalizeStringArray(options.syncRefs),
+  ]);
   const requiredContentClasses = uniqueStrings([
     ...normalizeStringArray(contract.requiredContentClasses),
     ...normalizeStringArray(secretBoundary.requiredContentClasses),
@@ -1682,6 +1697,10 @@ export function surfaceAppAuthorityAccessPosture(surfaceAppOrContract, options =
     requiredContentClasses.length
     || normalizeStringArray(options.requiredAccessGroupRefs).length
   ));
+  const syncRequired = Boolean(options.syncRequired ?? (
+    syncRefs.length
+    || normalizeStringArray(options.requiredSyncRefs).length
+  ));
   const explicitRevocationState = String(options.revocationState || options.revocationPosture?.state || "").trim();
   const expiresAt = options.expiresAt || contract.expiresAt;
   const now = Number(options.now || Date.now());
@@ -1697,7 +1716,15 @@ export function surfaceAppAuthorityAccessPosture(surfaceAppOrContract, options =
     : {
       state: accessRequired ? (accessGroupRefs.length ? "ready" : "missing") : "notRequired",
       accessGroupRefCount: accessGroupRefs.length,
+      accessEpochRefCount: accessEpochRefs.length,
+      privateEnvelopeRefCount: privateEnvelopeRefs.length,
       requiredContentClassCount: requiredContentClasses.length,
+    };
+  const syncPosture = isObject(options.syncPosture)
+    ? options.syncPosture
+    : {
+      state: syncRequired ? (syncRefs.length ? "ready" : "missing") : "notRequired",
+      syncRefCount: syncRefs.length,
     };
   const revocationPosture = isObject(options.revocationPosture)
     ? options.revocationPosture
@@ -1715,15 +1742,17 @@ export function surfaceAppAuthorityAccessPosture(surfaceAppOrContract, options =
     ...(actionRequired && !grantRefs.length ? ["missingActionGrant"] : []),
     ...(accessRequired && !accessGroupRefs.length ? ["missingAccessGroup"] : []),
     ...(accessRequired && !requiredContentClasses.length ? ["missingContentClass"] : []),
+    ...(syncRequired && !syncRefs.length ? ["missingSyncWitness"] : []),
     ...(explicitRevocationState === "revoked" || String(revocationPosture.state || "") === "revoked" ? ["revoked"] : []),
     ...(expired ? ["expired"] : []),
     ...postureBlockedReasons(actionPosture, "action"),
     ...postureBlockedReasons(accessPosture, "access"),
+    ...postureBlockedReasons(syncPosture, "sync"),
     ...postureBlockedReasons(revocationPosture, "revocation"),
     ...postureBlockedReasons(expiryPosture, "expiry"),
     ...normalizeStringArray(options.blockedReasons),
   ]);
-  const degraded = [actionPosture, accessPosture, revocationPosture, expiryPosture, fulfillmentIdentityPosture]
+  const degraded = [actionPosture, accessPosture, syncPosture, revocationPosture, expiryPosture, fulfillmentIdentityPosture]
     .some((posture) => String(posture?.state || "") === "degraded" || String(posture?.state || "") === "unchecked");
   const record = {
     kind: "surface.app.authority.access.posture",
@@ -1733,24 +1762,33 @@ export function surfaceAppAuthorityAccessPosture(surfaceAppOrContract, options =
     appId: String(contract.appId || ""),
     actionRequired,
     accessRequired,
+    syncRequired,
     rootRefs,
     deviceRefs,
     grantRefs,
     authorityRefs,
     accessGroupRefs,
+    accessEpochRefs,
+    privateEnvelopeRefs,
+    syncRefs,
     requiredContentClasses,
     revocationRefs,
     exerciseRefs,
     evidenceRefs,
     actionPosture: deepFreeze({ ...actionPosture }),
     accessPosture: deepFreeze({ ...accessPosture }),
+    syncPosture: deepFreeze({ ...syncPosture }),
     revocationPosture: deepFreeze({ ...revocationPosture }),
     expiryPosture: deepFreeze({ ...expiryPosture }),
     safeFacts: {
       actionRequired,
       accessRequired,
+      syncRequired,
       grantRefCount: grantRefs.length,
       accessGroupRefCount: accessGroupRefs.length,
+      accessEpochRefCount: accessEpochRefs.length,
+      privateEnvelopeRefCount: privateEnvelopeRefs.length,
+      syncRefCount: syncRefs.length,
       requiredContentClassCount: requiredContentClasses.length,
       revocationRefCount: revocationRefs.length,
     },
