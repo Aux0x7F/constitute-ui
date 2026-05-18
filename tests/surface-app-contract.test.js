@@ -13,7 +13,9 @@ import {
   surfaceAppAttachContext,
   surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
+  surfaceAppManifestSelection,
   surfaceAppRunnerPlan,
+  surfaceAppRunnerPlanFromManifest,
   surfaceMaterializationBudgetPosture,
   surfaceServiceManagerLabProof,
   surfaceServiceManagerOperationPosture,
@@ -353,6 +355,71 @@ test("surface app runner blocks unresolved required secret boundary", () => {
   assert.equal(plan.secretBoundary.state, "blocked");
   assert.deepEqual(plan.secretBoundary.blockedReasons, ["missingSecretOrAccessGroupRef"]);
   assert(plan.blockedReasons.includes("secretBoundary:missingSecretOrAccessGroupRef"));
+});
+
+test("surface app manifest selection pins bundled app contracts by version", () => {
+  const contract = makeContract({
+    contractId: "surface-app:logging-ui@0.1.0",
+  });
+  const manifest = {
+    kind: "surface.app.manifest",
+    manifestId: "manifest:logging-ui",
+    appId: "constitute-logging-ui",
+    currentAppContractRef: "surface-app:logging-ui@0.1.0",
+    currentVersion: "0.1.0",
+    defaultSourceMode: "bundled",
+    versions: [
+      {
+        appContractRef: "surface-app:logging-ui@0.1.0",
+        version: "0.1.0",
+        state: "current",
+        sourceMode: "bundled",
+        compatibilityRefs: ["protocol:surface-app:v1"],
+      },
+    ],
+    issuedAt: 1234,
+  };
+
+  const selection = surfaceAppManifestSelection(manifest, [contract], { issuedAt: 1234 });
+  assert.equal(selection.kind, "surface.app.manifest.selection");
+  assert.equal(selection.state, "ready");
+  assert.equal(selection.contract.contractId, "surface-app:logging-ui@0.1.0");
+  assert.deepEqual(selection.blockedReasons, []);
+
+  const plan = surfaceAppRunnerPlanFromManifest(manifest, [contract], { issuedAt: 1234 });
+  assert.equal(plan.kind, "surface.app.manifest.runner.plan");
+  assert.equal(plan.state, "ready");
+  assert.equal(plan.runnerPlan.state, "ready");
+  assert.equal(plan.runnerPlan.bootstrapContract.appContractRef, "surface-app:logging-ui@0.1.0");
+});
+
+test("surface app manifest selection blocks missing bundles and unproven remote sources", () => {
+  const manifest = {
+    kind: "surface.app.manifest",
+    manifestId: "manifest:logging-ui",
+    appId: "constitute-logging-ui",
+    currentAppContractRef: "surface-app:logging-ui@0.2.0",
+    currentVersion: "0.2.0",
+    defaultSourceMode: "swarmPackage",
+    versions: [
+      {
+        appContractRef: "surface-app:logging-ui@0.2.0",
+        version: "0.2.0",
+        state: "current",
+        sourceMode: "swarmPackage",
+      },
+    ],
+    issuedAt: 1234,
+  };
+
+  const selection = surfaceAppManifestSelection(manifest, [makeContract()], { issuedAt: 1234 });
+  assert.equal(selection.state, "blocked");
+  assert(selection.blockedReasons.includes("missingBundledContract"));
+  assert(selection.blockedReasons.includes("missingReleaseContractRef"));
+
+  const plan = surfaceAppRunnerPlanFromManifest(manifest, [makeContract()], { issuedAt: 1234 });
+  assert.equal(plan.state, "blocked");
+  assert.equal(plan.runnerPlan, null);
 });
 
 test("surface app helper gates bundled module roles by contract", () => {

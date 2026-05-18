@@ -606,6 +606,109 @@ export function surfaceAppBootstrapContract(surfaceAppOrContract, options = {}) 
   return deepFreeze(record);
 }
 
+export function surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, options = {}) {
+  if (!isObject(manifest)) throw new Error("surface app manifest is required");
+  const appsByRef = indexSurfaceApps(surfaceAppsOrContracts);
+  const versions = Array.isArray(manifest.versions) ? manifest.versions.filter(isObject) : [];
+  const requestedVersion = String(options.version || manifest.currentVersion || "").trim();
+  const requestedRef = String(options.appContractRef || manifest.currentAppContractRef || "").trim();
+  const claim = versions.find((entry) => (
+    (!requestedRef || String(entry.appContractRef || "") === requestedRef)
+    && (!requestedVersion || String(entry.version || "") === requestedVersion)
+  )) || versions.find((entry) => requestedRef && String(entry.appContractRef || "") === requestedRef)
+    || versions.find((entry) => requestedVersion && String(entry.version || "") === requestedVersion)
+    || null;
+  const appContractRef = String(options.appContractRef || claim?.appContractRef || manifest.currentAppContractRef || "").trim();
+  const version = String(options.version || claim?.version || manifest.currentVersion || "").trim();
+  const surfaceApp = appsByRef.get(appContractRef)
+    || appsByRef.get(`${String(manifest.appId || "").trim()}@${version}`)
+    || appsByRef.get(`${appContractRef}@${version}`)
+    || null;
+  const sourceMode = String(options.sourceMode || claim?.sourceMode || manifest.defaultSourceMode || (surfaceApp ? dominantFulfillmentMode(surfaceApp.modules) : "") || "bundled");
+  const claimState = String(claim?.state || "").trim();
+  const manifestState = String(manifest.state || "").trim();
+  const releaseContractRef = String(options.releaseContractRef || claim?.releaseContractRef || "").trim();
+  const blockedReasons = uniqueStrings([
+    ...(!appContractRef ? ["missingAppContractRef"] : []),
+    ...(!version ? ["missingAppVersion"] : []),
+    ...(!claim ? ["missingManifestVersion"] : []),
+    ...(!surfaceApp ? ["missingBundledContract"] : []),
+    ...(surfaceApp && version && String(surfaceApp.contract.version || "") !== version ? ["contractVersionMismatch"] : []),
+    ...(manifestState === "blocked" ? postureBlockedReasons(manifest, "manifest") : []),
+    ...(claimState === "blocked" ? postureBlockedReasons(claim, "manifestVersion") : []),
+    ...(claimState === "superseded" ? ["manifestVersionSuperseded"] : []),
+    ...(nonBundledSourceMode(sourceMode) && !releaseContractRef ? ["missingReleaseContractRef"] : []),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  return deepFreeze({
+    kind: "surface.app.manifest.selection",
+    manifestId: String(manifest.manifestId || ""),
+    appId: String(manifest.appId || ""),
+    state: blockedReasons.length ? "blocked" : "ready",
+    appContractRef,
+    version,
+    sourceMode,
+    claimState,
+    compatibilityRefs: uniqueStrings([
+      ...normalizeStringArray(manifest.compatibilityRefs),
+      ...normalizeStringArray(claim?.compatibilityRefs),
+    ]),
+    bootstrapContractRef: String(options.bootstrapContractRef || claim?.bootstrapContractRef || ""),
+    releaseContractRef,
+    evidenceRefs: uniqueStrings([
+      ...normalizeStringArray(manifest.evidenceRefs),
+      ...normalizeStringArray(claim?.evidenceRefs),
+      ...normalizeStringArray(options.evidenceRefs),
+    ]),
+    blockedReasons,
+    claim: claim ? deepFreeze({ ...claim }) : null,
+    surfaceApp,
+    contract: surfaceApp?.contract || null,
+    issuedAt: Number(options.issuedAt || manifest.issuedAt || Date.now()),
+    expiresAt: options.expiresAt || manifest.expiresAt,
+  });
+}
+
+export function surfaceAppRunnerPlanFromManifest(manifest, surfaceAppsOrContracts, options = {}) {
+  const selection = surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, options.selection || options);
+  if (selection.state !== "ready") {
+    return deepFreeze({
+      kind: "surface.app.manifest.runner.plan",
+      planId: String(options.planId || `surface-runner:${selection.appContractRef || selection.appId || "surface-app"}`),
+      state: "blocked",
+      manifestSelection: selection,
+      runnerPlan: null,
+      blockedReasons: selection.blockedReasons,
+      issuedAt: Number(options.issuedAt || selection.issuedAt || Date.now()),
+      expiresAt: options.expiresAt || selection.expiresAt,
+    });
+  }
+  const runnerPlan = surfaceAppRunnerPlan(selection.surfaceApp, {
+    ...options.runnerPlanOptions,
+    sourceMode: options.runnerPlanOptions?.sourceMode || selection.sourceMode,
+    bootstrapContractOptions: {
+      ...options.runnerPlanOptions?.bootstrapContractOptions,
+      releaseContractRef: options.runnerPlanOptions?.bootstrapContractOptions?.releaseContractRef || selection.releaseContractRef,
+      trainDigestRef: options.runnerPlanOptions?.bootstrapContractOptions?.trainDigestRef || options.trainDigestRef,
+    },
+    issuedAt: options.issuedAt,
+    expiresAt: options.expiresAt,
+  });
+  return deepFreeze({
+    kind: "surface.app.manifest.runner.plan",
+    planId: String(options.planId || runnerPlan.planId),
+    state: runnerPlan.state,
+    manifestSelection: selection,
+    runnerPlan,
+    blockedReasons: uniqueStrings([
+      ...selection.blockedReasons,
+      ...runnerPlan.blockedReasons,
+    ]),
+    issuedAt: runnerPlan.issuedAt,
+    expiresAt: runnerPlan.expiresAt,
+  });
+}
+
 export function surfaceAppRunnerPlan(surfaceAppOrContract, options = {}) {
   const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
     ? surfaceAppOrContract
@@ -1053,6 +1156,27 @@ function assignObjectIfPresent(target, key, value) {
 
 function surfaceAppContractRef(contract, override) {
   return String(override || contract.appRef || contract.contractId || `surface-app:${contract.appId || "unknown"}`);
+}
+
+function indexSurfaceApps(surfaceAppsOrContracts) {
+  const entries = Array.isArray(surfaceAppsOrContracts)
+    ? surfaceAppsOrContracts
+    : (isObject(surfaceAppsOrContracts) ? Object.values(surfaceAppsOrContracts) : []);
+  const index = new Map();
+  for (const entry of entries) {
+    if (!entry) continue;
+    const surfaceApp = isDefinedSurfaceApp(entry) ? entry : defineSurfaceAppContract(entry);
+    const contract = surfaceApp.contract;
+    const refs = uniqueStrings([
+      surfaceAppContractRef(contract),
+      contract.contractId,
+      contract.appRef,
+      contract.appId && contract.version ? `${contract.appId}@${contract.version}` : "",
+      contract.contractId && contract.version ? `${contract.contractId}@${contract.version}` : "",
+    ]);
+    for (const ref of refs) index.set(ref, surfaceApp);
+  }
+  return index;
 }
 
 function nonBundledSourceMode(sourceMode) {

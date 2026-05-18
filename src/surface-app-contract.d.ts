@@ -295,6 +295,38 @@ export type SurfaceAppRunnerPlan = {
   expiresAt?: unknown;
 };
 
+export type SurfaceAppManifestSelection = {
+  kind: "surface.app.manifest.selection";
+  manifestId: string;
+  appId: string;
+  state: "ready" | "blocked";
+  appContractRef: string;
+  version: string;
+  sourceMode: string;
+  claimState: string;
+  compatibilityRefs: string[];
+  bootstrapContractRef: string;
+  releaseContractRef: string;
+  evidenceRefs: string[];
+  blockedReasons: string[];
+  claim: Readonly<Record<string, unknown>> | null;
+  surfaceApp: DefinedSurfaceApp | null;
+  contract: SurfaceAppContractShape | null;
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceAppManifestRunnerPlan = {
+  kind: "surface.app.manifest.runner.plan";
+  planId: string;
+  state: "ready" | "blocked";
+  manifestSelection: SurfaceAppManifestSelection;
+  runnerPlan: SurfaceAppRunnerPlan | null;
+  blockedReasons: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
 export type DefinedSurfaceApp = {
   contract: SurfaceAppContractShape;
   modules: readonly SurfaceAppModuleClaim[];
@@ -353,6 +385,16 @@ export function surfaceAppBootstrapContract(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
 ): SurfaceAppBootstrapContract;
+export function surfaceAppManifestSelection(
+  manifest: Record<string, unknown>,
+  surfaceAppsOrContracts: readonly (DefinedSurfaceApp | SurfaceAppContractShape)[] | Record<string, DefinedSurfaceApp | SurfaceAppContractShape>,
+  options?: Record<string, unknown>,
+): SurfaceAppManifestSelection;
+export function surfaceAppRunnerPlanFromManifest(
+  manifest: Record<string, unknown>,
+  surfaceAppsOrContracts: readonly (DefinedSurfaceApp | SurfaceAppContractShape)[] | Record<string, DefinedSurfaceApp | SurfaceAppContractShape>,
+  options?: Record<string, unknown>,
+): SurfaceAppManifestRunnerPlan;
 export function surfaceAppRunnerPlan(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
