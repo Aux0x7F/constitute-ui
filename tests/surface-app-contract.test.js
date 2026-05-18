@@ -29,6 +29,7 @@ import {
   surfaceAppAttachContext,
   surfaceAppAuthorityAccessPosture,
   surfaceAppBootstrapPosture,
+  surfaceAppContractResolution,
   surfaceAppContractPosture,
   surfaceAppFulfillmentIdentityPosture,
   surfaceAppInstancePosture,
@@ -680,6 +681,14 @@ test("surface app manifest selection pins bundled app contracts by version", () 
 test("surface app runtime selection posture reduces manifest runner and module readiness", () => {
   const contract = makeContract({
     contractId: "surface-app:logging-ui@0.1.0",
+    requiredPrimitives: ["runtime.attach", "projection.materialization", "logging.events.observe"],
+    permissionRequirements: [{ requirementRef: "permission:logging-ui:events:read" }],
+    capabilityRequirements: [{ capabilityRef: "logging.events.observe" }],
+    projectionSubscriptions: [{ subscriptionRef: "projection-sub:logging-ui:events" }],
+    grantRefs: ["grant:logging-ui:run"],
+    accessGroupRefs: ["access-group:logging-ui:events"],
+    accessEpochRefs: ["access-epoch:logging-ui:events:3"],
+    privateEnvelopeRefs: ["private-envelope:logging-ui:events:latest"],
   });
   const manifest = {
     kind: "surface.app.manifest",
@@ -722,12 +731,29 @@ test("surface app runtime selection posture reduces manifest runner and module r
   assert.equal(posture.runnerReadiness.state, "ready");
   assert.equal(posture.serviceManagerReadiness.state, "unknown");
   assert.equal(posture.serviceManagerActionability.state, "unknown");
+  assert.equal(posture.appContractResolution.kind, "surface.app.contract.resolution");
+  assert.equal(posture.appContractResolution.state, "ready");
+  assert.deepEqual(posture.requiredPrimitiveRefs, ["runtime.attach", "projection.materialization", "logging.events.observe", "runtime.posture.render"]);
+  assert.deepEqual(posture.permissionRequirementRefs, ["permission:logging-ui:events:read"]);
+  assert.deepEqual(posture.capabilityRequirementRefs, ["logging.events.observe"]);
+  assert.deepEqual(posture.projectionSubscriptionRefs, ["projection-sub:logging-ui:events"]);
+  assert.deepEqual(posture.materializationBudgetRefs, ["logging-ui.event-table"]);
+  assert.deepEqual(posture.accessRequirementRefs, [
+    "access-group:logging-ui:events",
+    "access-epoch:logging-ui:events:3",
+    "private-envelope:logging-ui:events:latest",
+  ]);
+  assert.deepEqual(posture.appContractResolution.actionGrantRefs, ["grant:logging-ui:run"]);
   assert.deepEqual(posture.requiredModuleRoles, ["runtimeClient", "productView", "projectionModel"]);
   assert.equal(posture.modulePostures.every((entry) => entry.state === "ready"), true);
   assert.deepEqual(posture.blockedReasons, []);
   assert.equal(Object.prototype.propertyIsEnumerable.call(posture.manifestSelection, "surfaceApp"), false);
   assert.equal(Object.prototype.propertyIsEnumerable.call(posture.manifestSelection, "contract"), false);
   assert.equal(assertSurfaceAppRuntimeSelectionPosture(posture), posture);
+  assert.equal(surfaceAppContractResolution(contract, posture.manifestSelection, {
+    compatibilityResult: posture.compatibilityResult,
+    issuedAt: 1234,
+  }).state, "ready");
 });
 
 test("surface app instance posture composes runtime, runner, module, and bootstrap posture", () => {

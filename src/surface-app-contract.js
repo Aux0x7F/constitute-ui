@@ -1142,6 +1142,129 @@ export function surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, op
   return deepFreeze(record);
 }
 
+function requirementRefs(records, keys) {
+  return uniqueStrings((Array.isArray(records) ? records : [])
+    .filter(isObject)
+    .flatMap((entry) => keys.flatMap((key) => (
+      Array.isArray(entry[key])
+        ? normalizeStringArray(entry[key])
+        : [entry[key]].filter((value) => value !== undefined && value !== null && value !== "").map(String)
+    ))));
+}
+
+function contractAccessRefs(contract, secretBoundary = {}) {
+  return uniqueStrings([
+    ...normalizeStringArray(contract.accessGroupRefs),
+    ...normalizeStringArray(contract.accessEpochRefs),
+    ...normalizeStringArray(contract.privateEnvelopeRefs),
+    ...normalizeStringArray(contract.syncRefs),
+    ...normalizeStringArray(secretBoundary.accessGroupRefs),
+    ...normalizeStringArray(secretBoundary.accessEpochRefs),
+    ...normalizeStringArray(secretBoundary.privateEnvelopeRefs),
+    ...normalizeStringArray(secretBoundary.syncRefs),
+  ]);
+}
+
+export function surfaceAppContractResolution(surfaceAppOrContract, selection = {}, options = {}) {
+  const surfaceApp = surfaceAppOrContract
+    ? (isDefinedSurfaceApp(surfaceAppOrContract)
+      ? surfaceAppOrContract
+      : defineSurfaceAppContract(surfaceAppOrContract))
+    : null;
+  const contract = surfaceApp?.contract || {};
+  const secretBoundary = isObject(options.secretBoundary)
+    ? options.secretBoundary
+    : (isObject(contract.secretBoundary) ? contract.secretBoundary : {});
+  const compatibilityWindow = options.compatibilityWindow || selection.compatibilityWindow || contract.compatibilityWindow || {};
+  const compatibilityRefs = uniqueStrings([
+    ...normalizeStringArray(selection.compatibilityRefs),
+    ...normalizeStringArray(contract.compatibilityRefs),
+    ...[compatibilityWindow.protocolRef].filter((ref) => ref),
+    ...normalizeStringArray(options.compatibilityRefs),
+  ]);
+  const requiredPrimitiveRefs = uniqueStrings([
+    ...normalizeStringArray(contract.requiredPrimitives),
+    ...((surfaceApp?.modules || []).flatMap((module) => normalizeStringArray(module.primitiveRefs))),
+    ...normalizeStringArray(options.requiredPrimitiveRefs),
+  ]);
+  const moduleRoleClaims = deepFreeze((surfaceApp?.modules || []).map((module) => ({
+    role: String(module.role || ""),
+    moduleRef: String(module.moduleRef || ""),
+    participantSide: String(module.participantSide || ""),
+    fulfillmentMode: String(module.fulfillmentMode || ""),
+    version: String(module.version || ""),
+    primitiveRefs: Object.freeze(normalizeStringArray(module.primitiveRefs)),
+  })));
+  const permissionRequirementRefs = requirementRefs(contract.permissionRequirements, [
+    "requirementRef",
+    "permissionRef",
+    "grantRef",
+    "authorityRef",
+  ]);
+  const capabilityRequirementRefs = requirementRefs(contract.capabilityRequirements, [
+    "requirementRef",
+    "capabilityRef",
+  ]);
+  const projectionSubscriptionRefs = requirementRefs(contract.projectionSubscriptions, [
+    "subscriptionRef",
+    "projectionRef",
+    "channelRef",
+    "projectionId",
+  ]);
+  const materializationBudgetRefs = uniqueStrings([
+    ...(contract.materializationBudgets || []).map((budget) => budget?.budgetId),
+    ...normalizeStringArray(options.materializationBudgetRefs),
+  ]);
+  const accessRequirementRefs = contractAccessRefs(contract, secretBoundary);
+  const blockedReasons = uniqueStrings([
+    ...(!surfaceApp ? ["missingAppContract"] : []),
+    ...(selection.state === "blocked" ? normalizeStringArray(selection.blockedReasons).map((reason) => `selection:${reason}`) : []),
+    ...(!moduleRoleClaims.length ? ["missingModuleClaims"] : []),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  return deepFreeze({
+    kind: "surface.app.contract.resolution",
+    state: blockedReasons.length ? "blocked" : "ready",
+    appId: String(selection.appId || contract.appId || ""),
+    appContractRef: String(selection.appContractRef || contract.appRef || contract.contractId || ""),
+    version: String(selection.version || contract.version || ""),
+    sourceMode: String(selection.sourceMode || dominantFulfillmentMode(surfaceApp?.modules || []) || "bundled"),
+    requiredPrimitiveRefs,
+    requiredModuleRoles: uniqueStrings([
+      ...normalizeStringArray(selection.requiredModuleRoles),
+      ...(surfaceApp?.requiredRoles || []),
+    ]),
+    moduleRoleClaims,
+    permissionRequirementRefs,
+    capabilityRequirementRefs,
+    projectionSubscriptionRefs,
+    materializationBudgetRefs,
+    actionGrantRefs: uniqueStrings([
+      ...normalizeStringArray(selection.grantRefs),
+      ...normalizeStringArray(contract.grantRefs),
+    ]),
+    accessRequirementRefs,
+    requiredContentClasses: uniqueStrings([
+      ...normalizeStringArray(contract.requiredContentClasses),
+      ...normalizeStringArray(secretBoundary.requiredContentClasses),
+    ]),
+    compatibilityRefs,
+    compatibilityState: String(options.compatibilityResult?.state || "unchecked"),
+    blockedReasons,
+    safeFacts: {
+      primitiveRefCount: requiredPrimitiveRefs.length,
+      moduleClaimCount: moduleRoleClaims.length,
+      permissionRequirementCount: permissionRequirementRefs.length,
+      capabilityRequirementCount: capabilityRequirementRefs.length,
+      projectionSubscriptionCount: projectionSubscriptionRefs.length,
+      materializationBudgetCount: materializationBudgetRefs.length,
+      accessRequirementCount: accessRequirementRefs.length,
+    },
+    issuedAt: Number(options.issuedAt || selection.issuedAt || contract.issuedAt || Date.now()),
+    expiresAt: options.expiresAt || selection.expiresAt || contract.expiresAt,
+  });
+}
+
 export function surfaceAppRunnerPlanFromManifest(manifest, surfaceAppsOrContracts, options = {}) {
   const selection = surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, options.selection || options);
   if (selection.state !== "ready") {
@@ -1880,10 +2003,17 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
       expiresAt: options.expiresAt || selection.expiresAt,
     })
     : null;
+  const appContractResolution = surfaceAppContractResolution(surfaceApp, selection, {
+    ...(isObject(options.contractResolutionOptions) ? options.contractResolutionOptions : {}),
+    compatibilityResult,
+    issuedAt,
+    expiresAt: options.expiresAt || selection.expiresAt,
+  });
   const blockedReasons = uniqueStrings([
     ...selection.blockedReasons.map((reason) => `manifest:${reason}`),
     ...compatibilityResult.blockedReasons.map((reason) => `compatibility:${reason}`),
     ...sourceTrustResult.blockedReasons.map((reason) => `source:${reason}`),
+    ...prefixedBlockedReasons(appContractResolution, "contractResolution"),
     ...modulePostures
       .filter((posture) => posture.state === "blocked")
       .map((posture) => `module:${posture.role}:${posture.blockedReason}`),
@@ -1897,6 +2027,7 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
   const degraded = [
     compatibilityResult,
     sourceTrustResult,
+    appContractResolution,
     serviceManagerReadiness,
     serviceManagerActionability,
     fulfillmentIdentityPosture,
@@ -1915,6 +2046,13 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
     sourceMode: selection.sourceMode,
     requiredModuleRoles,
     compatibilityResult,
+    appContractResolution,
+    requiredPrimitiveRefs: appContractResolution.requiredPrimitiveRefs,
+    permissionRequirementRefs: appContractResolution.permissionRequirementRefs,
+    capabilityRequirementRefs: appContractResolution.capabilityRequirementRefs,
+    projectionSubscriptionRefs: appContractResolution.projectionSubscriptionRefs,
+    materializationBudgetRefs: appContractResolution.materializationBudgetRefs,
+    accessRequirementRefs: appContractResolution.accessRequirementRefs,
     sourceCandidatePosture,
     sourceTrustResult,
     modulePostures,

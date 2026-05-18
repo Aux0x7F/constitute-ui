@@ -496,6 +496,7 @@ export {
   surfaceAppAttachContext,
   surfaceAppAuthorityAccessPosture,
   surfaceAppBootstrapPosture,
+  surfaceAppContractResolution,
   surfaceAppContractPosture,
   surfaceAppFulfillmentIdentityPosture,
   surfaceAppInstancePosture,
