@@ -255,16 +255,42 @@ export type SurfaceAppInstancePosture = {
   materializationBudgetRefs: string[];
   runtimeSelectionPosture: Readonly<Record<string, unknown>> | null;
   runnerReadiness: Readonly<Record<string, unknown>> | null;
+  runnerFulfillmentReadiness?: SurfaceAppRunnerFulfillmentReadiness | null;
   serviceManagerReadiness: Readonly<Record<string, unknown>> | null;
   fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
   authorityAccessPosture: SurfaceAppAuthorityAccessPosture;
   runnerPlanRef: string;
+  runnerFulfillmentRef?: string;
   bootstrapContractRef: string;
   bootstrapPosture: Readonly<Record<string, unknown>> | null;
   serviceManagerOperationRef: string;
   serviceManagerProofRef: string;
   blockedReasons: string[];
   issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceAppRunnerFulfillmentReadiness = {
+  kind: "surface.app.runner.fulfillment.readiness";
+  state: "ready" | "degraded" | "blocked" | string;
+  reportId: string;
+  runnerId: string;
+  runnerRef: string;
+  hostRef: string;
+  runnerOperationId: string;
+  operation: string;
+  appContractRef: string;
+  manifestRef: string;
+  sourceMode: string;
+  outputRefs: string[];
+  proofRefs: string[];
+  releaseRefs: string[];
+  evidenceRefs: string[];
+  resourcePosture: Readonly<Record<string, unknown>> | null;
+  operationPosture: Readonly<Record<string, unknown>> | null;
+  fulfillmentPosture: Readonly<Record<string, unknown>> | null;
+  blockedReasons: string[];
+  observedAt: number;
   expiresAt?: unknown;
 };
 
@@ -610,6 +636,10 @@ export function surfaceAppInstancePosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
 ): SurfaceAppInstancePosture;
+export function surfaceAppRunnerFulfillmentReadiness(
+  report: Record<string, unknown> | null | undefined,
+  options?: Record<string, unknown>,
+): SurfaceAppRunnerFulfillmentReadiness | null;
 export function surfaceServiceManagerOperationPosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,

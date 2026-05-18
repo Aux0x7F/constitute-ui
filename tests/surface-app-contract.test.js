@@ -31,6 +31,7 @@ import {
   surfaceAppInstancePosture,
   surfaceAppManifestSelection,
   surfaceAppRuntimeSelectionPosture,
+  surfaceAppRunnerFulfillmentReadiness,
   surfaceAppRunnerPlan,
   surfaceAppRunnerPlanFromManifest,
   surfaceMaterializationBudgetPosture,
@@ -741,6 +742,69 @@ test("surface app instance posture composes runtime, runner, module, and bootstr
   assert.deepEqual(instance.blockedReasons, []);
   assert.equal(assertSurfaceAppRunnerPlan(runnerPlan), runnerPlan);
   assert.equal(assertSurfaceAppInstancePosture(instance), instance);
+});
+
+test("surface app instance posture consumes app runner fulfillment proof", () => {
+  const contract = makeContract({
+    contractId: "surface-app:logging-ui@0.1.0",
+    appRef: "surface-app:logging-ui@0.1.0",
+  });
+  const runnerPlan = surfaceAppRunnerPlan(contract, { issuedAt: 1234 });
+  const runnerFulfillmentReport = {
+    kind: "app.runner.fulfillment.report",
+    reportId: "app-runner:logging-ui:bootstrap",
+    runnerId: "runner:lab-gateway:logging-ui",
+    runnerRef: RESOLVED_RUNNER_REF,
+    hostRef: "host:lab-gateway",
+    runnerOperationId: "runner-operation:logging-ui:bootstrap",
+    operation: "execute",
+    state: "succeeded",
+    appContractRef: "surface-app:logging-ui@0.1.0",
+    manifestRef: "manifest:logging-ui",
+    sourceMode: "bundled",
+    outputRefs: ["artifact:logging-ui:bootstrap"],
+    proofRefs: ["proof:logging-ui:bootstrap"],
+    releaseRefs: ["release:logging-ui:bootstrap"],
+    evidenceRefs: ["evidence:logging-ui:bootstrap"],
+    resourcePosture: { state: "withinBudget" },
+    operationPosture: { state: "succeeded" },
+    fulfillmentPosture: { state: "succeeded" },
+    blockedReasons: [],
+    observedAt: 1234,
+  };
+  const readiness = surfaceAppRunnerFulfillmentReadiness(runnerFulfillmentReport, {
+    appContract: contract,
+  });
+  assert.equal(readiness.state, "ready");
+  assert.equal(readiness.reportId, "app-runner:logging-ui:bootstrap");
+  assert.deepEqual(readiness.proofRefs, ["proof:logging-ui:bootstrap"]);
+
+  const instance = surfaceAppInstancePosture(contract, {
+    runnerPlan,
+    runnerFulfillmentReport,
+    bootstrapContract: runnerPlan.bootstrapContract,
+    issuedAt: 1234,
+  });
+  assert.equal(instance.state, "ready");
+  assert.equal(instance.runnerFulfillmentRef, "app-runner:logging-ui:bootstrap");
+  assert.equal(instance.runnerReadiness.reportId, "app-runner:logging-ui:bootstrap");
+  assert.deepEqual(instance.runnerFulfillmentReadiness.releaseRefs, ["release:logging-ui:bootstrap"]);
+  assert.deepEqual(instance.blockedReasons, []);
+
+  const blocked = surfaceAppRunnerFulfillmentReadiness({
+    ...runnerFulfillmentReport,
+    reportId: "app-runner:wrong",
+    appContractRef: "surface-app:wrong",
+  }, { appContract: contract });
+  assert.equal(blocked.state, "blocked");
+  assert(blocked.blockedReasons.includes("appContractRefMismatch"));
+
+  const invalid = surfaceAppRunnerFulfillmentReadiness({
+    ...runnerFulfillmentReport,
+    kind: "service.response",
+  }, { appContract: contract });
+  assert.equal(invalid.state, "blocked");
+  assert(invalid.blockedReasons.includes("invalidRunnerFulfillmentReport"));
 });
 
 test("surface app selection read model composes selection, modules, runner, and attach context", () => {

@@ -1496,6 +1496,12 @@ export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
   const bootstrapPosture = isObject(options.bootstrapPosture)
     ? options.bootstrapPosture
     : (isObject(contract.bootstrapPosture) ? contract.bootstrapPosture : null);
+  const runnerFulfillmentReport = isObject(options.runnerFulfillmentReport)
+    ? options.runnerFulfillmentReport
+    : (isObject(runtimeSelectionPosture?.runnerFulfillmentReport) ? runtimeSelectionPosture.runnerFulfillmentReport : null);
+  const runnerFulfillmentReadiness = surfaceAppRunnerFulfillmentReadiness(runnerFulfillmentReport, {
+    appContract: contract,
+  });
   const serviceManagerOperationPosture = isObject(options.serviceManagerOperationPosture)
     ? options.serviceManagerOperationPosture
     : null;
@@ -1551,6 +1557,7 @@ export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
       .map((posture) => `module:${posture.role || "unknown"}:${posture.blockedReason || "blocked"}`),
     ...instancePostureBlockedReasons(moduleBindingPosture, "moduleBinding"),
     ...instancePostureBlockedReasons(runnerPlan, "runner"),
+    ...instancePostureBlockedReasons(runnerFulfillmentReadiness, "runnerFulfillment"),
     ...instancePostureBlockedReasons(bootstrapContract, "bootstrapContract"),
     ...instancePostureBlockedReasons(bootstrapPosture, "bootstrap"),
     ...instancePostureBlockedReasons(fulfillmentIdentityPosture, "identity"),
@@ -1563,6 +1570,7 @@ export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
     runtimeSelectionPosture,
     moduleBindingPosture,
     runnerPlan,
+    runnerFulfillmentReadiness,
     bootstrapContract,
     bootstrapPosture,
     fulfillmentIdentityPosture,
@@ -1606,11 +1614,13 @@ export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
     runtimeSelectionPosture: runtimeSelectionPosture ? deepFreeze({ ...runtimeSelectionPosture }) : null,
     runnerReadiness: isObject(runtimeSelectionPosture?.runnerReadiness)
       ? deepFreeze({ ...runtimeSelectionPosture.runnerReadiness })
-      : surfaceAppRunnerReadinessFromPlan(runnerPlan),
+      : (runnerFulfillmentReadiness || surfaceAppRunnerReadinessFromPlan(runnerPlan)),
     serviceManagerReadiness: isObject(runtimeSelectionPosture?.serviceManagerReadiness)
       ? deepFreeze({ ...runtimeSelectionPosture.serviceManagerReadiness })
       : surfaceAppServiceManagerReadinessFromOperation(serviceManagerOperationPosture),
     runnerPlanRef: String(runnerPlan?.planId || ""),
+    runnerFulfillmentRef: String(runnerFulfillmentReport?.reportId || ""),
+    runnerFulfillmentReadiness,
     bootstrapContractRef: String(bootstrapContract?.bootstrapContractId || bootstrapContract?.contractId || ""),
     bootstrapPosture,
     fulfillmentIdentityPosture,
@@ -1620,6 +1630,55 @@ export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
     blockedReasons,
     issuedAt,
     expiresAt: options.expiresAt || runtimeSelectionPosture?.expiresAt || runnerPlan?.expiresAt || contract.expiresAt,
+  });
+}
+
+export function surfaceAppRunnerFulfillmentReadiness(report, options = {}) {
+  if (!isObject(report)) return null;
+  const contract = isObject(options.appContract) ? options.appContract : {};
+  const expectedRefs = uniqueStrings([
+    options.appContractRef,
+    contract.appRef,
+    contract.contractId,
+    contract.appId && contract.version ? `${contract.appId}@${contract.version}` : "",
+  ]);
+  const reportAppRef = String(report.appContractRef || report.contractRef || "").trim();
+  const reportKind = String(report.kind || "").trim();
+  const reportState = String(report.state || "unknown").trim();
+  const terminalBlocked = ["blocked", "failed", "rejected", "cancelled"].includes(reportState);
+  const blockedReasons = uniqueStrings([
+    ...normalizeStringArray(report.blockedReasons),
+    ...(reportKind !== "app.runner.fulfillment.report" ? ["invalidRunnerFulfillmentReport"] : []),
+    ...(terminalBlocked ? [`fulfillment:${reportState}`] : []),
+    ...(reportAppRef && expectedRefs.length && !expectedRefs.includes(reportAppRef) ? ["appContractRefMismatch"] : []),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  const state = blockedReasons.length
+    ? "blocked"
+    : (reportState === "succeeded" || reportState === "released" ? "ready"
+      : (["accepted", "requested", "running", "rolledBack"].includes(reportState) ? "degraded" : reportState));
+  return deepFreeze({
+    kind: "surface.app.runner.fulfillment.readiness",
+    state,
+    reportId: String(report.reportId || ""),
+    runnerId: String(report.runnerId || ""),
+    runnerRef: String(report.runnerRef || ""),
+    hostRef: String(report.hostRef || ""),
+    runnerOperationId: String(report.runnerOperationId || report.operationId || ""),
+    operation: String(report.operation || ""),
+    appContractRef: reportAppRef,
+    manifestRef: String(report.manifestRef || ""),
+    sourceMode: String(report.sourceMode || ""),
+    outputRefs: uniqueStrings(normalizeStringArray(report.outputRefs)),
+    proofRefs: uniqueStrings(normalizeStringArray(report.proofRefs)),
+    releaseRefs: uniqueStrings(normalizeStringArray(report.releaseRefs)),
+    evidenceRefs: uniqueStrings(normalizeStringArray(report.evidenceRefs)),
+    resourcePosture: isObject(report.resourcePosture) ? deepFreeze({ ...report.resourcePosture }) : null,
+    operationPosture: isObject(report.operationPosture) ? deepFreeze({ ...report.operationPosture }) : null,
+    fulfillmentPosture: isObject(report.fulfillmentPosture) ? deepFreeze({ ...report.fulfillmentPosture }) : null,
+    blockedReasons,
+    observedAt: Number(report.observedAt || options.observedAt || Date.now()),
+    expiresAt: report.expiresAt || options.expiresAt,
   });
 }
 
