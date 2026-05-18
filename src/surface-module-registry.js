@@ -268,6 +268,15 @@ export function surfaceServiceSurfaceAdapterBindingPosture(registry, surfaceAppO
   });
 }
 
+export function surfaceServiceEdgeAdapterBindingPosture(registry, surfaceAppOrContract, options = {}) {
+  return surfaceAdapterBindingPosture(registry, surfaceAppOrContract, {
+    primitiveRef: "service.edge.adapter.posture",
+    ...options,
+    allowRemote: options.allowRemote ?? true,
+    role: options.role || "serviceEdgeAdapter",
+  });
+}
+
 export function requireSurfaceModuleBinding(registry, surfaceAppOrContract, role, options = {}) {
   const binding = surfaceModuleBinding(registry, surfaceAppOrContract, role, options);
   if (binding.state !== "ready" || !binding.implementation) {

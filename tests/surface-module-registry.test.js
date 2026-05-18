@@ -10,6 +10,7 @@ import {
   surfaceModuleBinding,
   surfaceModuleRegistryPosture,
   surfacePlatformAdapterBindingPosture,
+  surfaceServiceEdgeAdapterBindingPosture,
   surfaceServiceSurfaceAdapterBindingPosture,
 } from "../src/surface-module-registry.js";
 import {
@@ -260,6 +261,52 @@ test("surface service adapter binding posture defaults to runtime intent primiti
   assert.equal(posture.taxonomyKey, "serviceSurfaceAdapter");
   assert.deepEqual(posture.primitiveRefs, ["runtime.intent"]);
   assert.deepEqual(posture.evidenceChannels, ["runtime.intent", "adapter.evidence"]);
+});
+
+test("surface service edge adapter binding posture defaults to service edge primitive", () => {
+  const surfaceApp = makeSurfaceApp({
+    requiredModuleRoles: ["serviceEdgeAdapter"],
+    modules: [
+      {
+        moduleRef: "service/service-edge-adapter@0.1.0",
+        role: "serviceEdgeAdapter",
+        participantSide: "service",
+        fulfillmentMode: "nativeInstalled",
+        version: "0.1.0",
+        primitiveRefs: ["service.edge.adapter.posture"],
+        evidenceChannels: ["service.admission"],
+        materializationBudgetRefs: ["service-edge.responses"],
+        releaseRefs: ["release:service-edge"],
+      },
+    ],
+  });
+  const registry = createSurfaceModuleRegistry([
+    {
+      moduleRef: "service/service-edge-adapter@0.1.0",
+      role: "serviceEdgeAdapter",
+      version: "0.1.0",
+      primitiveRefs: ["service.edge.adapter.posture"],
+      evidenceChannels: ["service.response", "projection.delta"],
+      implementation: { admit: true },
+    },
+  ]);
+
+  const posture = surfaceServiceEdgeAdapterBindingPosture(registry, surfaceApp);
+
+  assert.equal(posture.kind, "surface.adapter.binding.posture");
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.role, "serviceEdgeAdapter");
+  assert.equal(posture.taxonomyKey, "serviceEdgeAdapter");
+  assert.equal(posture.participantSide, "service");
+  assert.deepEqual(posture.primitiveRefs, ["service.edge.adapter.posture"]);
+  assert.deepEqual(posture.evidenceChannels, [
+    "service.admission",
+    "service.response",
+    "projection.delta",
+  ]);
+  assert.deepEqual(posture.materializationBudgetRefs, ["service-edge.responses"]);
+  assert.deepEqual(posture.releaseRefs, ["release:service-edge"]);
+  assert.equal(posture.moduleBinding.implementation.admit, true);
 });
 
 test("surface app module implementation summary preserves role-level blocked reasons", () => {

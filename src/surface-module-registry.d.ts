@@ -204,6 +204,21 @@ export function surfaceServiceSurfaceAdapterBindingPosture<TImplementation = unk
   },
 ): SurfaceAdapterBindingPosture<TImplementation>;
 
+export function surfaceServiceEdgeAdapterBindingPosture<TImplementation = unknown>(
+  registry: SurfaceModuleRegistry<TImplementation>,
+  surfaceAppOrContract: SurfaceModuleResolutionSource,
+  options?: SurfaceModuleResolutionOptions & {
+    role?: string;
+    blockedReasons?: readonly string[];
+    evidenceChannels?: readonly string[];
+    lifecycle?: Readonly<Record<string, unknown>>;
+    materializationBudgetRefs?: readonly string[];
+    releaseRefs?: readonly string[];
+    transportProfileRefs?: readonly string[];
+    renderEvidenceBudgetRef?: string;
+  },
+): SurfaceAdapterBindingPosture<TImplementation>;
+
 export function requireSurfaceModuleBinding<TImplementation = unknown>(
   registry: SurfaceModuleRegistry<TImplementation>,
   surfaceAppOrContract: SurfaceModuleResolutionSource,
