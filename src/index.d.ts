@@ -117,6 +117,41 @@ export type SurfaceAppBootstrapPosture = {
   expiresAt?: unknown;
 };
 
+export type SurfaceAppInstancePosture = {
+  kind: "surface.app.instance.posture";
+  instanceId: string;
+  state: "ready" | "degraded" | "blocked";
+  contractId: string;
+  appId: string;
+  appRef: string;
+  serviceRef: string;
+  surfaceRef: string;
+  displayName: string;
+  version: string;
+  manifestId: string;
+  pinnedAppContractRef: string;
+  pinnedVersion: string;
+  sourceMode: string;
+  sourceTrustResult: Readonly<Record<string, unknown>> | null;
+  compatibilityResult: Readonly<Record<string, unknown>> | null;
+  requiredModuleRoles: string[];
+  moduleRefs: string[];
+  modulePostures: Readonly<Record<string, unknown>>[];
+  moduleBindingPosture: Readonly<Record<string, unknown>> | null;
+  materializationBudgetRefs: string[];
+  runtimeSelectionPosture: Readonly<Record<string, unknown>> | null;
+  runnerReadiness: Readonly<Record<string, unknown>> | null;
+  serviceManagerReadiness: Readonly<Record<string, unknown>> | null;
+  runnerPlanRef: string;
+  bootstrapContractRef: string;
+  bootstrapPosture: Readonly<Record<string, unknown>> | null;
+  serviceManagerOperationRef: string;
+  serviceManagerProofRef: string;
+  blockedReasons: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
 export type SurfaceServiceManagerOperationPosture = {
   kind: "service.manager.operation.posture";
   operationId: string;
@@ -435,6 +470,10 @@ export function surfaceAppBootstrapPosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
 ): SurfaceAppBootstrapPosture;
+export function surfaceAppInstancePosture(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceAppInstancePosture;
 export function surfaceServiceManagerOperationPosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,

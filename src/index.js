@@ -477,6 +477,7 @@ export {
   surfaceAppAttachContext,
   surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
+  surfaceAppInstancePosture,
   surfaceAppManifestSelection,
   surfaceAppRuntimeSelectionPosture,
   surfaceAppRunnerPlan,

@@ -18,6 +18,7 @@ import {
   surfaceAppAttachContext,
   surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
+  surfaceAppInstancePosture,
   surfaceAppManifestSelection,
   surfaceAppRuntimeSelectionPosture,
   surfaceAppRunnerPlan,
@@ -545,6 +546,67 @@ test("surface app runtime selection posture reduces manifest runner and module r
   assert.deepEqual(posture.requiredModuleRoles, ["runtimeClient", "productView", "projectionModel"]);
   assert.equal(posture.modulePostures.every((entry) => entry.state === "ready"), true);
   assert.deepEqual(posture.blockedReasons, []);
+});
+
+test("surface app instance posture composes runtime, runner, module, and bootstrap posture", () => {
+  const contract = defineSurfaceAppContract(makeContract({
+    contractId: "surface-app:logging-ui@0.1.0",
+    appRef: "surface-app:logging-ui@0.1.0",
+  }));
+  const manifest = {
+    kind: "surface.app.manifest",
+    manifestId: "manifest:logging-ui",
+    appId: "constitute-logging-ui",
+    currentAppContractRef: "surface-app:logging-ui@0.1.0",
+    currentVersion: "0.1.0",
+    defaultSourceMode: "bundled",
+    versions: [
+      {
+        appContractRef: "surface-app:logging-ui@0.1.0",
+        version: "0.1.0",
+        state: "current",
+        sourceMode: "bundled",
+        compatibilityWindow: {
+          minVersion: "0.1.0",
+          maxVersion: "0.1.x",
+          protocolRef: "protocol:surface-app:v1",
+        },
+        bundledSourceRefs: ["bundle:logging-ui@0.1.0"],
+      },
+    ],
+    issuedAt: 1234,
+  };
+  const runtimeSelectionPosture = surfaceAppRuntimeSelectionPosture(manifest, [contract], {
+    runtimeVersion: "0.1.0",
+    issuedAt: 1234,
+  });
+  const runnerPlan = surfaceAppRunnerPlan(contract, { issuedAt: 1234 });
+  const instance = surfaceAppInstancePosture(contract, {
+    runtimeSelectionPosture,
+    runnerPlan,
+    bootstrapContract: runnerPlan.bootstrapContract,
+    bootstrapPosture: surfaceAppBootstrapPosture(contract, { issuedAt: 1234 }),
+    moduleBindings: {
+      kind: "surface.app.module.bindings",
+      state: "ready",
+      roles: ["runtimeClient", "projectionModel", "productView"],
+      keys: ["runtimeClient", "projectionModel", "productView"],
+      bindings: [
+        { state: "ready", role: "runtimeClient", moduleRef: "constitute-ui/runtime-surface-client@0.1.0" },
+      ],
+    },
+    issuedAt: 1234,
+  });
+
+  assert.equal(instance.kind, "surface.app.instance.posture");
+  assert.equal(instance.state, "ready");
+  assert.equal(instance.appId, "constitute-logging-ui");
+  assert.equal(instance.manifestId, "manifest:logging-ui");
+  assert.equal(instance.pinnedAppContractRef, "surface-app:logging-ui@0.1.0");
+  assert.equal(instance.runnerPlanRef, runnerPlan.planId);
+  assert.equal(instance.bootstrapContractRef, runnerPlan.bootstrapContract.bootstrapContractId);
+  assert.equal(instance.moduleBindingPosture.state, "ready");
+  assert.deepEqual(instance.blockedReasons, []);
 });
 
 test("surface app manifest selection blocks missing bundles and unproven remote sources", () => {

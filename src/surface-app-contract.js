@@ -972,6 +972,121 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
   });
 }
 
+export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
+  const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
+    ? surfaceAppOrContract
+    : defineSurfaceAppContract(surfaceAppOrContract);
+  const contract = surfaceApp.contract;
+  const runtimeSelectionPosture = isObject(options.runtimeSelectionPosture)
+    ? options.runtimeSelectionPosture
+    : null;
+  const runnerPlan = isObject(options.runnerPlan)
+    ? options.runnerPlan
+    : (isObject(runtimeSelectionPosture?.runnerPlan) ? runtimeSelectionPosture.runnerPlan : null);
+  const bootstrapContract = isObject(options.bootstrapContract)
+    ? options.bootstrapContract
+    : (isObject(runnerPlan?.bootstrapContract) ? runnerPlan.bootstrapContract : null);
+  const bootstrapPosture = isObject(options.bootstrapPosture)
+    ? options.bootstrapPosture
+    : (isObject(contract.bootstrapPosture) ? contract.bootstrapPosture : null);
+  const serviceManagerOperationPosture = isObject(options.serviceManagerOperationPosture)
+    ? options.serviceManagerOperationPosture
+    : null;
+  const serviceManagerProofDigest = isObject(options.serviceManagerProofDigest)
+    ? options.serviceManagerProofDigest
+    : null;
+  const moduleBindingPosture = surfaceAppModuleBindingPosture(options.moduleBindings || options.moduleBindingPosture);
+  const modulePostures = deepFreeze((Array.isArray(options.modulePostures) && options.modulePostures.length
+    ? options.modulePostures
+    : (Array.isArray(runtimeSelectionPosture?.modulePostures) && runtimeSelectionPosture.modulePostures.length
+      ? runtimeSelectionPosture.modulePostures
+      : (Array.isArray(runnerPlan?.modulePostures) && runnerPlan.modulePostures.length
+        ? runnerPlan.modulePostures
+        : surfaceApp.requiredRoles.map((role) => surfaceModuleRolePosture(surfaceApp, role)))))
+    .filter(isObject)
+    .map((posture) => ({ ...posture })));
+  const manifestSelection = isObject(runtimeSelectionPosture?.manifestSelection)
+    ? runtimeSelectionPosture.manifestSelection
+    : {};
+  const manifest = isObject(options.manifest) ? options.manifest : {};
+  const requiredModuleRoles = uniqueStrings([
+    ...normalizeStringArray(runtimeSelectionPosture?.requiredModuleRoles),
+    ...surfaceApp.requiredRoles,
+  ]);
+  const blockedReasons = uniqueStrings([
+    ...surfaceApp.missingRoles.map((role) => `module:${role}:missingModuleRole`),
+    ...instancePostureBlockedReasons(runtimeSelectionPosture, "runtimeSelection"),
+    ...modulePostures
+      .filter((posture) => String(posture.state || "") === "blocked")
+      .map((posture) => `module:${posture.role || "unknown"}:${posture.blockedReason || "blocked"}`),
+    ...instancePostureBlockedReasons(moduleBindingPosture, "moduleBinding"),
+    ...instancePostureBlockedReasons(runnerPlan, "runner"),
+    ...instancePostureBlockedReasons(bootstrapContract, "bootstrapContract"),
+    ...instancePostureBlockedReasons(bootstrapPosture, "bootstrap"),
+    ...instancePostureBlockedReasons(serviceManagerOperationPosture, "serviceManagerOperation"),
+    ...instancePostureBlockedReasons(serviceManagerProofDigest, "serviceManagerProof"),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  const degraded = [
+    runtimeSelectionPosture,
+    moduleBindingPosture,
+    runnerPlan,
+    bootstrapContract,
+    bootstrapPosture,
+    serviceManagerOperationPosture,
+    serviceManagerProofDigest,
+  ].some(postureIsInstanceDegraded);
+  const issuedAt = Number(options.issuedAt
+    || runtimeSelectionPosture?.issuedAt
+    || runnerPlan?.issuedAt
+    || bootstrapPosture?.issuedAt
+    || contract.issuedAt
+    || Date.now());
+  const instanceId = String(options.instanceId
+    || runtimeSelectionPosture?.selectionId
+    || `surface-instance:${contract.contractId || contract.appId || "surface-app"}`);
+  return deepFreeze({
+    kind: "surface.app.instance.posture",
+    instanceId,
+    state: blockedReasons.length ? "blocked" : (degraded ? "degraded" : "ready"),
+    contractId: String(contract.contractId || ""),
+    appId: String(contract.appId || ""),
+    appRef: String(contract.appRef || runtimeSelectionPosture?.pinnedAppContractRef || ""),
+    serviceRef: String(contract.serviceRef || ""),
+    surfaceRef: String(contract.surfaceRef || ""),
+    displayName: String(contract.displayName || ""),
+    version: String(contract.version || runtimeSelectionPosture?.pinnedVersion || ""),
+    manifestId: String(runtimeSelectionPosture?.manifestId || manifestSelection.manifestId || manifest.manifestId || ""),
+    pinnedAppContractRef: String(runtimeSelectionPosture?.pinnedAppContractRef || manifestSelection.appContractRef || manifest.currentAppContractRef || contract.appRef || ""),
+    pinnedVersion: String(runtimeSelectionPosture?.pinnedVersion || manifestSelection.version || manifest.currentVersion || contract.version || ""),
+    sourceMode: String(runtimeSelectionPosture?.sourceMode || manifestSelection.sourceMode || dominantFulfillmentMode(surfaceApp.modules) || "bundled"),
+    sourceTrustResult: isObject(runtimeSelectionPosture?.sourceTrustResult) ? deepFreeze({ ...runtimeSelectionPosture.sourceTrustResult }) : null,
+    compatibilityResult: isObject(runtimeSelectionPosture?.compatibilityResult) ? deepFreeze({ ...runtimeSelectionPosture.compatibilityResult }) : null,
+    requiredModuleRoles,
+    moduleRefs: surfaceApp.modules.map((module) => module.moduleRef),
+    modulePostures,
+    moduleBindingPosture,
+    materializationBudgetRefs: (contract.materializationBudgets || [])
+      .map((budget) => String(budget?.budgetId || "").trim())
+      .filter(Boolean),
+    runtimeSelectionPosture: runtimeSelectionPosture ? deepFreeze({ ...runtimeSelectionPosture }) : null,
+    runnerReadiness: isObject(runtimeSelectionPosture?.runnerReadiness)
+      ? deepFreeze({ ...runtimeSelectionPosture.runnerReadiness })
+      : surfaceAppRunnerReadinessFromPlan(runnerPlan),
+    serviceManagerReadiness: isObject(runtimeSelectionPosture?.serviceManagerReadiness)
+      ? deepFreeze({ ...runtimeSelectionPosture.serviceManagerReadiness })
+      : surfaceAppServiceManagerReadinessFromOperation(serviceManagerOperationPosture),
+    runnerPlanRef: String(runnerPlan?.planId || ""),
+    bootstrapContractRef: String(bootstrapContract?.bootstrapContractId || bootstrapContract?.contractId || ""),
+    bootstrapPosture,
+    serviceManagerOperationRef: String(serviceManagerOperationPosture?.operationId || ""),
+    serviceManagerProofRef: String(serviceManagerProofDigest?.digestId || ""),
+    blockedReasons,
+    issuedAt,
+    expiresAt: options.expiresAt || runtimeSelectionPosture?.expiresAt || runnerPlan?.expiresAt || contract.expiresAt,
+  });
+}
+
 export function surfaceAppRunnerPlan(surfaceAppOrContract, options = {}) {
   const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
     ? surfaceAppOrContract
@@ -1709,6 +1824,73 @@ function prefixedBlockedReasons(posture, prefix) {
   if (!isObject(posture) || String(posture.state || "") !== "blocked") return [];
   const reasons = normalizeStringArray(posture.blockedReasons);
   return reasons.length ? reasons.map((reason) => `${prefix}:${reason}`) : [`${prefix}:blocked`];
+}
+
+function instancePostureBlockedReasons(posture, prefix) {
+  if (!isObject(posture)) return [];
+  const state = String(posture.state || "").trim();
+  if (!["blocked", "failed", "unavailable"].includes(state)) return [];
+  const reasons = uniqueStrings([
+    ...normalizeStringArray(posture.blockedReasons),
+    posture.blockedReason,
+    state && state !== "blocked" ? state : "",
+  ]);
+  return reasons.length ? reasons.map((reason) => `${prefix}:${reason}`) : [`${prefix}:blocked`];
+}
+
+function postureIsInstanceDegraded(posture) {
+  if (!isObject(posture)) return false;
+  return ["degraded", "pressure", "partial", "stale", "unchecked"].includes(String(posture.state || "").trim());
+}
+
+function surfaceAppModuleBindingPosture(moduleBindings) {
+  if (!isObject(moduleBindings)) return null;
+  const bindings = Array.isArray(moduleBindings.bindings)
+    ? moduleBindings.bindings
+    : (Array.isArray(moduleBindings.postures) ? moduleBindings.postures : []);
+  const blockedReasons = uniqueStrings([
+    ...normalizeStringArray(moduleBindings.blockedReasons),
+    moduleBindings.blockedReason,
+    ...bindings
+      .filter((binding) => String(binding?.state || "") === "blocked")
+      .map((binding) => binding.blockedReason || "blocked"),
+  ]);
+  return deepFreeze({
+    kind: "surface.app.module.binding.posture",
+    state: blockedReasons.length ? "blocked" : String(moduleBindings.state || "ready"),
+    roles: normalizeStringArray(moduleBindings.roles),
+    keys: normalizeStringArray(moduleBindings.keys),
+    moduleRefs: bindings
+      .map((binding) => String(binding?.moduleRef || "").trim())
+      .filter(Boolean),
+    implementationRefs: bindings
+      .map((binding) => String(binding?.implementationRef || "").trim())
+      .filter(Boolean),
+    blockedReasons,
+  });
+}
+
+function surfaceAppRunnerReadinessFromPlan(runnerPlan) {
+  if (!isObject(runnerPlan)) return null;
+  return deepFreeze({
+    kind: "surface.app.runtime.runner.readiness",
+    state: String(runnerPlan.state || "unknown"),
+    runnerRequirementRefs: normalizeStringArray(runnerPlan.runnerRequirementRefs),
+    planId: String(runnerPlan.planId || ""),
+    runnerPlanId: String(runnerPlan.planId || ""),
+    blockedReasons: normalizeStringArray(runnerPlan.blockedReasons),
+  });
+}
+
+function surfaceAppServiceManagerReadinessFromOperation(operationPosture) {
+  if (!isObject(operationPosture)) return null;
+  return deepFreeze({
+    kind: "surface.app.runtime.serviceManager.readiness",
+    state: String(operationPosture.state || "unknown"),
+    operationId: String(operationPosture.operationId || ""),
+    managerId: String(operationPosture.managerId || ""),
+    blockedReasons: normalizeStringArray(operationPosture.blockedReasons),
+  });
 }
 
 function normalizeModules(value) {
