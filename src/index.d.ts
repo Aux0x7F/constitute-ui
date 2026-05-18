@@ -261,6 +261,7 @@ export type SurfaceAppInstancePosture = {
   materializationBudgetRefs: string[];
   runtimeSelectionPosture: Readonly<Record<string, unknown>> | null;
   runnerReadiness: Readonly<Record<string, unknown>> | null;
+  runnerFulfillmentLifecycle?: SurfaceAppRunnerFulfillmentLifecycle | null;
   runnerFulfillmentReadiness?: SurfaceAppRunnerFulfillmentReadiness | null;
   serviceManagerReadiness: Readonly<Record<string, unknown>> | null;
   fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
@@ -293,6 +294,7 @@ export type SurfaceAppSelectionReadModel = {
   runtimeSelectionPosture: SurfaceAppRuntimeSelectionPosture;
   moduleBindings: Readonly<Record<string, unknown>> | null;
   runnerPlan: SurfaceAppRunnerPlan;
+  runnerFulfillmentLifecycle: SurfaceAppRunnerFulfillmentLifecycle | null;
   runnerFulfillmentReadiness: SurfaceAppRunnerFulfillmentReadiness | null;
   fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
   authorityAccessPosture: SurfaceAppAuthorityAccessPosture;
@@ -329,6 +331,57 @@ export type SurfaceAppRunnerFulfillmentReadiness = {
   operationPosture: Readonly<Record<string, unknown>> | null;
   fulfillmentPosture: Readonly<Record<string, unknown>> | null;
   blockedReasons: string[];
+  observedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceAppRunnerFulfillmentLifecycle = {
+  kind: "app.runner.fulfillment.lifecycle";
+  lifecycleId: string;
+  reportId: string;
+  runnerId: string;
+  runnerRef: string;
+  hostRef: string;
+  runnerOperationId: string;
+  operation: string;
+  state: string;
+  requesterRef: string;
+  subjectRef: string;
+  contractRef: string;
+  appContractRef: string;
+  appId: string;
+  version: string;
+  manifestRef: string;
+  sourceMode: string;
+  sourceRefs: string[];
+  grantRefs: string[];
+  capabilityRefs: string[];
+  inputRefs: string[];
+  outputRefs: string[];
+  evidenceRefs: string[];
+  proofRefs: string[];
+  releaseRefs: string[];
+  witnessRefs: string[];
+  releaseWitnessRefs: string[];
+  resourceBudget: Readonly<Record<string, unknown>> | null;
+  resourcePosture: Readonly<Record<string, unknown>> | null;
+  secretBoundary?: Readonly<Record<string, unknown>>;
+  releasePosture: Readonly<Record<string, unknown>> | null;
+  rollbackPosture: Readonly<Record<string, unknown>> | null;
+  releaseRef?: string;
+  rollbackRef?: string;
+  operationPosture: Readonly<Record<string, unknown>> | null;
+  fulfillmentPosture: Readonly<Record<string, unknown>> | null;
+  safeFacts?: Readonly<Record<string, unknown>>;
+  blockedReasons: string[];
+  requestedAt?: number;
+  acceptedAt?: number;
+  startedAt?: number;
+  completedAt?: number;
+  releasedAt?: number;
+  rolledBackAt?: number;
+  rejectedAt?: number;
+  expiredAt?: number;
   observedAt: number;
   expiresAt?: unknown;
 };
@@ -676,6 +729,10 @@ export function surfaceAppRunnerFulfillmentReadiness(
   report: Record<string, unknown> | null | undefined,
   options?: Record<string, unknown>,
 ): SurfaceAppRunnerFulfillmentReadiness | null;
+export function surfaceAppRunnerFulfillmentLifecycle(
+  report: Record<string, unknown> | null | undefined,
+  options?: Record<string, unknown>,
+): SurfaceAppRunnerFulfillmentLifecycle | null;
 export function surfaceServiceManagerOperationPosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,

@@ -8,6 +8,7 @@ import {
   assertSurfaceAppInstancePosture,
   assertSurfaceAppRuntimeSelectionPosture,
   assertSurfaceAppRunnerPlan,
+  assertSurfaceAppServiceManagerActionability,
 } from "../../constitute-protocol/src/index.js";
 import {
   defineSurfaceAppContract,
@@ -18,6 +19,7 @@ import {
   surfaceAppInstancePosture,
   surfaceAppRuntimeSelectionPosture,
   surfaceAppRunnerPlan,
+  surfaceAppServiceManagerActionability,
   surfaceServiceManagerOperationPosture,
   surfaceServiceManagerProofDigest,
 } from "./surface-app-contract.js";
@@ -84,6 +86,19 @@ export function surfaceAppSelectionReadModel(options = {}) {
       observedAt: options.serviceManagerProofDigestOptions?.observedAt || issuedAt,
     }),
   );
+  const serviceManagerActionability = assertSurfaceAppServiceManagerActionability(
+    options.serviceManagerActionability || runtimeSelectionPosture.serviceManagerActionability || surfaceAppServiceManagerActionability(surfaceApp, {
+      ...(isObject(options.serviceManagerActionabilityOptions) ? options.serviceManagerActionabilityOptions : {}),
+      runnerPlan,
+      serviceManagerPosture: options.serviceManagerActionabilityOptions?.serviceManagerPosture || surfaceApp.contract.serviceManagerPosture,
+      operationPostures: [
+        serviceManagerOperationPosture,
+        ...normalizeArray(options.serviceManagerActionabilityOptions?.operationPostures).filter(isObject),
+      ],
+      proofDigest: serviceManagerProofDigest,
+      issuedAt,
+    }),
+  );
   const fulfillmentIdentityPosture = assertSurfaceAppFulfillmentIdentityPosture(
     options.fulfillmentIdentityPosture || surfaceAppFulfillmentIdentityPosture(surfaceApp, {
       ...(isObject(options.fulfillmentIdentityOptions) ? options.fulfillmentIdentityOptions : {}),
@@ -114,6 +129,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
       authorityAccessPosture,
       serviceManagerOperationPosture,
       serviceManagerProofDigest,
+      serviceManagerActionability,
       issuedAt,
     }),
   );
@@ -128,6 +144,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
     bootstrapPosture,
     fulfillmentIdentityPosture,
     authorityAccessPosture,
+    serviceManagerActionability,
     serviceManagerOperationPosture,
     serviceManagerProofDigest,
   });
@@ -138,6 +155,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
     ...normalizeStringArray(fulfillmentIdentityPosture.blockedReasons),
     ...normalizeStringArray(authorityAccessPosture.blockedReasons),
     ...normalizeStringArray(bootstrapPosture.blockedReasons),
+    ...normalizeStringArray(serviceManagerActionability.blockedReasons),
     ...normalizeStringArray(serviceManagerOperationPosture.blockedReasons),
     ...normalizeStringArray(serviceManagerProofDigest.blockedReasons),
     ...normalizeStringArray(appInstancePosture.blockedReasons),
@@ -164,10 +182,12 @@ export function surfaceAppSelectionReadModel(options = {}) {
     runtimeSelectionPosture,
     moduleBindings: moduleBindings || null,
     runnerPlan,
+    runnerFulfillmentLifecycle: appInstancePosture.runnerFulfillmentLifecycle || null,
     runnerFulfillmentReadiness: appInstancePosture.runnerFulfillmentReadiness || null,
     fulfillmentIdentityPosture,
     authorityAccessPosture,
     serviceManagerSecretBoundary,
+    serviceManagerActionability,
     bootstrapContract,
     bootstrapPosture,
     serviceManagerOperationPosture,
@@ -215,6 +235,10 @@ function normalizeStringArray(value) {
   return value
     .filter((item) => item !== null && item !== undefined && item !== "")
     .map((item) => String(item));
+}
+
+function normalizeArray(value) {
+  return Array.isArray(value) ? [...value] : [];
 }
 
 function uniqueStrings(values) {

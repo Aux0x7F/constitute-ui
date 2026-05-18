@@ -8,8 +8,11 @@ import {
   assertSurfaceAppInstancePosture,
   assertSurfaceAppManifestRunnerPlan,
   assertSurfaceAppManifestSelection,
+  assertSurfaceAppSourceCandidatePosture,
   assertSurfaceAppRuntimeSelectionPosture,
+  assertSurfaceAppServiceManagerActionability,
   assertSurfaceAppRunnerPlan,
+  assertAppRunnerFulfillmentLifecycle,
 } from "../../constitute-protocol/src/index.js";
 import {
   SURFACE_ADAPTER_TAXONOMY,
@@ -31,9 +34,12 @@ import {
   surfaceAppInstancePosture,
   surfaceAppManifestSelection,
   surfaceAppRuntimeSelectionPosture,
+  surfaceAppRunnerFulfillmentLifecycle,
   surfaceAppRunnerFulfillmentReadiness,
   surfaceAppRunnerPlan,
   surfaceAppRunnerPlanFromManifest,
+  surfaceAppServiceManagerActionability,
+  surfaceAppSourceCandidatePosture,
   surfaceMaterializationBudgetPosture,
   surfaceServiceManagerLabProof,
   surfaceServiceManagerOperationPosture,
@@ -242,6 +248,19 @@ test("surface app helper reduces service manager operation and proof digest post
   assert.equal(digest.state, "proved");
   assert.equal(digest.operationId, operation.operationId);
   assert.deepEqual(digest.serviceRefs, ["service:logging"]);
+
+  const actionability = surfaceAppServiceManagerActionability(surfaceApp, {
+    operationPostures: [operation],
+    proofDigest: digest,
+    requiredOperations: ["promote"],
+    issuedAt: 1234,
+  });
+  assert.equal(actionability.kind, "surface.app.runtime.service-manager.actionability");
+  assert.equal(actionability.state, "ready");
+  assert.equal(actionability.healthState, "succeeded");
+  assert(actionability.operationRefs.includes("operation:logging-ui:promote"));
+  assert.deepEqual(actionability.proofDigestRefs, ["proof-digest:logging-ui:promote"]);
+  assertSurfaceAppServiceManagerActionability(actionability);
 
   const blockedRollback = surfaceServiceManagerOperationPosture(surfaceApp, {
     operation: "rollback",
@@ -671,6 +690,7 @@ test("surface app runtime selection posture reduces manifest runner and module r
   assert.equal(posture.sourceTrustResult.state, "ready");
   assert.equal(posture.runnerReadiness.state, "ready");
   assert.equal(posture.serviceManagerReadiness.state, "unknown");
+  assert.equal(posture.serviceManagerActionability.state, "unknown");
   assert.deepEqual(posture.requiredModuleRoles, ["runtimeClient", "productView", "projectionModel"]);
   assert.equal(posture.modulePostures.every((entry) => entry.state === "ready"), true);
   assert.deepEqual(posture.blockedReasons, []);
@@ -759,14 +779,28 @@ test("surface app instance posture consumes app runner fulfillment proof", () =>
     runnerOperationId: "runner-operation:logging-ui:bootstrap",
     operation: "execute",
     state: "succeeded",
+    requesterRef: "identity:operator",
+    subjectRef: "surface-app:logging-ui@0.1.0",
+    contractRef: "surface-app:logging-ui@0.1.0",
     appContractRef: "surface-app:logging-ui@0.1.0",
     manifestRef: "manifest:logging-ui",
     sourceMode: "bundled",
+    sourceRefs: ["bundle:logging-ui@0.1.0"],
+    grantRefs: ["grant:logging-ui:runner"],
     outputRefs: ["artifact:logging-ui:bootstrap"],
     proofRefs: ["proof:logging-ui:bootstrap"],
     releaseRefs: ["release:logging-ui:bootstrap"],
     evidenceRefs: ["evidence:logging-ui:bootstrap"],
-    resourcePosture: { state: "withinBudget" },
+    resourceBudget: { maxMemoryMiB: 256 },
+    resourcePosture: {
+      kind: "resource.posture",
+      postureId: "resource-posture:logging-ui:bootstrap",
+      profileId: "resource-profile:operator-dev",
+      state: "withinBudget",
+      counts: { memoryMiB: 64, cpuPct: 2 },
+      budgets: { memoryMiB: 256, cpuPct: 25 },
+      sampledAt: 1234,
+    },
     operationPosture: { state: "succeeded" },
     fulfillmentPosture: { state: "succeeded" },
     blockedReasons: [],
@@ -778,6 +812,15 @@ test("surface app instance posture consumes app runner fulfillment proof", () =>
   assert.equal(readiness.state, "ready");
   assert.equal(readiness.reportId, "app-runner:logging-ui:bootstrap");
   assert.deepEqual(readiness.proofRefs, ["proof:logging-ui:bootstrap"]);
+  const lifecycle = surfaceAppRunnerFulfillmentLifecycle(runnerFulfillmentReport, {
+    appContract: contract,
+    witnessRefs: ["witness:logging-ui:operator"],
+  });
+  assert.equal(lifecycle.kind, "app.runner.fulfillment.lifecycle");
+  assert.equal(lifecycle.state, "succeeded");
+  assert.equal(lifecycle.reportId, runnerFulfillmentReport.reportId);
+  assert.deepEqual(lifecycle.witnessRefs, ["witness:logging-ui:operator"]);
+  assertAppRunnerFulfillmentLifecycle(lifecycle);
 
   const instance = surfaceAppInstancePosture(contract, {
     runnerPlan,
@@ -787,6 +830,7 @@ test("surface app instance posture consumes app runner fulfillment proof", () =>
   });
   assert.equal(instance.state, "ready");
   assert.equal(instance.runnerFulfillmentRef, "app-runner:logging-ui:bootstrap");
+  assert.equal(instance.runnerFulfillmentLifecycle.reportId, "app-runner:logging-ui:bootstrap");
   assert.equal(instance.runnerReadiness.reportId, "app-runner:logging-ui:bootstrap");
   assert.deepEqual(instance.runnerFulfillmentReadiness.releaseRefs, ["release:logging-ui:bootstrap"]);
   assert.deepEqual(instance.blockedReasons, []);
@@ -805,6 +849,13 @@ test("surface app instance posture consumes app runner fulfillment proof", () =>
   }, { appContract: contract });
   assert.equal(invalid.state, "blocked");
   assert(invalid.blockedReasons.includes("invalidRunnerFulfillmentReport"));
+
+  const expired = surfaceAppRunnerFulfillmentLifecycle({
+    ...runnerFulfillmentReport,
+    expiresAt: 1300,
+  }, { appContract: contract, now: 1300 });
+  assert.equal(expired.state, "expired");
+  assert(expired.blockedReasons.includes("fulfillmentExpired"));
 });
 
 test("surface app selection read model composes selection, modules, runner, and attach context", () => {
@@ -902,6 +953,11 @@ test("surface app selection read model composes selection, modules, runner, and 
   assert.equal(readModel.bootstrapPosture.releaseContractRef, readModel.runnerPlan.releaseContract.contractId);
   assert.equal(readModel.bootstrapPosture.secretBoundaryRef, readModel.runnerPlan.secretBoundary.boundaryId);
   assert.equal(readModel.bootstrapPosture.trainDigestRef, readModel.runnerPlan.trainDigest.trainId);
+  assert.equal(readModel.serviceManagerActionability.kind, "surface.app.runtime.service-manager.actionability");
+  assert.equal(readModel.serviceManagerActionability.state, "ready");
+  assert.equal(readModel.runnerFulfillmentLifecycle, null);
+  assert.equal(readModel.appInstancePosture.serviceManagerActionability, readModel.serviceManagerActionability);
+  assert.equal(readModel.attachContext.serviceManagerActionability, readModel.serviceManagerActionability);
   assert.deepEqual(readModel.blockedReasons, []);
 });
 
@@ -929,6 +985,15 @@ test("surface app manifest selection blocks missing bundles and unproven remote 
   assert(selection.blockedReasons.includes("missingBundledContract"));
   assert(selection.blockedReasons.includes("missingReleaseContractRef"));
   assert(selection.blockedReasons.includes("missingRemoteSourceRef"));
+  assert(selection.blockedReasons.includes("missingProofDigestRef"));
+  assert(selection.blockedReasons.includes("missingRollbackRef"));
+  assert(selection.blockedReasons.includes("missingSecretBoundaryRef"));
+  assert(selection.blockedReasons.includes("missingCompatibilityRef"));
+  assert(selection.blockedReasons.includes("missingSourceTrustRef"));
+  assert.equal(selection.sourceCandidatePosture.kind, "surface.app.source.candidate.posture");
+  assert.equal(selection.sourceCandidatePosture.state, "blocked");
+  assert.equal(selection.sourceCandidatePosture.sourceClass, "swarmHosted");
+  assertSurfaceAppSourceCandidatePosture(selection.sourceCandidatePosture);
 
   const plan = surfaceAppRunnerPlanFromManifest(manifest, [makeContract()], { issuedAt: 1234 });
   assert.equal(plan.state, "blocked");
@@ -941,6 +1006,52 @@ test("surface app manifest selection blocks missing bundles and unproven remote 
   assert.equal(posture.state, "blocked");
   assert(posture.blockedReasons.includes("manifest:missingRemoteSourceRef"));
   assert(posture.blockedReasons.includes("source:missingRemoteSourceRef"));
+  assert(posture.blockedReasons.includes("source:missingProofDigestRef"));
+  assert.equal(posture.sourceCandidatePosture.state, "blocked");
+  assertSurfaceAppRuntimeSelectionPosture(posture);
+});
+
+test("surface app source candidate posture gates non-bundled sources explicitly", () => {
+  const bundled = surfaceAppSourceCandidatePosture({
+    sourceMode: "bundled",
+    appContractRef: "surface-app:logging-ui@0.1.0",
+    bundledContractAvailable: true,
+    bundledSourceRefs: ["bundle:logging-ui@0.1.0"],
+    issuedAt: 1234,
+  });
+  assert.equal(bundled.state, "ready");
+  assert.equal(bundled.sourceClass, "bundled");
+  assert.deepEqual(bundled.candidateRefs, ["bundle:logging-ui@0.1.0", "surface-app:logging-ui@0.1.0"]);
+  assertSurfaceAppSourceCandidatePosture(bundled);
+
+  const storagePinned = surfaceAppSourceCandidatePosture({
+    sourceMode: "storageObject",
+    remoteSourceRefs: ["storage-object:logging-ui@0.2.0"],
+    releaseContractRef: "release:logging-ui@0.2.0",
+    compatibilityRefs: ["protocol:surface-app:v1"],
+    proofDigestRefs: ["proof-digest:logging-ui@0.2.0"],
+    rollbackRefs: ["rollback:logging-ui@0.1.0"],
+    secretBoundaryRefs: ["secret-boundary:logging-ui"],
+    trustRefs: ["trust:logging-ui@0.2.0"],
+    issuedAt: 1234,
+  });
+  assert.equal(storagePinned.state, "ready");
+  assert.equal(storagePinned.sourceClass, "storagePinned");
+  assert.deepEqual(storagePinned.storageObjectRefs, ["storage-object:logging-ui@0.2.0"]);
+  assertSurfaceAppSourceCandidatePosture(storagePinned);
+
+  const incompleteRemote = surfaceAppSourceCandidatePosture({
+    sourceMode: "storageObject",
+    remoteSourceRefs: ["storage-object:logging-ui@0.2.0"],
+    releaseContractRef: "release:logging-ui@0.2.0",
+    compatibilityRefs: ["protocol:surface-app:v1"],
+    issuedAt: 1234,
+  });
+  assert.equal(incompleteRemote.state, "blocked");
+  assert(incompleteRemote.blockedReasons.includes("missingProofDigestRef"));
+  assert(incompleteRemote.blockedReasons.includes("missingRollbackRef"));
+  assert(incompleteRemote.blockedReasons.includes("missingSecretBoundaryRef"));
+  assert(incompleteRemote.blockedReasons.includes("missingSourceTrustRef"));
 });
 
 test("surface app helper gates bundled module roles by contract", () => {

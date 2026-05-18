@@ -7,6 +7,7 @@ import type {
   SurfaceAppFulfillmentIdentityPosture,
   SurfaceAppInstancePosture,
   SurfaceAppRuntimeSelectionPosture,
+  SurfaceAppRunnerFulfillmentLifecycle,
   SurfaceAppRunnerFulfillmentReadiness,
   SurfaceAppRunnerPlan,
   SurfaceServiceManagerOperationPosture,
@@ -31,6 +32,7 @@ export type SurfaceAppSelectionReadModel = {
   runtimeSelectionPosture: SurfaceAppRuntimeSelectionPosture;
   moduleBindings: Readonly<Record<string, unknown>> | null;
   runnerPlan: SurfaceAppRunnerPlan;
+  runnerFulfillmentLifecycle: SurfaceAppRunnerFulfillmentLifecycle | null;
   runnerFulfillmentReadiness: SurfaceAppRunnerFulfillmentReadiness | null;
   fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
   authorityAccessPosture: SurfaceAppAuthorityAccessPosture;
