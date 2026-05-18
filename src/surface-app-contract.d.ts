@@ -257,6 +257,7 @@ export type SurfaceAppInstancePosture = {
   runnerReadiness: Readonly<Record<string, unknown>> | null;
   runnerFulfillmentReadiness?: SurfaceAppRunnerFulfillmentReadiness | null;
   serviceManagerReadiness: Readonly<Record<string, unknown>> | null;
+  serviceManagerActionability: SurfaceAppServiceManagerActionability | null;
   fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
   authorityAccessPosture: SurfaceAppAuthorityAccessPosture;
   runnerPlanRef: string;
@@ -605,11 +606,41 @@ export type SurfaceAppRuntimeSelectionPosture = {
   modulePostures: readonly SurfaceModuleRolePosture[];
   runnerReadiness: Readonly<Record<string, unknown>>;
   serviceManagerReadiness: Readonly<Record<string, unknown>>;
+  serviceManagerActionability: SurfaceAppServiceManagerActionability | null;
   fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture | null;
   authorityAccessPosture: SurfaceAppAuthorityAccessPosture | null;
   manifestSelection: SurfaceAppManifestSelection;
   manifestRunnerPlan: SurfaceAppManifestRunnerPlan;
   runnerPlan: SurfaceAppRunnerPlan | null;
+  blockedReasons: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceAppServiceManagerActionability = {
+  kind: "surface.app.runtime.service-manager.actionability";
+  state: "ready" | "degraded" | "blocked" | "unknown" | "unchecked";
+  managerId: string;
+  subjectRef: string;
+  managerRef: string;
+  sourceMode: string;
+  healthState: string;
+  serviceManagerRequirementRefs: string[];
+  operationRefs: string[];
+  releaseContractRefs: string[];
+  secretBoundaryRefs: string[];
+  proofDigestRefs: string[];
+  labProofRefs: string[];
+  trainDigestRefs: string[];
+  capabilityRefs: string[];
+  evidenceRefs: string[];
+  serviceManagerPosture?: Readonly<Record<string, unknown>>;
+  releaseContract: SurfaceServiceManagerReleaseContract | null;
+  secretBoundary: SurfaceServiceManagerSecretBoundary | null;
+  labProof: SurfaceServiceManagerLabProof | null;
+  proofDigest: SurfaceServiceManagerProofDigest | null;
+  trainDigest: SurfaceServiceManagerTrainDigest | null;
+  operationPostures: readonly SurfaceServiceManagerOperationPosture[];
   blockedReasons: string[];
   issuedAt: number;
   expiresAt?: unknown;
@@ -709,6 +740,10 @@ export function surfaceAppSourceCandidatePosture(
   selectionOrOptions: Record<string, unknown>,
   options?: Record<string, unknown>,
 ): SurfaceAppSourceCandidatePosture;
+export function surfaceAppServiceManagerActionability(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceAppServiceManagerActionability;
 export function surfaceAppRunnerPlanFromManifest(
   manifest: Record<string, unknown>,
   surfaceAppsOrContracts: readonly (DefinedSurfaceApp | SurfaceAppContractShape)[] | Record<string, DefinedSurfaceApp | SurfaceAppContractShape>,

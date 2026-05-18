@@ -10,6 +10,7 @@ import {
   assertSurfaceAppManifestSelection,
   assertSurfaceAppSourceCandidatePosture,
   assertSurfaceAppRuntimeSelectionPosture,
+  assertSurfaceAppServiceManagerActionability,
   assertSurfaceAppRunnerPlan,
 } from "../../constitute-protocol/src/index.js";
 import {
@@ -35,6 +36,7 @@ import {
   surfaceAppRunnerFulfillmentReadiness,
   surfaceAppRunnerPlan,
   surfaceAppRunnerPlanFromManifest,
+  surfaceAppServiceManagerActionability,
   surfaceAppSourceCandidatePosture,
   surfaceMaterializationBudgetPosture,
   surfaceServiceManagerLabProof,
@@ -244,6 +246,19 @@ test("surface app helper reduces service manager operation and proof digest post
   assert.equal(digest.state, "proved");
   assert.equal(digest.operationId, operation.operationId);
   assert.deepEqual(digest.serviceRefs, ["service:logging"]);
+
+  const actionability = surfaceAppServiceManagerActionability(surfaceApp, {
+    operationPostures: [operation],
+    proofDigest: digest,
+    requiredOperations: ["promote"],
+    issuedAt: 1234,
+  });
+  assert.equal(actionability.kind, "surface.app.runtime.service-manager.actionability");
+  assert.equal(actionability.state, "ready");
+  assert.equal(actionability.healthState, "succeeded");
+  assert(actionability.operationRefs.includes("operation:logging-ui:promote"));
+  assert.deepEqual(actionability.proofDigestRefs, ["proof-digest:logging-ui:promote"]);
+  assertSurfaceAppServiceManagerActionability(actionability);
 
   const blockedRollback = surfaceServiceManagerOperationPosture(surfaceApp, {
     operation: "rollback",
@@ -673,6 +688,7 @@ test("surface app runtime selection posture reduces manifest runner and module r
   assert.equal(posture.sourceTrustResult.state, "ready");
   assert.equal(posture.runnerReadiness.state, "ready");
   assert.equal(posture.serviceManagerReadiness.state, "unknown");
+  assert.equal(posture.serviceManagerActionability.state, "unknown");
   assert.deepEqual(posture.requiredModuleRoles, ["runtimeClient", "productView", "projectionModel"]);
   assert.equal(posture.modulePostures.every((entry) => entry.state === "ready"), true);
   assert.deepEqual(posture.blockedReasons, []);
@@ -904,6 +920,10 @@ test("surface app selection read model composes selection, modules, runner, and 
   assert.equal(readModel.bootstrapPosture.releaseContractRef, readModel.runnerPlan.releaseContract.contractId);
   assert.equal(readModel.bootstrapPosture.secretBoundaryRef, readModel.runnerPlan.secretBoundary.boundaryId);
   assert.equal(readModel.bootstrapPosture.trainDigestRef, readModel.runnerPlan.trainDigest.trainId);
+  assert.equal(readModel.serviceManagerActionability.kind, "surface.app.runtime.service-manager.actionability");
+  assert.equal(readModel.serviceManagerActionability.state, "ready");
+  assert.equal(readModel.appInstancePosture.serviceManagerActionability, readModel.serviceManagerActionability);
+  assert.equal(readModel.attachContext.serviceManagerActionability, readModel.serviceManagerActionability);
   assert.deepEqual(readModel.blockedReasons, []);
 });
 
