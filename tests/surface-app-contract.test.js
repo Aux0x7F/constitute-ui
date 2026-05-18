@@ -486,15 +486,18 @@ test("surface app runner composes protected service manager bootstrap contracts"
       buildRef: "build:logging-ui:abc",
       releaseRef: "release:logging-ui:abc",
       rollbackRequired: false,
+      evidenceRefs: ["evidence:release:logging-ui"],
     },
     labProofOptions: {
       state: "proved",
       artifactRefs: ["artifact:surface-landscape"],
       metricsRefs: ["metrics:surface-landscape"],
+      evidenceRefs: ["evidence:lab:logging-ui"],
       startedAt: 1234,
     },
     trainDigestOptions: {
       state: "proved",
+      evidenceRefs: ["evidence:train:logging-ui"],
       observedAt: 1234,
     },
     issuedAt: 1234,
@@ -506,6 +509,22 @@ test("surface app runner composes protected service manager bootstrap contracts"
   assert.equal(plan.labProof.state, "proved");
   assert.equal(plan.trainDigest.state, "proved");
   assert.deepEqual(plan.blockedReasons, []);
+
+  const posture = surfaceAppBootstrapPosture(surfaceApp, {
+    runnerPlan: plan,
+    issuedAt: 1234,
+  });
+  assert.equal(posture.kind, "surface.app.bootstrap.posture");
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.bootstrapContractRef, plan.bootstrapContract.bootstrapContractId);
+  assert.equal(posture.releaseContractRef, plan.releaseContract.contractId);
+  assert.equal(posture.secretBoundaryRef, plan.secretBoundary.boundaryId);
+  assert.equal(posture.trainDigestRef, plan.trainDigest.trainId);
+  assert.deepEqual(posture.labProofRefs, [plan.labProof.proofId]);
+  assert(posture.evidenceRefs.includes("evidence:release:logging-ui"));
+  assert(posture.evidenceRefs.includes("evidence:lab:logging-ui"));
+  assert(posture.evidenceRefs.includes("evidence:train:logging-ui"));
+  assert.deepEqual(posture.blockedReasons, []);
 });
 
 test("surface app runner blocks non-bundled bootstrap without protected release contract", () => {
@@ -531,6 +550,14 @@ test("surface app runner blocks non-bundled bootstrap without protected release 
   assert(plan.blockedReasons.includes("release:missingBuildRef"));
   assert(plan.blockedReasons.includes("release:missingReleaseRef"));
   assert(plan.blockedReasons.includes("release:missingRollbackRef"));
+
+  const posture = surfaceAppBootstrapPosture(contract, {
+    sourceMode: "swarmPackage",
+    issuedAt: 1234,
+  });
+  assert.equal(posture.state, "blocked");
+  assert(posture.blockedReasons.includes("missingBootstrapContract"));
+  assert(posture.blockedReasons.includes("missingReleaseContractRef"));
 });
 
 test("surface app runner blocks unresolved required secret boundary", () => {
@@ -769,6 +796,24 @@ test("surface app selection read model composes selection, modules, runner, and 
       operationId: "operation:logging-ui:bootstrap-health",
       requestedAt: 1234,
     },
+    runnerPlanOptions: {
+      includeReleaseContract: true,
+      releaseContractOptions: {
+        buildRef: "build:logging-ui:abc",
+        releaseRef: "release:logging-ui:abc",
+        rollbackRequired: false,
+      },
+      labProofOptions: {
+        state: "proved",
+        artifactRefs: ["artifact:surface-landscape"],
+        metricsRefs: ["metrics:surface-landscape"],
+        startedAt: 1234,
+      },
+      trainDigestOptions: {
+        state: "proved",
+        observedAt: 1234,
+      },
+    },
     serviceManagerProofDigestOptions: {
       digestId: "proof-digest:logging-ui:bootstrap",
       observedAt: 1234,
@@ -789,6 +834,10 @@ test("surface app selection read model composes selection, modules, runner, and 
   assert.equal(readModel.attachContext.appInstancePosture, readModel.appInstancePosture);
   assert.equal(readModel.attachContext.runtimeSelectionPosture, readModel.runtimeSelectionPosture);
   assert.equal(readModel.attachContext.runnerPlan, readModel.runnerPlan);
+  assert.equal(readModel.bootstrapPosture.bootstrapContractRef, readModel.runnerPlan.bootstrapContract.bootstrapContractId);
+  assert.equal(readModel.bootstrapPosture.releaseContractRef, readModel.runnerPlan.releaseContract.contractId);
+  assert.equal(readModel.bootstrapPosture.secretBoundaryRef, readModel.runnerPlan.secretBoundary.boundaryId);
+  assert.equal(readModel.bootstrapPosture.trainDigestRef, readModel.runnerPlan.trainDigest.trainId);
   assert.deepEqual(readModel.blockedReasons, []);
 });
 

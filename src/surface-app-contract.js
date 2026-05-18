@@ -207,6 +207,24 @@ export function surfaceAppBootstrapPosture(surfaceAppOrContract, options = {}) {
     ? surfaceAppOrContract
     : defineSurfaceAppContract(surfaceAppOrContract);
   const contract = surfaceApp.contract;
+  const runnerPlan = isObject(options.runnerPlan) ? options.runnerPlan : {};
+  const bootstrapContract = isObject(options.bootstrapContract)
+    ? options.bootstrapContract
+    : (isObject(runnerPlan.bootstrapContract) ? runnerPlan.bootstrapContract : {});
+  const releaseContract = isObject(options.releaseContract)
+    ? options.releaseContract
+    : (isObject(bootstrapContract.releaseContract)
+      ? bootstrapContract.releaseContract
+      : (isObject(runnerPlan.releaseContract) ? runnerPlan.releaseContract : {}));
+  const labProof = isObject(options.labProof)
+    ? options.labProof
+    : (isObject(runnerPlan.labProof) ? runnerPlan.labProof : {});
+  const proofDigest = isObject(options.proofDigest)
+    ? options.proofDigest
+    : (isObject(runnerPlan.proofDigest) ? runnerPlan.proofDigest : {});
+  const trainDigest = isObject(options.trainDigest)
+    ? options.trainDigest
+    : (isObject(runnerPlan.trainDigest) ? runnerPlan.trainDigest : {});
   const bootstrapPosture = isObject(options.bootstrapPosture)
     ? options.bootstrapPosture
     : (isObject(contract.bootstrapPosture) ? contract.bootstrapPosture : {});
@@ -215,33 +233,94 @@ export function surfaceAppBootstrapPosture(surfaceAppOrContract, options = {}) {
     : (isObject(contract.serviceManagerPosture) ? contract.serviceManagerPosture : {});
   const secretBoundary = isObject(options.secretBoundary)
     ? options.secretBoundary
-    : (isObject(contract.secretBoundary) ? contract.secretBoundary : {});
+    : (isObject(options.secretBoundaryRecord)
+      ? options.secretBoundaryRecord
+      : (isObject(runnerPlan.secretBoundary)
+        ? runnerPlan.secretBoundary
+        : (isObject(bootstrapContract.secretBoundary)
+          ? bootstrapContract.secretBoundary
+          : (isObject(contract.secretBoundary) ? contract.secretBoundary : {}))));
   const releasePosture = isObject(options.releasePosture)
     ? options.releasePosture
-    : (isObject(contract.releasePosture) ? contract.releasePosture : {});
+    : (isObject(releaseContract.releasePosture)
+      ? releaseContract.releasePosture
+      : (isObject(contract.releasePosture) ? contract.releasePosture : {}));
   const rollbackPosture = isObject(options.rollbackPosture)
     ? options.rollbackPosture
-    : (isObject(contract.rollbackPosture) ? contract.rollbackPosture : {});
+    : (isObject(releaseContract.rollbackPosture)
+      ? releaseContract.rollbackPosture
+      : (isObject(contract.rollbackPosture) ? contract.rollbackPosture : {}));
+  const sourceMode = String(options.sourceMode
+    || bootstrapPosture.sourceMode
+    || bootstrapContract.sourceMode
+    || runnerPlan.sourceMode
+    || dominantFulfillmentMode(surfaceApp.modules)
+    || "bundled");
+  const bootstrapContractRef = String(options.bootstrapContractRef
+    || bootstrapContract.bootstrapContractId
+    || bootstrapContract.contractId
+    || "").trim();
+  const releaseContractRef = String(options.releaseContractRef
+    || bootstrapContract.releaseContractRef
+    || releaseContract.contractId
+    || releasePosture.contractId
+    || "").trim();
+  const secretBoundaryRef = String(options.secretBoundaryRef
+    || bootstrapContract.secretBoundaryRef
+    || secretBoundary.boundaryId
+    || "").trim();
+  const trainDigestRef = String(options.trainDigestRef
+    || bootstrapContract.trainDigestRef
+    || trainDigest.trainId
+    || "").trim();
+  const labProofRefs = uniqueStrings([
+    labProof.proofId,
+    ...normalizeStringArray(releaseContract.labProofRefs),
+    ...normalizeStringArray(options.labProofRefs),
+  ]);
+  const proofDigestRefs = uniqueStrings([
+    proofDigest.digestId,
+    ...normalizeStringArray(releaseContract.proofDigestRefs),
+    ...normalizeStringArray(trainDigest.proofDigestRefs),
+    ...normalizeStringArray(options.proofDigestRefs),
+  ]);
+  const compatibilityRefs = uniqueStrings([
+    ...normalizeStringArray(releaseContract.compatibilityRefs),
+    ...normalizeStringArray(options.compatibilityRefs),
+  ]);
   const blockedReasons = uniqueStrings([
     ...surfaceApp.missingRoles.map((role) => `missingModuleRole:${role}`),
     ...postureBlockedReasons(bootstrapPosture, "bootstrap"),
+    ...postureBlockedReasons(bootstrapContract, "bootstrapContract"),
     ...postureBlockedReasons(serviceManagerPosture, "serviceManager"),
     ...postureBlockedReasons(secretBoundary, "secretBoundary"),
     ...postureBlockedReasons(releasePosture, "release"),
+    ...postureBlockedReasons(releaseContract, "releaseContract"),
     ...postureBlockedReasons(rollbackPosture, "rollback"),
+    ...postureBlockedReasons(labProof, "labProof"),
+    ...postureBlockedReasons(proofDigest, "proofDigest"),
+    ...postureBlockedReasons(trainDigest, "trainDigest"),
+    ...(nonBundledSourceMode(sourceMode) && !bootstrapContractRef ? ["missingBootstrapContract"] : []),
+    ...(nonBundledSourceMode(sourceMode) && !releaseContractRef ? ["missingReleaseContractRef"] : []),
+    ...(Boolean(options.requireBootstrapContract) && !bootstrapContractRef ? ["missingBootstrapContract"] : []),
     ...normalizeStringArray(options.blockedReasons),
   ]);
   const degraded = postureIsDegraded(bootstrapPosture)
+    || postureIsDegraded(bootstrapContract)
     || postureIsDegraded(serviceManagerPosture)
     || postureIsDegraded(releasePosture)
-    || postureIsDegraded(rollbackPosture);
+    || postureIsDegraded(releaseContract)
+    || postureIsDegraded(rollbackPosture)
+    || postureIsDegraded(labProof)
+    || postureIsDegraded(proofDigest)
+    || postureIsDegraded(trainDigest);
   const moduleRefs = uniqueStrings([
     ...surfaceApp.modules.map((module) => module.moduleRef),
     ...normalizeStringArray(bootstrapPosture.moduleRefs),
+    ...normalizeStringArray(bootstrapContract.moduleRefs),
     ...normalizeStringArray(options.moduleRefs),
   ]);
-  const issuedAt = Number(options.issuedAt || bootstrapPosture.issuedAt || contract.issuedAt || Date.now());
-  const sourceMode = String(options.sourceMode || bootstrapPosture.sourceMode || dominantFulfillmentMode(surfaceApp.modules) || "bundled");
+  const issuedAt = Number(options.issuedAt || bootstrapPosture.issuedAt || bootstrapContract.issuedAt || runnerPlan.issuedAt || contract.issuedAt || Date.now());
   const record = {
     kind: "surface.app.bootstrap.posture",
     bootstrapId: String(options.bootstrapId || bootstrapPosture.bootstrapId || `bootstrap:${contract.contractId || contract.appId || "surface-app"}`),
@@ -256,15 +335,30 @@ export function surfaceAppBootstrapPosture(surfaceAppOrContract, options = {}) {
     evidenceRefs: uniqueStrings([
       ...normalizeStringArray(bootstrapPosture.evidenceRefs),
       ...normalizeStringArray(serviceManagerPosture.evidenceRefs),
+      ...normalizeStringArray(secretBoundary.evidenceRefs),
       ...normalizeStringArray(releasePosture.evidenceRefs),
+      ...normalizeStringArray(releaseContract.evidenceRefs),
+      ...normalizeStringArray(rollbackPosture.evidenceRefs),
+      ...normalizeStringArray(bootstrapContract.evidenceRefs),
+      ...normalizeStringArray(labProof.evidenceRefs),
+      ...normalizeStringArray(proofDigest.evidenceRefs),
+      ...normalizeStringArray(trainDigest.evidenceRefs),
       ...normalizeStringArray(options.evidenceRefs),
     ]),
     issuedAt,
     expiresAt: options.expiresAt || bootstrapPosture.expiresAt || contract.expiresAt,
   };
   assignIfPresent(record, "serviceManagerRef", options.serviceManagerRef || bootstrapPosture.serviceManagerRef || serviceManagerPosture.managerId);
+  assignIfPresent(record, "bootstrapContractRef", bootstrapContractRef);
+  assignIfPresent(record, "releaseContractRef", releaseContractRef);
+  assignIfPresent(record, "secretBoundaryRef", secretBoundaryRef);
+  assignIfPresent(record, "trainDigestRef", trainDigestRef);
+  assignIfPresent(record, "labProofRefs", labProofRefs);
+  assignIfPresent(record, "proofDigestRefs", proofDigestRefs);
+  assignIfPresent(record, "compatibilityRefs", compatibilityRefs);
   assignObjectIfPresent(record, "serviceManagerPosture", serviceManagerPosture);
   assignObjectIfPresent(record, "rollbackPosture", rollbackPosture);
+  assignObjectIfPresent(record, "bootstrapContract", bootstrapContract);
   return deepFreeze(record);
 }
 
