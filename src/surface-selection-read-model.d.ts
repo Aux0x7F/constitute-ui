@@ -1,6 +1,7 @@
 import type {
   DefinedSurfaceApp,
   SurfaceAppAttachContext,
+  SurfaceAppAuthorityAccessPosture,
   SurfaceAppBootstrapPosture,
   SurfaceAppContractShape,
   SurfaceAppFulfillmentIdentityPosture,
@@ -30,6 +31,7 @@ export type SurfaceAppSelectionReadModel = {
   moduleBindings: Readonly<Record<string, unknown>> | null;
   runnerPlan: SurfaceAppRunnerPlan;
   fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
+  authorityAccessPosture: SurfaceAppAuthorityAccessPosture;
   serviceManagerSecretBoundary: SurfaceServiceManagerSecretBoundary;
   bootstrapContract: Readonly<Record<string, unknown>>;
   bootstrapPosture: SurfaceAppBootstrapPosture;
@@ -62,6 +64,8 @@ export function surfaceAppSelectionReadModel(options?: {
   runnerPlanOptions?: Record<string, unknown>;
   fulfillmentIdentityPosture?: SurfaceAppFulfillmentIdentityPosture;
   fulfillmentIdentityOptions?: Record<string, unknown>;
+  authorityAccessPosture?: SurfaceAppAuthorityAccessPosture;
+  authorityAccessOptions?: Record<string, unknown>;
   serviceManagerSecretBoundary?: SurfaceServiceManagerSecretBoundary;
   bootstrapContract?: Record<string, unknown>;
   bootstrapPosture?: SurfaceAppBootstrapPosture;

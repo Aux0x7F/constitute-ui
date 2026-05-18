@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   assertRunnerOperation,
   assertServiceManagerOperationPosture,
+  assertSurfaceAppAuthorityAccessPosture,
   assertSurfaceAppFulfillmentIdentityPosture,
   assertSurfaceAppInstancePosture,
   assertSurfaceAppManifestRunnerPlan,
@@ -22,6 +23,7 @@ import {
   requireSurfaceModuleRole,
   surfaceAppBootstrapContract,
   surfaceAppAttachContext,
+  surfaceAppAuthorityAccessPosture,
   surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
   surfaceAppFulfillmentIdentityPosture,
@@ -334,6 +336,11 @@ test("surface app helper separates app, service, host, runner, and route identit
     serviceRef: "service:logging",
     serviceRouteRefs: ["route:service:logging"],
     hostRefs: ["host:operator-lab"],
+    rootRefs: ["root:aux"],
+    deviceRefs: ["device:aux-browser"],
+    grantRefs: ["grant:app:logging-ui:run"],
+    accessGroupRefs: ["access-group:logging-ui:events"],
+    requiredContentClasses: ["uiProjection"],
     appRef: "surface-app:logging-ui",
     surfaceRef: "surface:logging-ui",
     serviceManagerPosture: {
@@ -369,6 +376,38 @@ test("surface app helper separates app, service, host, runner, and route identit
   assert(blocked.blockedReasons.includes("serviceRefMismatch"));
   assert(blocked.blockedReasons.includes("unresolvedRunnerRef"));
   assert.equal(assertSurfaceAppFulfillmentIdentityPosture(blocked).state, "blocked");
+
+  const authorityAccess = surfaceAppAuthorityAccessPosture(surfaceApp, {
+    fulfillmentIdentityPosture: posture,
+    issuedAt: 1234,
+  });
+  assert.equal(authorityAccess.kind, "surface.app.authority.access.posture");
+  assert.equal(authorityAccess.state, "ready");
+  assert.equal(authorityAccess.actionRequired, true);
+  assert.equal(authorityAccess.accessRequired, true);
+  assert.deepEqual(authorityAccess.rootRefs, ["root:aux"]);
+  assert.deepEqual(authorityAccess.deviceRefs, ["device:aux-browser"]);
+  assert.deepEqual(authorityAccess.grantRefs, ["grant:app:logging-ui:run", "authority-grant:service-manager:logging"]);
+  assert.deepEqual(authorityAccess.accessGroupRefs, ["access-group:logging-ui:events"]);
+  assert.deepEqual(authorityAccess.requiredContentClasses, ["uiProjection"]);
+  assert.equal(assertSurfaceAppAuthorityAccessPosture(authorityAccess).state, "ready");
+
+  const missingGrant = surfaceAppAuthorityAccessPosture(makeContract(), {
+    actionRequired: true,
+    grantRefs: [],
+    fulfillmentIdentityPosture: { grantRefs: [] },
+    serviceManagerPosture: { grantRefs: [] },
+    issuedAt: 1234,
+  });
+  assert.equal(missingGrant.state, "blocked");
+  assert(missingGrant.blockedReasons.includes("missingActionGrant"));
+  assert.equal(assertSurfaceAppAuthorityAccessPosture(missingGrant).state, "blocked");
+
+  const missingAccess = surfaceAppAuthorityAccessPosture(makeContract({
+    requiredContentClasses: ["uiProjection"],
+  }), { accessGroupRefs: [], issuedAt: 1234 });
+  assert.equal(missingAccess.state, "blocked");
+  assert(missingAccess.blockedReasons.includes("missingAccessGroup"));
 });
 
 test("surface app runner composes protected service manager bootstrap contracts", () => {
@@ -739,8 +778,11 @@ test("surface app selection read model composes selection, modules, runner, and 
   assert.equal(readModel.moduleBindings.state, "ready");
   assert.equal(readModel.runnerPlan.kind, "surface.app.runner.plan");
   assert.equal(readModel.fulfillmentIdentityPosture.kind, "surface.app.fulfillment.identity.posture");
+  assert.equal(readModel.authorityAccessPosture.kind, "surface.app.authority.access.posture");
   assert.equal(readModel.attachContext.fulfillmentIdentityPosture, readModel.fulfillmentIdentityPosture);
+  assert.equal(readModel.attachContext.authorityAccessPosture, readModel.authorityAccessPosture);
   assert.equal(readModel.appInstancePosture.kind, "surface.app.instance.posture");
+  assert.equal(readModel.appInstancePosture.authorityAccessPosture, readModel.authorityAccessPosture);
   assert.equal(readModel.attachContext.appInstancePosture, readModel.appInstancePosture);
   assert.equal(readModel.attachContext.runtimeSelectionPosture, readModel.runtimeSelectionPosture);
   assert.equal(readModel.attachContext.runnerPlan, readModel.runnerPlan);

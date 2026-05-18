@@ -2,6 +2,7 @@ import {
   assertServiceManagerOperationPosture,
   assertServiceManagerProofDigest,
   assertServiceManagerSecretBoundary,
+  assertSurfaceAppAuthorityAccessPosture,
   assertSurfaceAppBootstrapContract,
   assertSurfaceAppFulfillmentIdentityPosture,
   assertSurfaceAppInstancePosture,
@@ -11,6 +12,7 @@ import {
 import {
   defineSurfaceAppContract,
   surfaceAppAttachContext,
+  surfaceAppAuthorityAccessPosture,
   surfaceAppBootstrapPosture,
   surfaceAppFulfillmentIdentityPosture,
   surfaceAppInstancePosture,
@@ -82,6 +84,16 @@ export function surfaceAppSelectionReadModel(options = {}) {
       issuedAt,
     }),
   );
+  const authorityAccessPosture = assertSurfaceAppAuthorityAccessPosture(
+    options.authorityAccessPosture || surfaceAppAuthorityAccessPosture(surfaceApp, {
+      ...(isObject(options.authorityAccessOptions) ? options.authorityAccessOptions : {}),
+      runtimeSelectionPosture,
+      fulfillmentIdentityPosture,
+      secretBoundary: options.authorityAccessOptions?.secretBoundary || serviceManagerSecretBoundary,
+      serviceManagerPosture: options.authorityAccessOptions?.serviceManagerPosture || surfaceApp.contract.serviceManagerPosture,
+      issuedAt,
+    }),
+  );
   const appInstancePosture = assertSurfaceAppInstancePosture(
     options.appInstancePosture || surfaceAppInstancePosture(surfaceApp, {
       ...(isObject(options.appInstanceOptions) ? options.appInstanceOptions : {}),
@@ -91,6 +103,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
       bootstrapContract,
       bootstrapPosture,
       fulfillmentIdentityPosture,
+      authorityAccessPosture,
       serviceManagerOperationPosture,
       serviceManagerProofDigest,
       issuedAt,
@@ -106,6 +119,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
     serviceManagerSecretBoundary,
     bootstrapPosture,
     fulfillmentIdentityPosture,
+    authorityAccessPosture,
     serviceManagerOperationPosture,
     serviceManagerProofDigest,
   });
@@ -114,6 +128,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
     ...normalizeStringArray(moduleBindings?.blockedReasons),
     ...normalizeStringArray(runnerPlan.blockedReasons),
     ...normalizeStringArray(fulfillmentIdentityPosture.blockedReasons),
+    ...normalizeStringArray(authorityAccessPosture.blockedReasons),
     ...normalizeStringArray(bootstrapPosture.blockedReasons),
     ...normalizeStringArray(serviceManagerOperationPosture.blockedReasons),
     ...normalizeStringArray(serviceManagerProofDigest.blockedReasons),
@@ -142,6 +157,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
     moduleBindings: moduleBindings || null,
     runnerPlan,
     fulfillmentIdentityPosture,
+    authorityAccessPosture,
     serviceManagerSecretBoundary,
     bootstrapContract,
     bootstrapPosture,

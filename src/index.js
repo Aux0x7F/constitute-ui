@@ -476,6 +476,7 @@ export {
   requireSurfaceModuleRole,
   surfaceAppBootstrapContract,
   surfaceAppAttachContext,
+  surfaceAppAuthorityAccessPosture,
   surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
   surfaceAppFulfillmentIdentityPosture,

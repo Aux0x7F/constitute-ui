@@ -62,6 +62,14 @@ export function surfaceAppAttachContext(surfaceAppOrContract, extra = {}) {
   const fulfillmentIdentityPosture = isObject(extra.fulfillmentIdentityPosture)
     ? extra.fulfillmentIdentityPosture
     : surfaceAppFulfillmentIdentityPosture(surfaceApp, extra.identityOptions || {});
+  const authorityAccessPosture = isObject(extra.authorityAccessPosture)
+    ? extra.authorityAccessPosture
+    : surfaceAppAuthorityAccessPosture(surfaceApp, {
+      ...(isObject(extra.authorityAccessOptions) ? extra.authorityAccessOptions : {}),
+      fulfillmentIdentityPosture,
+      secretBoundary: extra.serviceManagerSecretBoundary || contract.secretBoundary,
+      issuedAt: extra.issuedAt,
+    });
   return Object.freeze({
     kind: "surface.app.attachContext",
     contractId: String(contract.contractId || ""),
@@ -73,6 +81,7 @@ export function surfaceAppAttachContext(surfaceAppOrContract, extra = {}) {
     version: String(contract.version || ""),
     displayName: String(contract.displayName || ""),
     fulfillmentIdentityPosture,
+    authorityAccessPosture,
     posture: surfaceApp.posture,
     requiredModuleRoles: Object.freeze([...surfaceApp.requiredRoles]),
     moduleRefs: Object.freeze(surfaceApp.modules.map((module) => Object.freeze({
@@ -1006,6 +1015,163 @@ export function surfaceAppFulfillmentIdentityPosture(surfaceAppOrContract, optio
   return deepFreeze(record);
 }
 
+export function surfaceAppAuthorityAccessPosture(surfaceAppOrContract, options = {}) {
+  const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
+    ? surfaceAppOrContract
+    : defineSurfaceAppContract(surfaceAppOrContract);
+  const contract = surfaceApp.contract;
+  const appContractRef = surfaceAppContractRef(contract, options.appContractRef);
+  const fulfillmentIdentityPosture = isObject(options.fulfillmentIdentityPosture)
+    ? options.fulfillmentIdentityPosture
+    : surfaceAppFulfillmentIdentityPosture(surfaceApp, {
+      ...(isObject(options.fulfillmentIdentityOptions) ? options.fulfillmentIdentityOptions : {}),
+      serviceManagerPosture: options.serviceManagerPosture || contract.serviceManagerPosture,
+      issuedAt: options.issuedAt,
+      expiresAt: options.expiresAt,
+    });
+  const secretBoundary = isObject(options.secretBoundary)
+    ? options.secretBoundary
+    : (isObject(contract.secretBoundary) ? contract.secretBoundary : {});
+  const manifestSelection = isObject(options.manifestSelection)
+    ? options.manifestSelection
+    : (isObject(options.runtimeSelectionPosture?.manifestSelection) ? options.runtimeSelectionPosture.manifestSelection : {});
+  const serviceManagerPosture = isObject(options.serviceManagerPosture)
+    ? options.serviceManagerPosture
+    : (isObject(contract.serviceManagerPosture) ? contract.serviceManagerPosture : {});
+  const rootRefs = uniqueStrings([
+    ...normalizeStringArray(contract.rootRefs),
+    ...normalizeStringArray(options.rootRefs),
+  ]);
+  const deviceRefs = uniqueStrings([
+    ...normalizeStringArray(contract.deviceRefs),
+    ...normalizeStringArray(options.deviceRefs),
+  ]);
+  const grantRefs = uniqueStrings([
+    ...normalizeStringArray(contract.grantRefs),
+    ...normalizeStringArray(manifestSelection.grantRefs),
+    ...normalizeStringArray(serviceManagerPosture.grantRefs),
+    ...normalizeStringArray(fulfillmentIdentityPosture.grantRefs),
+    ...normalizeStringArray(options.grantRefs),
+  ]);
+  const authorityRefs = uniqueStrings([
+    ...normalizeStringArray(contract.authorityRefs),
+    ...normalizeStringArray(secretBoundary.authorityRefs),
+    ...normalizeStringArray(serviceManagerPosture.authorityRefs),
+    ...normalizeStringArray(fulfillmentIdentityPosture.authorityRefs),
+    ...normalizeStringArray(options.authorityRefs),
+  ]);
+  const accessGroupRefs = uniqueStrings([
+    ...normalizeStringArray(contract.accessGroupRefs),
+    ...normalizeStringArray(secretBoundary.accessGroupRefs),
+    ...normalizeStringArray(options.accessGroupRefs),
+  ]);
+  const requiredContentClasses = uniqueStrings([
+    ...normalizeStringArray(contract.requiredContentClasses),
+    ...normalizeStringArray(secretBoundary.requiredContentClasses),
+    ...normalizeStringArray(options.requiredContentClasses),
+  ]);
+  const revocationRefs = uniqueStrings([
+    ...normalizeStringArray(contract.revocationRefs),
+    ...normalizeStringArray(options.revocationRefs),
+  ]);
+  const exerciseRefs = uniqueStrings([
+    ...normalizeStringArray(options.exerciseRefs),
+  ]);
+  const evidenceRefs = uniqueStrings([
+    ...normalizeStringArray(secretBoundary.evidenceRefs),
+    ...normalizeStringArray(serviceManagerPosture.evidenceRefs),
+    ...normalizeStringArray(fulfillmentIdentityPosture.evidenceRefs),
+    ...normalizeStringArray(options.evidenceRefs),
+  ]);
+  const actionRequired = Boolean(options.actionRequired ?? (
+    normalizeStringArray(contract.grantRefs).length
+    || normalizeStringArray(manifestSelection.grantRefs).length
+    || normalizeStringArray(options.requiredGrantRefs).length
+  ));
+  const accessRequired = Boolean(options.accessRequired ?? (
+    requiredContentClasses.length
+    || normalizeStringArray(options.requiredAccessGroupRefs).length
+  ));
+  const explicitRevocationState = String(options.revocationState || options.revocationPosture?.state || "").trim();
+  const expiresAt = options.expiresAt || contract.expiresAt;
+  const now = Number(options.now || Date.now());
+  const expired = Boolean(expiresAt && Number(expiresAt) <= now);
+  const actionPosture = isObject(options.actionPosture)
+    ? options.actionPosture
+    : {
+      state: actionRequired ? (grantRefs.length ? "ready" : "missing") : "notRequired",
+      grantRefCount: grantRefs.length,
+    };
+  const accessPosture = isObject(options.accessPosture)
+    ? options.accessPosture
+    : {
+      state: accessRequired ? (accessGroupRefs.length ? "ready" : "missing") : "notRequired",
+      accessGroupRefCount: accessGroupRefs.length,
+      requiredContentClassCount: requiredContentClasses.length,
+    };
+  const revocationPosture = isObject(options.revocationPosture)
+    ? options.revocationPosture
+    : {
+      state: explicitRevocationState === "revoked" ? "revoked" : "clear",
+      revocationRefCount: revocationRefs.length,
+    };
+  const expiryPosture = isObject(options.expiryPosture)
+    ? options.expiryPosture
+    : {
+      state: expired ? "expired" : (expiresAt ? "fresh" : "unbounded"),
+      expiresAt: expiresAt || null,
+    };
+  const blockedReasons = uniqueStrings([
+    ...(actionRequired && !grantRefs.length ? ["missingActionGrant"] : []),
+    ...(accessRequired && !accessGroupRefs.length ? ["missingAccessGroup"] : []),
+    ...(accessRequired && !requiredContentClasses.length ? ["missingContentClass"] : []),
+    ...(explicitRevocationState === "revoked" || String(revocationPosture.state || "") === "revoked" ? ["revoked"] : []),
+    ...(expired ? ["expired"] : []),
+    ...postureBlockedReasons(actionPosture, "action"),
+    ...postureBlockedReasons(accessPosture, "access"),
+    ...postureBlockedReasons(revocationPosture, "revocation"),
+    ...postureBlockedReasons(expiryPosture, "expiry"),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  const degraded = [actionPosture, accessPosture, revocationPosture, expiryPosture, fulfillmentIdentityPosture]
+    .some((posture) => String(posture?.state || "") === "degraded" || String(posture?.state || "") === "unchecked");
+  const record = {
+    kind: "surface.app.authority.access.posture",
+    postureId: String(options.postureId || `authority-access:${appContractRef || contract.appId || "surface-app"}`),
+    state: blockedReasons.length ? "blocked" : (String(options.state || "") || (degraded ? "degraded" : "ready")),
+    appContractRef,
+    appId: String(contract.appId || ""),
+    actionRequired,
+    accessRequired,
+    rootRefs,
+    deviceRefs,
+    grantRefs,
+    authorityRefs,
+    accessGroupRefs,
+    requiredContentClasses,
+    revocationRefs,
+    exerciseRefs,
+    evidenceRefs,
+    actionPosture: deepFreeze({ ...actionPosture }),
+    accessPosture: deepFreeze({ ...accessPosture }),
+    revocationPosture: deepFreeze({ ...revocationPosture }),
+    expiryPosture: deepFreeze({ ...expiryPosture }),
+    safeFacts: {
+      actionRequired,
+      accessRequired,
+      grantRefCount: grantRefs.length,
+      accessGroupRefCount: accessGroupRefs.length,
+      requiredContentClassCount: requiredContentClasses.length,
+      revocationRefCount: revocationRefs.length,
+    },
+    blockedReasons,
+    issuedAt: Number(options.issuedAt || contract.issuedAt || Date.now()),
+    expiresAt,
+  };
+  assignIfPresent(record, "revocationState", explicitRevocationState);
+  return deepFreeze(record);
+}
+
 export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContracts, options = {}) {
   const issuedAt = Number(options.issuedAt || Date.now());
   const requestedAppRef = String(options.requestedAppRef || options.appContractRef || manifest?.currentAppContractRef || "").trim();
@@ -1058,6 +1224,17 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
       expiresAt: options.expiresAt || selection.expiresAt,
     })
     : null;
+  const authorityAccessPosture = surfaceApp
+    ? surfaceAppAuthorityAccessPosture(surfaceApp, {
+      ...(isObject(options.authorityAccessOptions) ? options.authorityAccessOptions : {}),
+      fulfillmentIdentityPosture,
+      manifestSelection: selection,
+      secretBoundary: options.authorityAccessOptions?.secretBoundary || selection.contract?.secretBoundary,
+      serviceManagerPosture: options.authorityAccessOptions?.serviceManagerPosture || selection.contract?.serviceManagerPosture,
+      issuedAt,
+      expiresAt: options.expiresAt || selection.expiresAt,
+    })
+    : null;
   const blockedReasons = uniqueStrings([
     ...selection.blockedReasons.map((reason) => `manifest:${reason}`),
     ...compatibilityResult.blockedReasons.map((reason) => `compatibility:${reason}`),
@@ -1068,6 +1245,7 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
     ...prefixedBlockedReasons(runnerReadiness, "runner"),
     ...prefixedBlockedReasons(serviceManagerReadiness, "serviceManager"),
     ...prefixedBlockedReasons(fulfillmentIdentityPosture, "identity"),
+    ...prefixedBlockedReasons(authorityAccessPosture, "authorityAccess"),
     ...normalizeStringArray(options.blockedReasons),
   ]);
   const degraded = [
@@ -1075,6 +1253,7 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
     sourceTrustResult,
     serviceManagerReadiness,
     fulfillmentIdentityPosture,
+    authorityAccessPosture,
   ].some((posture) => String(posture?.state || "") === "degraded" || String(posture?.state || "") === "unchecked");
   return deepFreeze({
     kind: "surface.app.runtime.selection.posture",
@@ -1094,6 +1273,7 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
     runnerReadiness,
     serviceManagerReadiness,
     fulfillmentIdentityPosture,
+    authorityAccessPosture,
     manifestSelection: selection,
     manifestRunnerPlan,
     runnerPlan: manifestRunnerPlan.runnerPlan,
@@ -1136,6 +1316,19 @@ export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
         issuedAt: options.issuedAt,
         expiresAt: options.expiresAt || runtimeSelectionPosture?.expiresAt || contract.expiresAt,
       }));
+  const authorityAccessPosture = isObject(options.authorityAccessPosture)
+    ? options.authorityAccessPosture
+    : (isObject(runtimeSelectionPosture?.authorityAccessPosture)
+      ? runtimeSelectionPosture.authorityAccessPosture
+      : surfaceAppAuthorityAccessPosture(surfaceApp, {
+        ...(isObject(options.authorityAccessOptions) ? options.authorityAccessOptions : {}),
+        fulfillmentIdentityPosture,
+        runtimeSelectionPosture,
+        secretBoundary: options.authorityAccessOptions?.secretBoundary || contract.secretBoundary,
+        serviceManagerPosture: options.authorityAccessOptions?.serviceManagerPosture || contract.serviceManagerPosture,
+        issuedAt: options.issuedAt,
+        expiresAt: options.expiresAt || runtimeSelectionPosture?.expiresAt || contract.expiresAt,
+      }));
   const moduleBindingPosture = surfaceAppModuleBindingPosture(options.moduleBindings || options.moduleBindingPosture);
   const modulePostures = deepFreeze((Array.isArray(options.modulePostures) && options.modulePostures.length
     ? options.modulePostures
@@ -1165,6 +1358,7 @@ export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
     ...instancePostureBlockedReasons(bootstrapContract, "bootstrapContract"),
     ...instancePostureBlockedReasons(bootstrapPosture, "bootstrap"),
     ...instancePostureBlockedReasons(fulfillmentIdentityPosture, "identity"),
+    ...instancePostureBlockedReasons(authorityAccessPosture, "authorityAccess"),
     ...instancePostureBlockedReasons(serviceManagerOperationPosture, "serviceManagerOperation"),
     ...instancePostureBlockedReasons(serviceManagerProofDigest, "serviceManagerProof"),
     ...normalizeStringArray(options.blockedReasons),
@@ -1176,6 +1370,7 @@ export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
     bootstrapContract,
     bootstrapPosture,
     fulfillmentIdentityPosture,
+    authorityAccessPosture,
     serviceManagerOperationPosture,
     serviceManagerProofDigest,
   ].some(postureIsInstanceDegraded);
@@ -1223,6 +1418,7 @@ export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
     bootstrapContractRef: String(bootstrapContract?.bootstrapContractId || bootstrapContract?.contractId || ""),
     bootstrapPosture,
     fulfillmentIdentityPosture,
+    authorityAccessPosture,
     serviceManagerOperationRef: String(serviceManagerOperationPosture?.operationId || ""),
     serviceManagerProofRef: String(serviceManagerProofDigest?.digestId || ""),
     blockedReasons,

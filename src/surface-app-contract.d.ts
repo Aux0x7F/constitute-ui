@@ -24,6 +24,13 @@ export type SurfaceAppContractShape = {
   serviceRouteRefs?: string[];
   hostRefs?: string[];
   routeRefs?: string[];
+  rootRefs?: string[];
+  deviceRefs?: string[];
+  grantRefs?: string[];
+  authorityRefs?: string[];
+  accessGroupRefs?: string[];
+  requiredContentClasses?: string[];
+  revocationRefs?: string[];
   surfaceRef?: string;
   version: string;
   displayName?: string;
@@ -83,6 +90,7 @@ export type SurfaceAppAttachContext = {
   version: string;
   displayName: string;
   fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
+  authorityAccessPosture: SurfaceAppAuthorityAccessPosture;
   posture: SurfaceAppPosture;
   requiredModuleRoles: string[];
   moduleRefs: Array<{
@@ -120,6 +128,34 @@ export type SurfaceAppFulfillmentIdentityPosture = {
   authorityRefs: string[];
   evidenceRefs: string[];
   identityPosture: Readonly<Record<string, unknown>>;
+  safeFacts: Readonly<Record<string, unknown>>;
+  blockedReasons: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceAppAuthorityAccessPosture = {
+  kind: "surface.app.authority.access.posture";
+  postureId: string;
+  state: "ready" | "degraded" | "blocked" | "unknown" | "unchecked";
+  appContractRef: string;
+  appId: string;
+  actionRequired: boolean;
+  accessRequired: boolean;
+  rootRefs: string[];
+  deviceRefs: string[];
+  grantRefs: string[];
+  authorityRefs: string[];
+  accessGroupRefs: string[];
+  requiredContentClasses: string[];
+  revocationRefs: string[];
+  exerciseRefs: string[];
+  evidenceRefs: string[];
+  actionPosture: Readonly<Record<string, unknown>>;
+  accessPosture: Readonly<Record<string, unknown>>;
+  revocationPosture: Readonly<Record<string, unknown>>;
+  expiryPosture: Readonly<Record<string, unknown>>;
+  revocationState?: string;
   safeFacts: Readonly<Record<string, unknown>>;
   blockedReasons: string[];
   issuedAt: number;
@@ -171,6 +207,7 @@ export type SurfaceAppInstancePosture = {
   runnerReadiness: Readonly<Record<string, unknown>> | null;
   serviceManagerReadiness: Readonly<Record<string, unknown>> | null;
   fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
+  authorityAccessPosture: SurfaceAppAuthorityAccessPosture;
   runnerPlanRef: string;
   bootstrapContractRef: string;
   bootstrapPosture: Readonly<Record<string, unknown>> | null;
@@ -465,6 +502,7 @@ export type SurfaceAppRuntimeSelectionPosture = {
   runnerReadiness: Readonly<Record<string, unknown>>;
   serviceManagerReadiness: Readonly<Record<string, unknown>>;
   fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture | null;
+  authorityAccessPosture: SurfaceAppAuthorityAccessPosture | null;
   manifestSelection: SurfaceAppManifestSelection;
   manifestRunnerPlan: SurfaceAppManifestRunnerPlan;
   runnerPlan: SurfaceAppRunnerPlan | null;
@@ -507,6 +545,10 @@ export function surfaceAppFulfillmentIdentityPosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
 ): SurfaceAppFulfillmentIdentityPosture;
+export function surfaceAppAuthorityAccessPosture(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceAppAuthorityAccessPosture;
 export function surfaceAppInstancePosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
