@@ -144,6 +144,41 @@ export type SurfaceServiceManagerOperationPosture = {
   expiresAt?: unknown;
 };
 
+export type SurfaceRunnerOperation = {
+  kind: "runner.operation";
+  operationId: string;
+  runnerId: string;
+  runnerRef: string;
+  hostRef: string;
+  requesterRef: string;
+  subjectRef: string;
+  contractRef: string;
+  operation: string;
+  state: string;
+  grantRefs: string[];
+  capabilityRefs: string[];
+  inputRefs: string[];
+  outputRefs: string[];
+  evidenceRefs: string[];
+  proofRefs: string[];
+  releaseRefs: string[];
+  resourceBudget: Readonly<Record<string, unknown>>;
+  resourcePosture?: Readonly<Record<string, unknown>>;
+  secretBoundary: Readonly<Record<string, unknown>>;
+  releasePosture?: Readonly<Record<string, unknown>>;
+  rollbackPosture?: Readonly<Record<string, unknown>>;
+  releaseRef?: string;
+  rollbackRef?: string;
+  blockedReasons: string[];
+  safeFacts?: Readonly<Record<string, unknown>>;
+  requestedAt: number;
+  acceptedAt?: unknown;
+  startedAt?: unknown;
+  completedAt?: unknown;
+  observedAt?: unknown;
+  expiresAt?: unknown;
+};
+
 export type SurfaceServiceManagerProofDigest = {
   kind: "service.manager.proof.digest";
   digestId: string;
@@ -368,6 +403,10 @@ export function surfaceServiceManagerProofDigest(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
 ): SurfaceServiceManagerProofDigest;
+export function surfaceRunnerOperation(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceRunnerOperation;
 export function surfaceServiceManagerSecretBoundary(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,

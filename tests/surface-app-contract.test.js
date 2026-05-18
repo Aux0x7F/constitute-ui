@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { assertRunnerOperation } from "../../constitute-protocol/src/index.js";
 import {
   defineSurfaceAppContract,
   materializationBudgetRecord,
@@ -20,11 +21,14 @@ import {
   surfaceServiceManagerLabProof,
   surfaceServiceManagerOperationPosture,
   surfaceServiceManagerProofDigest,
+  surfaceRunnerOperation,
   surfaceServiceManagerReleaseContract,
   surfaceServiceManagerSecretBoundary,
   surfaceServiceManagerTrainDigest,
   surfaceModuleRolePosture,
 } from "../src/surface-app-contract.js";
+
+const RESOLVED_RUNNER_REF = "4a29ff60c5c3837e9e20555bfeb2a046be3eb140818144628691fcf7efb1d2f1";
 
 function makeContract(overrides = {}) {
   return {
@@ -224,6 +228,72 @@ test("surface app helper reduces service manager operation and proof digest post
   });
   assert.equal(blockedDigest.state, "blocked");
   assert.deepEqual(blockedDigest.blockedReasons, ["missingProofRefs"]);
+});
+
+test("surface app helper composes execution-bound runner operations", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract({
+    serviceRef: "service:logging",
+    appRef: "surface-app:logging-ui",
+    surfaceRef: "surface:logging-ui",
+    serviceManagerPosture: {
+      managerId: "manager:logging-local",
+      managerRef: "member:logging-manager",
+      runnerId: "runner:logging-local",
+      runnerRef: RESOLVED_RUNNER_REF,
+      hostRef: "host:operator-lab",
+      state: "ready",
+      serviceRefs: ["service:logging"],
+      capabilityRefs: ["service.manage"],
+      grantRefs: ["authority-grant:service-manager:logging"],
+      resourceBudget: { maxMemoryMiB: 256, maxCpuPct: 25 },
+      evidenceRefs: ["host:manual"],
+    },
+    releasePosture: {
+      state: "releaseReady",
+      releaseRef: "release:logging-ui:local",
+      rollbackRef: "rollback:logging-ui:previous",
+      evidenceRefs: ["build:logging-ui:local"],
+    },
+    secretBoundary: {
+      state: "notRequired",
+    },
+  }));
+  const operationPosture = surfaceServiceManagerOperationPosture(surfaceApp, {
+    operation: "healthCheck",
+    operationId: "operation:logging-ui:health",
+    requesterRef: "identity:operator",
+    state: "accepted",
+    requestedAt: 1234,
+    acceptedAt: 1235,
+  });
+  const runnerOperation = surfaceRunnerOperation(surfaceApp, {
+    operationPosture,
+    inputRefs: ["surface-app:logging-ui@0.1.0"],
+    outputRefs: ["proof:logging-ui:health"],
+    requestedAt: 1234,
+  });
+
+  assert.equal(runnerOperation.kind, "runner.operation");
+  assert.equal(runnerOperation.operation, "healthCheck");
+  assert.equal(runnerOperation.state, "accepted");
+  assert.equal(runnerOperation.runnerRef, RESOLVED_RUNNER_REF);
+  assert.equal(runnerOperation.hostRef, "host:operator-lab");
+  assert.deepEqual(runnerOperation.grantRefs, ["authority-grant:service-manager:logging"]);
+  assert.deepEqual(runnerOperation.resourceBudget, { maxMemoryMiB: 256, maxCpuPct: 25 });
+  assert.equal(assertRunnerOperation(runnerOperation), runnerOperation);
+
+  assert.throws(() => surfaceRunnerOperation(surfaceApp, {
+    operationPosture,
+    runnerRef: "member:unresolved",
+    grantRefs: ["authority-grant:service-manager:logging"],
+    resourceBudget: { maxMemoryMiB: 256 },
+  }), /requires resolved member ref/);
+
+  assert.throws(() => surfaceRunnerOperation(surfaceApp, {
+    operationPosture,
+    serviceManagerPosture: { runnerRef: RESOLVED_RUNNER_REF },
+    resourceBudget: { maxMemoryMiB: 256 },
+  }), /requires grantRefs/);
 });
 
 test("surface app runner composes protected service manager bootstrap contracts", () => {

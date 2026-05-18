@@ -287,6 +287,124 @@ export function surfaceServiceManagerProofDigest(surfaceAppOrContract, options =
   return deepFreeze(record);
 }
 
+export function surfaceRunnerOperation(surfaceAppOrContract, options = {}) {
+  const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
+    ? surfaceAppOrContract
+    : defineSurfaceAppContract(surfaceAppOrContract);
+  const contract = surfaceApp.contract;
+  const serviceManagerPosture = isObject(options.serviceManagerPosture)
+    ? options.serviceManagerPosture
+    : (isObject(contract.serviceManagerPosture) ? contract.serviceManagerPosture : {});
+  const operationPosture = isObject(options.operationPosture)
+    ? options.operationPosture
+    : surfaceServiceManagerOperationPosture(surfaceApp, options);
+  const runnerRef = requireResolvedMemberRef(
+    options.runnerRef
+      || operationPosture.runnerRef
+      || serviceManagerPosture.runnerRef
+      || serviceManagerPosture.memberRef,
+    "surface runner operation runnerRef",
+  );
+  const grantRefs = uniqueStrings([
+    ...normalizeStringArray(serviceManagerPosture.grantRefs),
+    ...normalizeStringArray(operationPosture.grantRefs),
+    ...normalizeStringArray(options.grantRefs),
+  ]);
+  if (!grantRefs.length) throw new Error("surface runner operation requires grantRefs");
+  const resourceBudget = isObject(options.resourceBudget)
+    ? options.resourceBudget
+    : (isObject(operationPosture.resourceBudget)
+      ? operationPosture.resourceBudget
+      : (isObject(serviceManagerPosture.resourceBudget) ? serviceManagerPosture.resourceBudget : null));
+  if (!isObject(resourceBudget)) throw new Error("surface runner operation requires resourceBudget");
+  const runnerOperation = serviceManagerOperationToRunnerOperation(options.runnerOperation || operationPosture.operation);
+  const runnerState = serviceManagerStateToRunnerState(options.runnerState || operationPosture.state, runnerOperation);
+  const releasePosture = isObject(options.releasePosture)
+    ? options.releasePosture
+    : (isObject(operationPosture.releasePosture)
+      ? operationPosture.releasePosture
+      : (isObject(contract.releasePosture) ? contract.releasePosture : {}));
+  const rollbackPosture = isObject(options.rollbackPosture)
+    ? options.rollbackPosture
+    : (isObject(operationPosture.rollbackPosture)
+      ? operationPosture.rollbackPosture
+      : (isObject(contract.rollbackPosture) ? contract.rollbackPosture : {}));
+  const secretBoundary = isObject(options.secretBoundary)
+    ? options.secretBoundary
+    : (isObject(operationPosture.secretBoundary)
+      ? operationPosture.secretBoundary
+      : (isObject(contract.secretBoundary) ? contract.secretBoundary : { state: "notRequired" }));
+  const requestedAt = Number(options.requestedAt || operationPosture.requestedAt || Date.now());
+  const blockedReasons = uniqueStrings([
+    ...normalizeStringArray(operationPosture.blockedReasons),
+    ...postureBlockedReasons(serviceManagerPosture, "serviceManager"),
+    ...postureBlockedReasons(secretBoundary, "secretBoundary"),
+    ...postureBlockedReasons(releasePosture, "release"),
+    ...postureBlockedReasons(rollbackPosture, "rollback"),
+    ...(runnerOperation === "rollback" && !String(options.rollbackRef || operationPosture.rollbackRef || releasePosture.rollbackRef || rollbackPosture.rollbackRef || "").trim()
+      ? ["missingRollbackRef"]
+      : []),
+    ...(runnerOperation === "release" && !String(options.releaseRef || operationPosture.releaseRef || releasePosture.releaseRef || "").trim()
+      ? ["missingReleaseRef"]
+      : []),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  const state = blockedReasons.length && !["blocked", "failed", "rejected", "cancelled", "superseded"].includes(runnerState)
+    ? "blocked"
+    : runnerState;
+  const record = {
+    kind: "runner.operation",
+    operationId: String(options.operationId || options.runnerOperationId || `runner-operation:${contract.contractId || contract.appId || "surface-app"}:${operationPosture.operationId || runnerOperation}`),
+    runnerId: String(options.runnerId || serviceManagerPosture.runnerId || `runner:${serviceManagerPosture.managerId || contract.appId || contract.contractId || "surface-app"}`),
+    runnerRef,
+    hostRef: String(options.hostRef || operationPosture.hostRef || serviceManagerPosture.hostRef || serviceManagerPosture.managerRef || serviceManagerPosture.managerId || ""),
+    requesterRef: String(options.requesterRef || operationPosture.requesterRef || contract.surfaceRef || contract.appRef || ""),
+    subjectRef: String(options.subjectRef || operationPosture.subjectRef || contract.serviceRef || contract.appRef || `surface-app:${contract.appId || contract.contractId || "unknown"}`),
+    contractRef: String(options.contractRef || operationPosture.contractRef || surfaceAppContractRef(contract)),
+    operation: runnerOperation,
+    state,
+    grantRefs,
+    capabilityRefs: uniqueStrings([
+      ...normalizeStringArray(serviceManagerPosture.capabilityRefs),
+      ...normalizeStringArray(operationPosture.capabilityRefs),
+      ...normalizeStringArray(options.capabilityRefs),
+    ]),
+    inputRefs: uniqueStrings(normalizeStringArray(options.inputRefs)),
+    outputRefs: uniqueStrings(normalizeStringArray(options.outputRefs)),
+    evidenceRefs: uniqueStrings([
+      ...normalizeStringArray(operationPosture.evidenceRefs),
+      ...normalizeStringArray(options.evidenceRefs),
+    ]),
+    proofRefs: uniqueStrings([
+      ...normalizeStringArray(operationPosture.proofRefs),
+      ...normalizeStringArray(options.proofRefs),
+      ...normalizeStringArray(options.artifactRefs),
+    ]),
+    releaseRefs: uniqueStrings([
+      ...normalizeStringArray(operationPosture.releaseRefs),
+      ...normalizeStringArray(options.releaseRefs),
+    ]),
+    resourceBudget: deepFreeze({ ...resourceBudget }),
+    resourcePosture: isObject(options.resourcePosture)
+      ? deepFreeze({ ...options.resourcePosture })
+      : (isObject(operationPosture.resourcePosture) ? deepFreeze({ ...operationPosture.resourcePosture }) : undefined),
+    secretBoundary: deepFreeze({ ...secretBoundary }),
+    releasePosture: Object.keys(releasePosture).length ? deepFreeze({ ...releasePosture }) : undefined,
+    rollbackPosture: Object.keys(rollbackPosture).length ? deepFreeze({ ...rollbackPosture }) : undefined,
+    blockedReasons,
+    safeFacts: isObject(options.safeFacts) ? deepFreeze({ ...options.safeFacts }) : undefined,
+    requestedAt,
+    acceptedAt: options.acceptedAt || operationPosture.acceptedAt,
+    startedAt: options.startedAt || operationPosture.startedAt,
+    completedAt: options.completedAt || operationPosture.completedAt,
+    observedAt: options.observedAt || operationPosture.observedAt,
+    expiresAt: options.expiresAt || operationPosture.expiresAt || serviceManagerPosture.expiresAt || contract.expiresAt,
+  };
+  assignIfPresent(record, "releaseRef", options.releaseRef || operationPosture.releaseRef || releasePosture.releaseRef);
+  assignIfPresent(record, "rollbackRef", options.rollbackRef || operationPosture.rollbackRef || releasePosture.rollbackRef || rollbackPosture.rollbackRef);
+  return deepFreeze(record);
+}
+
 export function surfaceServiceManagerSecretBoundary(surfaceAppOrContract, options = {}) {
   const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
     ? surfaceAppOrContract
@@ -1137,6 +1255,51 @@ export function materializationEventReplayPosture(budget, {
 
 function surfaceSubjectRef(contract, override) {
   return String(override || contract.serviceRef || contract.appRef || `surface-app:${contract.appId || contract.contractId || "unknown"}`);
+}
+
+function requireResolvedMemberRef(value, context) {
+  const text = String(value || "").trim();
+  if (!/^[0-9a-fA-F]{64}$/.test(text)) throw new Error(`${context} requires resolved member ref`);
+  return text;
+}
+
+function serviceManagerOperationToRunnerOperation(operation) {
+  switch (String(operation || "")) {
+    case "healthCheck":
+      return "healthCheck";
+    case "rollback":
+      return "rollback";
+    case "stop":
+      return "release";
+    case "install":
+    case "update":
+    case "start":
+    case "restart":
+    case "promote":
+      return "execute";
+    default:
+      return "execute";
+  }
+}
+
+function serviceManagerStateToRunnerState(state, runnerOperation) {
+  const normalized = String(state || "requested");
+  if (runnerOperation === "release" && normalized === "succeeded") return "released";
+  if ([
+    "requested",
+    "accepted",
+    "running",
+    "succeeded",
+    "failed",
+    "blocked",
+    "cancelled",
+    "superseded",
+    "released",
+    "rejected",
+  ].includes(normalized)) {
+    return normalized;
+  }
+  return "requested";
 }
 
 function assignIfPresent(target, key, value) {
