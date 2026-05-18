@@ -145,9 +145,9 @@ export type SurfaceServiceManagerProofDigest = {
   managerId: string;
   subjectRef: string;
   state: string;
-  trainRef: string;
-  releaseRef: string;
-  rollbackRef: string;
+  trainRef?: string;
+  releaseRef?: string;
+  rollbackRef?: string;
   commitRefs: string[];
   artifactRefs: string[];
   proofRefs: string[];
@@ -158,6 +158,172 @@ export type SurfaceServiceManagerProofDigest = {
   blockedReasons: string[];
   safeFacts?: Readonly<Record<string, unknown>>;
   observedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceServiceManagerSecretBoundary = {
+  kind: "service.manager.secretBoundary";
+  boundaryId: string;
+  managerId: string;
+  subjectRef: string;
+  state: string;
+  secretRefs: string[];
+  accessGroupRefs: string[];
+  authorityRefs: string[];
+  evidenceRefs: string[];
+  blockedReasons: string[];
+  safeFacts?: Readonly<Record<string, unknown>>;
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceServiceManagerReleaseContract = {
+  kind: "service.manager.release.contract";
+  contractId: string;
+  managerId: string;
+  subjectRef: string;
+  managerRef: string;
+  state: string;
+  appContractRef: string;
+  version: string;
+  buildRef?: string;
+  releaseRef?: string;
+  rollbackRef?: string;
+  rollbackRequired: boolean;
+  compatibilityRefs: string[];
+  authorityRefs: string[];
+  secretBoundaryRefs: string[];
+  proofDigestRefs: string[];
+  labProofRefs: string[];
+  evidenceRefs: string[];
+  blockedReasons: string[];
+  secretBoundary: SurfaceServiceManagerSecretBoundary;
+  releasePosture?: Readonly<Record<string, unknown>>;
+  rollbackPosture?: Readonly<Record<string, unknown>>;
+  safeFacts?: Readonly<Record<string, unknown>>;
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceServiceManagerLabProof = {
+  kind: "service.manager.labProof";
+  proofId: string;
+  managerId: string;
+  subjectRef: string;
+  profile: string;
+  state: string;
+  trainRef?: string;
+  releaseContractRef?: string;
+  appContractRef: string;
+  surfaceRefs: string[];
+  serviceRefs: string[];
+  environmentRefs: string[];
+  artifactRefs: string[];
+  metricsRefs: string[];
+  proofRefs: string[];
+  evidenceRefs: string[];
+  blockedReasons: string[];
+  safeFacts?: Readonly<Record<string, unknown>>;
+  startedAt: number;
+  acceptedAt?: unknown;
+  completedAt?: unknown;
+  observedAt?: unknown;
+  expiresAt?: unknown;
+};
+
+export type SurfaceServiceManagerTrainDigest = {
+  kind: "service.manager.train.digest";
+  trainId: string;
+  managerId: string;
+  subjectRef: string;
+  state: string;
+  repoRefs: string[];
+  commitRefs: string[];
+  appContractRefs: string[];
+  releaseContractRefs: string[];
+  operationRefs: string[];
+  proofDigestRefs: string[];
+  labProofRefs: string[];
+  metricsRefs: string[];
+  evidenceRefs: string[];
+  blockedReasons: string[];
+  safeFacts?: Readonly<Record<string, unknown>>;
+  observedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceAppBootstrapContract = {
+  kind: "surface.app.bootstrap.contract";
+  bootstrapContractId: string;
+  appContractRef: string;
+  appId: string;
+  state: string;
+  sourceMode: string;
+  moduleRefs: string[];
+  serviceManagerRef?: string;
+  releaseContractRef?: string;
+  secretBoundaryRef?: string;
+  trainDigestRef?: string;
+  labProofProfileRefs: string[];
+  authorityRefs: string[];
+  evidenceRefs: string[];
+  blockedReasons: string[];
+  secretBoundary: SurfaceServiceManagerSecretBoundary;
+  releaseContract?: SurfaceServiceManagerReleaseContract;
+  safeFacts?: Readonly<Record<string, unknown>>;
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceAppRunnerPlan = {
+  kind: "surface.app.runner.plan";
+  planId: string;
+  contractId: string;
+  appId: string;
+  state: "ready" | "blocked";
+  sourceMode: string;
+  attachContext: SurfaceAppAttachContext;
+  modulePostures: readonly SurfaceModuleRolePosture[];
+  secretBoundary: SurfaceServiceManagerSecretBoundary;
+  releaseContract: SurfaceServiceManagerReleaseContract | null;
+  bootstrapContract: SurfaceAppBootstrapContract;
+  labProof: SurfaceServiceManagerLabProof | null;
+  proofDigest: SurfaceServiceManagerProofDigest | null;
+  trainDigest: SurfaceServiceManagerTrainDigest | null;
+  blockedReasons: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceAppManifestSelection = {
+  kind: "surface.app.manifest.selection";
+  manifestId: string;
+  appId: string;
+  state: "ready" | "blocked";
+  appContractRef: string;
+  version: string;
+  sourceMode: string;
+  claimState: string;
+  compatibilityRefs: string[];
+  bootstrapContractRef: string;
+  releaseContractRef: string;
+  evidenceRefs: string[];
+  blockedReasons: string[];
+  claim: Readonly<Record<string, unknown>> | null;
+  surfaceApp: DefinedSurfaceApp | null;
+  contract: SurfaceAppContractShape | null;
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceAppManifestRunnerPlan = {
+  kind: "surface.app.manifest.runner.plan";
+  planId: string;
+  state: "ready" | "blocked";
+  manifestSelection: SurfaceAppManifestSelection;
+  runnerPlan: SurfaceAppRunnerPlan | null;
+  blockedReasons: string[];
+  issuedAt: number;
   expiresAt?: unknown;
 };
 
@@ -199,6 +365,40 @@ export function surfaceServiceManagerProofDigest(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
 ): SurfaceServiceManagerProofDigest;
+export function surfaceServiceManagerSecretBoundary(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceServiceManagerSecretBoundary;
+export function surfaceServiceManagerReleaseContract(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceServiceManagerReleaseContract;
+export function surfaceServiceManagerLabProof(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceServiceManagerLabProof;
+export function surfaceServiceManagerTrainDigest(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceServiceManagerTrainDigest;
+export function surfaceAppBootstrapContract(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceAppBootstrapContract;
+export function surfaceAppManifestSelection(
+  manifest: Record<string, unknown>,
+  surfaceAppsOrContracts: readonly (DefinedSurfaceApp | SurfaceAppContractShape)[] | Record<string, DefinedSurfaceApp | SurfaceAppContractShape>,
+  options?: Record<string, unknown>,
+): SurfaceAppManifestSelection;
+export function surfaceAppRunnerPlanFromManifest(
+  manifest: Record<string, unknown>,
+  surfaceAppsOrContracts: readonly (DefinedSurfaceApp | SurfaceAppContractShape)[] | Record<string, DefinedSurfaceApp | SurfaceAppContractShape>,
+  options?: Record<string, unknown>,
+): SurfaceAppManifestRunnerPlan;
+export function surfaceAppRunnerPlan(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceAppRunnerPlan;
 
 export function surfaceModuleRolePosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
