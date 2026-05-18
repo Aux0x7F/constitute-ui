@@ -126,7 +126,7 @@ export function surfaceAppBootstrapPosture(surfaceAppOrContract, options = {}) {
   ]);
   const issuedAt = Number(options.issuedAt || bootstrapPosture.issuedAt || contract.issuedAt || Date.now());
   const sourceMode = String(options.sourceMode || bootstrapPosture.sourceMode || dominantFulfillmentMode(surfaceApp.modules) || "bundled");
-  return deepFreeze({
+  const record = {
     kind: "surface.app.bootstrap.posture",
     bootstrapId: String(options.bootstrapId || bootstrapPosture.bootstrapId || `bootstrap:${contract.contractId || contract.appId || "surface-app"}`),
     contractId: String(contract.contractId || ""),
@@ -134,11 +134,8 @@ export function surfaceAppBootstrapPosture(surfaceAppOrContract, options = {}) {
     state: blockedReasons.length ? "blocked" : (degraded ? "degraded" : "ready"),
     sourceMode,
     moduleRefs,
-    serviceManagerRef: String(options.serviceManagerRef || bootstrapPosture.serviceManagerRef || serviceManagerPosture.managerId || ""),
-    serviceManagerPosture: deepFreeze({ ...serviceManagerPosture }),
     secretBoundary: deepFreeze(Object.keys(secretBoundary).length ? { ...secretBoundary } : { state: "notRequired" }),
     releasePosture: deepFreeze(Object.keys(releasePosture).length ? { ...releasePosture } : { state: "static" }),
-    rollbackPosture: deepFreeze(Object.keys(rollbackPosture).length ? { ...rollbackPosture } : undefined),
     blockedReasons,
     evidenceRefs: uniqueStrings([
       ...normalizeStringArray(bootstrapPosture.evidenceRefs),
@@ -148,7 +145,11 @@ export function surfaceAppBootstrapPosture(surfaceAppOrContract, options = {}) {
     ]),
     issuedAt,
     expiresAt: options.expiresAt || bootstrapPosture.expiresAt || contract.expiresAt,
-  });
+  };
+  assignIfPresent(record, "serviceManagerRef", options.serviceManagerRef || bootstrapPosture.serviceManagerRef || serviceManagerPosture.managerId);
+  assignObjectIfPresent(record, "serviceManagerPosture", serviceManagerPosture);
+  assignObjectIfPresent(record, "rollbackPosture", rollbackPosture);
+  return deepFreeze(record);
 }
 
 export function surfaceServiceManagerOperationPosture(surfaceAppOrContract, options = {}) {
@@ -810,7 +811,7 @@ export function surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, op
     ...(nonBundledSourceMode(sourceMode) && remoteSourceRefs.length === 0 ? ["missingRemoteSourceRef"] : []),
     ...normalizeStringArray(options.blockedReasons),
   ]);
-  return deepFreeze({
+  const record = {
     kind: "surface.app.manifest.selection",
     manifestId: String(manifest.manifestId || ""),
     appId: String(manifest.appId || ""),
@@ -832,6 +833,7 @@ export function surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, op
     ]),
     bootstrapContractRef: String(options.bootstrapContractRef || claim?.bootstrapContractRef || ""),
     releaseContractRef,
+    bundledContractAvailable: Boolean(surfaceApp),
     evidenceRefs: uniqueStrings([
       ...normalizeStringArray(manifest.evidenceRefs),
       ...normalizeStringArray(claim?.evidenceRefs),
@@ -839,11 +841,11 @@ export function surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, op
     ]),
     blockedReasons,
     claim: claim ? deepFreeze({ ...claim }) : null,
-    surfaceApp,
-    contract: surfaceApp?.contract || null,
     issuedAt: Number(options.issuedAt || manifest.issuedAt || Date.now()),
     expiresAt: options.expiresAt || manifest.expiresAt,
-  });
+  };
+  attachLocalSelectionContext(record, surfaceApp, surfaceApp?.contract || null);
+  return deepFreeze(record);
 }
 
 export function surfaceAppRunnerPlanFromManifest(manifest, surfaceAppsOrContracts, options = {}) {
@@ -1180,6 +1182,7 @@ export function surfaceModuleRolePosture(surfaceAppOrContract, role, options = {
   const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
     ? surfaceAppOrContract
     : defineSurfaceAppContract(surfaceAppOrContract);
+  const issuedAt = Number(options.issuedAt || surfaceApp.contract.issuedAt || Date.now());
   const roleRef = String(role || "");
   const moduleRef = String(options.moduleRef || "").trim();
   const primitiveRef = String(options.primitiveRef || "").trim();
@@ -1195,7 +1198,10 @@ export function surfaceModuleRolePosture(surfaceAppOrContract, role, options = {
     moduleRef,
     primitiveRef,
     moduleCount: modules.length,
-    modules: Object.freeze([...modules]),
+    modules: Object.freeze(modules.map((module) => Object.freeze({
+      ...module,
+      issuedAt: Number(module.issuedAt || issuedAt),
+    }))),
   });
 }
 
@@ -1721,8 +1727,9 @@ function surfaceAppSourceTrustResult(selection, options = {}) {
   const sourceMode = String(selection.sourceMode || "").trim();
   const bundled = !nonBundledSourceMode(sourceMode);
   const sourceRefs = bundled ? selection.bundledSourceRefs : selection.remoteSourceRefs;
+  const bundledContractAvailable = Boolean(selection.bundledContractAvailable || selection.surfaceApp);
   const blockedReasons = uniqueStrings([
-    ...(bundled && sourceRefs.length === 0 && !selection.surfaceApp ? ["missingBundledSourceRef"] : []),
+    ...(bundled && sourceRefs.length === 0 && !bundledContractAvailable ? ["missingBundledSourceRef"] : []),
     ...(!bundled && sourceRefs.length === 0 ? ["missingRemoteSourceRef"] : []),
     ...(!bundled && !selection.releaseContractRef ? ["missingReleaseContractRef"] : []),
     ...(options.sourceTrusted === false ? ["sourceUntrusted"] : []),
@@ -1751,9 +1758,16 @@ function surfaceAppServiceManagerReadiness(selection, options = {}) {
       : []),
     ...normalizeStringArray(options.serviceManagerBlockedReasons),
   ]);
+  const readinessState = (() => {
+    if (blockedReasons.length) return "blocked";
+    if (postureIsDegraded(posture)) return "degraded";
+    if (postureState === "ready" || postureState === "manual") return "ready";
+    if (postureState === "blocked" || postureState === "unavailable") return "blocked";
+    return postureState ? "unchecked" : "unknown";
+  })();
   return deepFreeze({
     kind: "surface.app.runtime.service-manager.readiness",
-    state: blockedReasons.length ? "blocked" : (postureIsDegraded(posture) ? "degraded" : (postureState || "unknown")),
+    state: readinessState,
     serviceManagerRequirementRefs: Object.freeze([...selection.serviceManagerRequirementRefs]),
     managerId: String(posture.managerId || posture.serviceManagerRef || ""),
     evidenceRefs: Object.freeze(normalizeStringArray(posture.evidenceRefs)),
@@ -1784,6 +1798,25 @@ function indexSurfaceApps(surfaceAppsOrContracts) {
 
 function nonBundledSourceMode(sourceMode) {
   return ["swarmPackage", "storageObject", "nativeInstalled"].includes(String(sourceMode || ""));
+}
+
+function attachLocalSelectionContext(record, surfaceApp, contract) {
+  if (!isObject(record)) return record;
+  if (surfaceApp) {
+    Object.defineProperty(record, "surfaceApp", {
+      value: surfaceApp,
+      enumerable: false,
+      configurable: false,
+    });
+  }
+  if (contract) {
+    Object.defineProperty(record, "contract", {
+      value: contract,
+      enumerable: false,
+      configurable: false,
+    });
+  }
+  return record;
 }
 
 function versionParts(value) {

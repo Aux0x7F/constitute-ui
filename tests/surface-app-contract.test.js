@@ -3,6 +3,11 @@ import test from "node:test";
 import {
   assertRunnerOperation,
   assertServiceManagerOperationPosture,
+  assertSurfaceAppInstancePosture,
+  assertSurfaceAppManifestRunnerPlan,
+  assertSurfaceAppManifestSelection,
+  assertSurfaceAppRuntimeSelectionPosture,
+  assertSurfaceAppRunnerPlan,
 } from "../../constitute-protocol/src/index.js";
 import {
   defineSurfaceAppContract,
@@ -487,6 +492,9 @@ test("surface app manifest selection pins bundled app contracts by version", () 
   assert.equal(selection.kind, "surface.app.manifest.selection");
   assert.equal(selection.state, "ready");
   assert.equal(selection.contract.contractId, "surface-app:logging-ui@0.1.0");
+  assert.equal(Object.prototype.propertyIsEnumerable.call(selection, "contract"), false);
+  assert.equal(Object.prototype.propertyIsEnumerable.call(selection, "surfaceApp"), false);
+  assert.equal(assertSurfaceAppManifestSelection(selection), selection);
   assert.deepEqual(selection.requiredModuleRoles, ["runtimeClient", "productView"]);
   assert.deepEqual(selection.bundledSourceRefs, ["bundle:logging-ui@0.1.0"]);
   assert.deepEqual(selection.runnerRequirementRefs, ["runner:req:logging-ui"]);
@@ -497,6 +505,7 @@ test("surface app manifest selection pins bundled app contracts by version", () 
   assert.equal(plan.state, "ready");
   assert.equal(plan.runnerPlan.state, "ready");
   assert.equal(plan.runnerPlan.bootstrapContract.appContractRef, "surface-app:logging-ui@0.1.0");
+  assert.equal(assertSurfaceAppManifestRunnerPlan(plan), plan);
 });
 
 test("surface app runtime selection posture reduces manifest runner and module readiness", () => {
@@ -546,6 +555,9 @@ test("surface app runtime selection posture reduces manifest runner and module r
   assert.deepEqual(posture.requiredModuleRoles, ["runtimeClient", "productView", "projectionModel"]);
   assert.equal(posture.modulePostures.every((entry) => entry.state === "ready"), true);
   assert.deepEqual(posture.blockedReasons, []);
+  assert.equal(Object.prototype.propertyIsEnumerable.call(posture.manifestSelection, "surfaceApp"), false);
+  assert.equal(Object.prototype.propertyIsEnumerable.call(posture.manifestSelection, "contract"), false);
+  assert.equal(assertSurfaceAppRuntimeSelectionPosture(posture), posture);
 });
 
 test("surface app instance posture composes runtime, runner, module, and bootstrap posture", () => {
@@ -607,6 +619,8 @@ test("surface app instance posture composes runtime, runner, module, and bootstr
   assert.equal(instance.bootstrapContractRef, runnerPlan.bootstrapContract.bootstrapContractId);
   assert.equal(instance.moduleBindingPosture.state, "ready");
   assert.deepEqual(instance.blockedReasons, []);
+  assert.equal(assertSurfaceAppRunnerPlan(runnerPlan), runnerPlan);
+  assert.equal(assertSurfaceAppInstancePosture(instance), instance);
 });
 
 test("surface app manifest selection blocks missing bundles and unproven remote sources", () => {
