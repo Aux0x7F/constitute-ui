@@ -19,6 +19,7 @@ export function createRuntimeSurfaceClient({
   onConsumerFloor = null,
   onAttachTimeout = null,
   onAttachError = null,
+  onAttachPosture = null,
   onWorkerError = null,
 } = {}) {
   const pendingResponses = new Map();
@@ -31,6 +32,30 @@ export function createRuntimeSurfaceClient({
   let consumerFloor = null;
   let attachWaiters = [];
   let attachInFlight = false;
+  let attachPosture = {
+    kind: "runtime.attach.posture",
+    clientId,
+    surface,
+    state: "idle",
+    severity: "info",
+    reason: "",
+    observedAt: Date.now(),
+  };
+
+  function setAttachPosture(next = {}) {
+    attachPosture = {
+      kind: "runtime.attach.posture",
+      clientId,
+      surface,
+      state: String(next.state || attachPosture.state || "idle"),
+      severity: String(next.severity || attachPosture.severity || "info"),
+      reason: String(next.reason || ""),
+      observedAt: Date.now(),
+      evidence: next.evidence && typeof next.evidence === "object" ? next.evidence : {},
+    };
+    if (typeof onAttachPosture === "function") onAttachPosture(attachPosture);
+    return attachPosture;
+  }
 
   function settleResponse(msg = {}) {
     const requestId = String(msg.requestId || "").trim();
@@ -69,6 +94,7 @@ export function createRuntimeSurfaceClient({
   function absorbSnapshot(nextSnapshot, msg = {}) {
     snapshot = nextSnapshot && typeof nextSnapshot === "object" ? nextSnapshot : null;
     attached = true;
+    setAttachPosture({ state: "attached", severity: "info", reason: "runtime snapshot received" });
     absorbMaterializationBudget(msg);
     settleAttached(port);
     if (typeof onSnapshot === "function") onSnapshot(snapshot);
@@ -90,8 +116,10 @@ export function createRuntimeSurfaceClient({
     }
     port.postMessage(attachMessage);
     attachInFlight = true;
+    setAttachPosture({ state: "attaching", severity: "info", reason: "runtime attach requested" });
     timers.setTimeout(() => {
       if (!attached && attachInFlight) {
+        setAttachPosture({ state: "timeout", severity: "degraded", reason: "runtime attach timed out" });
         if (typeof onAttachTimeout === "function") onAttachTimeout();
         settleAttached(null);
       }
@@ -105,6 +133,7 @@ export function createRuntimeSurfaceClient({
     }
     if (typeof SharedWorker === "undefined") {
       const error = new Error("SharedWorker is unavailable");
+      setAttachPosture({ state: "unavailable", severity: "degraded", reason: error.message });
       if (typeof onAttachError === "function") onAttachError(error);
       return null;
     }
@@ -127,11 +156,21 @@ export function createRuntimeSurfaceClient({
         if (msg.type === "runtime.response") settleResponse(msg);
       };
       worker.onerror = (event) => {
+        setAttachPosture({
+          state: "workerError",
+          severity: "degraded",
+          reason: String(event?.message || "shared worker failure"),
+        });
         if (typeof onWorkerError === "function") onWorkerError(event, worker);
       };
       postAttachMessage();
       return port;
     } catch (error) {
+      setAttachPosture({
+        state: "failed",
+        severity: "degraded",
+        reason: String(error?.message || error || "runtime attach failed"),
+      });
       if (typeof onAttachError === "function") onAttachError(error);
       settleAttached(null);
       return null;
@@ -185,6 +224,7 @@ export function createRuntimeSurfaceClient({
     snapshot = null;
     materializationBudget = null;
     consumerFloor = null;
+    setAttachPosture({ state: "closed", severity: "info", reason: "runtime surface client closed" });
   }
 
   function openIntent(type, payload = {}, timeoutMs = callTimeoutMs) {
@@ -225,6 +265,9 @@ export function createRuntimeSurfaceClient({
     },
     get consumerFloor() {
       return consumerFloor;
+    },
+    get attachPosture() {
+      return attachPosture;
     },
   };
 
