@@ -13,6 +13,8 @@ import {
   surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
   surfaceMaterializationBudgetPosture,
+  surfaceServiceManagerOperationPosture,
+  surfaceServiceManagerProofDigest,
   surfaceModuleRolePosture,
 } from "../src/surface-app-contract.js";
 
@@ -142,6 +144,78 @@ test("surface app helper reduces bootstrap posture from service manager and rele
     "serviceManager:missingRollback",
     "release:missingBuild",
   ]);
+});
+
+test("surface app helper reduces service manager operation and proof digest posture", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract({
+    serviceRef: "service:logging",
+    appRef: "surface-app:logging-ui",
+    surfaceRef: "surface:logging-ui",
+    serviceManagerPosture: {
+      managerId: "manager:logging-local",
+      managerRef: "member:logging-manager",
+      state: "ready",
+      serviceRefs: ["service:logging"],
+      capabilityRefs: ["service.manage"],
+      evidenceRefs: ["host:manual"],
+    },
+    releasePosture: {
+      state: "releaseReady",
+      releaseRef: "release:logging-ui:local",
+      rollbackRef: "rollback:logging-ui:previous",
+      evidenceRefs: ["build:logging-ui:local"],
+    },
+    secretBoundary: {
+      state: "notRequired",
+    },
+  }));
+  const operation = surfaceServiceManagerOperationPosture(surfaceApp, {
+    operation: "promote",
+    operationId: "operation:logging-ui:promote",
+    requesterRef: "identity:operator",
+    state: "succeeded",
+    proofRefs: ["proof:logging-ui:browser"],
+    requestedAt: 1234,
+    completedAt: 1240,
+  });
+
+  assert.equal(operation.kind, "service.manager.operation.posture");
+  assert.equal(operation.state, "succeeded");
+  assert.equal(operation.subjectRef, "service:logging");
+  assert.equal(operation.managerRef, "member:logging-manager");
+  assert.equal(operation.releaseRef, "release:logging-ui:local");
+  assert.deepEqual(operation.blockedReasons, []);
+  assert.deepEqual(operation.evidenceRefs, ["host:manual", "build:logging-ui:local"]);
+
+  const digest = surfaceServiceManagerProofDigest(surfaceApp, {
+    operationPosture: operation,
+    state: "proved",
+    digestId: "proof-digest:logging-ui:promote",
+    artifactRefs: ["artifact:browser-smoke"],
+    proofRefs: ["proof:logging-ui:browser"],
+    metricsRefs: ["metrics:logging-ui"],
+    observedAt: 1250,
+  });
+  assert.equal(digest.kind, "service.manager.proof.digest");
+  assert.equal(digest.state, "proved");
+  assert.equal(digest.operationId, operation.operationId);
+  assert.deepEqual(digest.serviceRefs, ["service:logging"]);
+
+  const blockedRollback = surfaceServiceManagerOperationPosture(surfaceApp, {
+    operation: "rollback",
+    requestedAt: 1234,
+    releasePosture: { state: "releaseReady" },
+  });
+  assert.equal(blockedRollback.state, "blocked");
+  assert.deepEqual(blockedRollback.blockedReasons, ["missingRollbackRef"]);
+
+  const blockedDigest = surfaceServiceManagerProofDigest(surfaceApp, {
+    operationPosture: operation,
+    state: "proved",
+    observedAt: 1250,
+  });
+  assert.equal(blockedDigest.state, "blocked");
+  assert.deepEqual(blockedDigest.blockedReasons, ["missingProofRefs"]);
 });
 
 test("surface app helper gates bundled module roles by contract", () => {
