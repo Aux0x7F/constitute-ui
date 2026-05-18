@@ -887,6 +887,22 @@ test("surface app instance posture consumes app runner fulfillment proof", () =>
     },
     operationPosture: { state: "succeeded" },
     fulfillmentPosture: { state: "succeeded" },
+    hostFulfillmentPosture: {
+      kind: "runner.host.fulfillment.posture",
+      postureId: "runner-host:logging-ui:bootstrap",
+      runnerId: "runner:lab-gateway:logging-ui",
+      runnerRef: RESOLVED_RUNNER_REF,
+      hostRef: "host:lab-gateway",
+      operationId: "runner-operation:logging-ui:bootstrap",
+      operation: "execute",
+      state: "succeeded",
+      requesterRef: "identity:operator",
+      subjectRef: "surface-app:logging-ui@0.1.0",
+      contractRef: "surface-app:logging-ui@0.1.0",
+      grantRefs: ["grant:logging-ui:runner"],
+      resourceBudget: { maxMemoryMiB: 256 },
+      observedAt: 1234,
+    },
     blockedReasons: [],
     observedAt: 1234,
   };
@@ -895,6 +911,7 @@ test("surface app instance posture consumes app runner fulfillment proof", () =>
   });
   assert.equal(readiness.state, "ready");
   assert.equal(readiness.reportId, "app-runner:logging-ui:bootstrap");
+  assert.equal(readiness.hostFulfillmentPosture.hostRef, "host:lab-gateway");
   assert.deepEqual(readiness.proofRefs, ["proof:logging-ui:bootstrap"]);
   const lifecycle = surfaceAppRunnerFulfillmentLifecycle(runnerFulfillmentReport, {
     appContract: contract,
@@ -903,6 +920,7 @@ test("surface app instance posture consumes app runner fulfillment proof", () =>
   assert.equal(lifecycle.kind, "app.runner.fulfillment.lifecycle");
   assert.equal(lifecycle.state, "succeeded");
   assert.equal(lifecycle.reportId, runnerFulfillmentReport.reportId);
+  assert.equal(lifecycle.hostFulfillmentPosture.state, "succeeded");
   assert.deepEqual(lifecycle.witnessRefs, ["witness:logging-ui:operator"]);
   assertAppRunnerFulfillmentLifecycle(lifecycle);
 

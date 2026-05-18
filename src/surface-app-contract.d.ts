@@ -294,6 +294,7 @@ export type SurfaceAppRunnerFulfillmentReadiness = {
   releaseRefs: string[];
   evidenceRefs: string[];
   resourcePosture: Readonly<Record<string, unknown>> | null;
+  hostFulfillmentPosture: Readonly<Record<string, unknown>> | null;
   operationPosture: Readonly<Record<string, unknown>> | null;
   fulfillmentPosture: Readonly<Record<string, unknown>> | null;
   blockedReasons: string[];
@@ -564,6 +565,7 @@ export type SurfaceAppRunnerFulfillmentLifecycle = {
   secretBoundary?: Readonly<Record<string, unknown>>;
   releasePosture: Readonly<Record<string, unknown>> | null;
   rollbackPosture: Readonly<Record<string, unknown>> | null;
+  hostFulfillmentPosture: Readonly<Record<string, unknown>> | null;
   releaseRef?: string;
   rollbackRef?: string;
   operationPosture: Readonly<Record<string, unknown>> | null;

@@ -2461,6 +2461,7 @@ export function surfaceAppRunnerFulfillmentReadiness(report, options = {}) {
     releaseRefs: lifecycle.releaseRefs,
     evidenceRefs: lifecycle.evidenceRefs,
     resourcePosture: lifecycle.resourcePosture,
+    hostFulfillmentPosture: lifecycle.hostFulfillmentPosture,
     operationPosture: lifecycle.operationPosture,
     fulfillmentPosture: lifecycle.fulfillmentPosture,
     blockedReasons,
@@ -2497,6 +2498,9 @@ export function surfaceAppRunnerFulfillmentLifecycle(report, options = {}) {
   const state = blockedReasons.length
     ? (expired ? "expired" : "blocked")
     : reportState;
+  const hostFulfillmentPosture = isObject(report.hostFulfillmentPosture)
+    ? deepFreeze({ ...report.hostFulfillmentPosture })
+    : null;
   const operationPosture = isObject(report.operationPosture) ? deepFreeze({ ...report.operationPosture }) : null;
   const fulfillmentPosture = isObject(report.fulfillmentPosture) ? deepFreeze({ ...report.fulfillmentPosture }) : null;
   return deepFreeze({
@@ -2538,6 +2542,7 @@ export function surfaceAppRunnerFulfillmentLifecycle(report, options = {}) {
     secretBoundary: isObject(report.secretBoundary) ? deepFreeze({ ...report.secretBoundary }) : undefined,
     releasePosture: isObject(report.releasePosture) ? deepFreeze({ ...report.releasePosture }) : null,
     rollbackPosture: isObject(report.rollbackPosture) ? deepFreeze({ ...report.rollbackPosture }) : null,
+    hostFulfillmentPosture,
     ...(String(report.releaseRef || "").trim() ? { releaseRef: String(report.releaseRef).trim() } : {}),
     ...(String(report.rollbackRef || "").trim() ? { rollbackRef: String(report.rollbackRef).trim() } : {}),
     operationPosture,
