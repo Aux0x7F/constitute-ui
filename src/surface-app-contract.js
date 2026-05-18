@@ -988,6 +988,45 @@ export function surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, op
     ...normalizeStringArray(claim?.remoteSourceRefs),
     ...normalizeStringArray(options.remoteSourceRefs),
   ]);
+  const storageObjectRefs = uniqueStrings([
+    ...normalizeStringArray(manifest.storageObjectRefs),
+    ...normalizeStringArray(claim?.storageObjectRefs),
+    ...normalizeStringArray(options.storageObjectRefs),
+  ]);
+  const releaseSourceRefs = uniqueStrings([
+    ...normalizeStringArray(manifest.releaseSourceRefs),
+    ...normalizeStringArray(claim?.releaseSourceRefs),
+    ...normalizeStringArray(options.releaseSourceRefs),
+  ]);
+  const swarmSourceRefs = uniqueStrings([
+    ...normalizeStringArray(manifest.swarmSourceRefs),
+    ...normalizeStringArray(claim?.swarmSourceRefs),
+    ...normalizeStringArray(options.swarmSourceRefs),
+  ]);
+  const proofDigestRefs = uniqueStrings([
+    ...normalizeStringArray(manifest.proofDigestRefs),
+    ...normalizeStringArray(claim?.proofDigestRefs),
+    ...normalizeStringArray(options.proofDigestRefs),
+    ...[options.proofDigestRef].filter((ref) => ref),
+  ]);
+  const rollbackRefs = uniqueStrings([
+    ...normalizeStringArray(manifest.rollbackRefs),
+    ...normalizeStringArray(claim?.rollbackRefs),
+    ...normalizeStringArray(options.rollbackRefs),
+    ...[options.rollbackRef].filter((ref) => ref),
+  ]);
+  const secretBoundaryRefs = uniqueStrings([
+    ...normalizeStringArray(manifest.secretBoundaryRefs),
+    ...normalizeStringArray(claim?.secretBoundaryRefs),
+    ...normalizeStringArray(options.secretBoundaryRefs),
+    ...[options.secretBoundaryRef].filter((ref) => ref),
+  ]);
+  const trustRefs = uniqueStrings([
+    ...normalizeStringArray(manifest.trustRefs),
+    ...normalizeStringArray(claim?.trustRefs),
+    ...normalizeStringArray(options.trustRefs),
+    ...[options.trustRef].filter((ref) => ref),
+  ]);
   const requiredModuleRoles = uniqueStrings([
     ...normalizeStringArray(manifest.requiredModuleRoles),
     ...normalizeStringArray(claim?.requiredModuleRoles),
@@ -1008,6 +1047,38 @@ export function surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, op
     ...normalizeStringArray(claim?.serviceManagerRequirementRefs),
     ...normalizeStringArray(options.serviceManagerRequirementRefs),
   ]);
+  const sourceCandidatePosture = surfaceAppSourceCandidatePosture({
+    sourceMode,
+    sourceClass: options.sourceClass || claim?.sourceClass || manifest.sourceClass,
+    appContractRef,
+    bundledContractAvailable: Boolean(surfaceApp),
+    bundledSourceRefs,
+    remoteSourceRefs,
+    storageObjectRefs,
+    releaseSourceRefs,
+    swarmSourceRefs,
+    releaseContractRef,
+    compatibilityRefs: uniqueStrings([
+      ...normalizeStringArray(manifest.compatibilityRefs),
+      ...normalizeStringArray(claim?.compatibilityRefs),
+      ...[manifest.compatibilityWindow?.protocolRef].filter((ref) => ref),
+      ...[claim?.compatibilityWindow?.protocolRef].filter((ref) => ref),
+      ...[options.compatibilityWindow?.protocolRef].filter((ref) => ref),
+    ]),
+    proofDigestRefs,
+    rollbackRefs,
+    secretBoundaryRefs,
+    trustRefs,
+    evidenceRefs: uniqueStrings([
+      ...normalizeStringArray(manifest.evidenceRefs),
+      ...normalizeStringArray(claim?.evidenceRefs),
+      ...normalizeStringArray(options.evidenceRefs),
+    ]),
+    blockedReasons: options.sourceCandidateBlockedReasons,
+    sourceTrusted: options.sourceTrusted,
+    issuedAt: Number(options.issuedAt || manifest.issuedAt || Date.now()),
+    expiresAt: options.expiresAt || manifest.expiresAt,
+  });
   const blockedReasons = uniqueStrings([
     ...(!appContractRef ? ["missingAppContractRef"] : []),
     ...(!version ? ["missingAppVersion"] : []),
@@ -1017,10 +1088,12 @@ export function surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, op
     ...(manifestState === "blocked" ? postureBlockedReasons(manifest, "manifest") : []),
     ...(claimState === "blocked" ? postureBlockedReasons(claim, "manifestVersion") : []),
     ...(claimState === "superseded" ? ["manifestVersionSuperseded"] : []),
-    ...(nonBundledSourceMode(sourceMode) && !releaseContractRef ? ["missingReleaseContractRef"] : []),
-    ...(nonBundledSourceMode(sourceMode) && remoteSourceRefs.length === 0 ? ["missingRemoteSourceRef"] : []),
+    ...sourceCandidatePosture.blockedReasons,
     ...normalizeStringArray(options.blockedReasons),
   ]);
+  const claimForRecord = claim && (!nonBundledSourceMode(sourceMode) || releaseContractRef)
+    ? claim
+    : null;
   const record = {
     kind: "surface.app.manifest.selection",
     manifestId: String(manifest.manifestId || ""),
@@ -1033,16 +1106,23 @@ export function surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, op
     requiredModuleRoles,
     bundledSourceRefs,
     remoteSourceRefs,
+    storageObjectRefs,
+    releaseSourceRefs,
+    swarmSourceRefs,
     grantRefs,
     runnerRequirementRefs,
     serviceManagerRequirementRefs,
-    compatibilityWindow: options.compatibilityWindow || claim?.compatibilityWindow || manifest.compatibilityWindow || null,
+    compatibilityWindow: options.compatibilityWindow || claim?.compatibilityWindow || manifest.compatibilityWindow || undefined,
     compatibilityRefs: uniqueStrings([
       ...normalizeStringArray(manifest.compatibilityRefs),
       ...normalizeStringArray(claim?.compatibilityRefs),
+      ...[manifest.compatibilityWindow?.protocolRef].filter((ref) => ref),
+      ...[claim?.compatibilityWindow?.protocolRef].filter((ref) => ref),
+      ...[options.compatibilityWindow?.protocolRef].filter((ref) => ref),
     ]),
     bootstrapContractRef: String(options.bootstrapContractRef || claim?.bootstrapContractRef || ""),
     releaseContractRef,
+    sourceCandidatePosture,
     bundledContractAvailable: Boolean(surfaceApp),
     evidenceRefs: uniqueStrings([
       ...normalizeStringArray(manifest.evidenceRefs),
@@ -1050,7 +1130,7 @@ export function surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, op
       ...normalizeStringArray(options.evidenceRefs),
     ]),
     blockedReasons,
-    claim: claim ? deepFreeze({ ...claim }) : null,
+    claim: claimForRecord ? deepFreeze({ ...claimForRecord }) : null,
     issuedAt: Number(options.issuedAt || manifest.issuedAt || Date.now()),
     expiresAt: options.expiresAt || manifest.expiresAt,
   };
@@ -1095,6 +1175,119 @@ export function surfaceAppRunnerPlanFromManifest(manifest, surfaceAppsOrContract
     ]),
     issuedAt: runnerPlan.issuedAt,
     expiresAt: runnerPlan.expiresAt,
+  });
+}
+
+export function surfaceAppSourceCandidatePosture(selectionOrOptions, options = {}) {
+  const source = isObject(selectionOrOptions) ? selectionOrOptions : {};
+  const sourceMode = String(options.sourceMode || source.sourceMode || "bundled").trim();
+  const sourceClass = surfaceAppSourceClass(sourceMode, options.sourceClass || source.sourceClass);
+  const bundled = !nonBundledSourceMode(sourceMode);
+  const releaseContractRef = String(options.releaseContractRef || source.releaseContractRef || "").trim();
+  const bundledContractAvailable = Boolean(options.bundledContractAvailable ?? source.bundledContractAvailable ?? source.surfaceApp);
+  const appContractRef = String(options.appContractRef || source.appContractRef || "").trim();
+  const bundledSourceRefs = uniqueStrings([
+    ...normalizeStringArray(source.bundledSourceRefs),
+    ...normalizeStringArray(options.bundledSourceRefs),
+  ]);
+  const remoteSourceRefs = uniqueStrings([
+    ...normalizeStringArray(source.remoteSourceRefs),
+    ...normalizeStringArray(options.remoteSourceRefs),
+  ]);
+  const storageObjectRefs = uniqueStrings([
+    ...normalizeStringArray(source.storageObjectRefs),
+    ...normalizeStringArray(options.storageObjectRefs),
+    ...(sourceMode === "storageObject" ? remoteSourceRefs : []),
+  ]);
+  const releaseSourceRefs = uniqueStrings([
+    ...normalizeStringArray(source.releaseSourceRefs),
+    ...normalizeStringArray(options.releaseSourceRefs),
+    ...(sourceClass === "releaseFetched" ? remoteSourceRefs : []),
+  ]);
+  const swarmSourceRefs = uniqueStrings([
+    ...normalizeStringArray(source.swarmSourceRefs),
+    ...normalizeStringArray(options.swarmSourceRefs),
+    ...(sourceMode === "swarmPackage" ? remoteSourceRefs : []),
+  ]);
+  const compatibilityRefs = uniqueStrings([
+    ...normalizeStringArray(source.compatibilityRefs),
+    ...normalizeStringArray(options.compatibilityRefs),
+  ]);
+  const proofDigestRefs = uniqueStrings([
+    ...normalizeStringArray(source.proofDigestRefs),
+    ...normalizeStringArray(options.proofDigestRefs),
+    ...[source.proofDigestRef].filter((ref) => ref),
+    ...[options.proofDigestRef].filter((ref) => ref),
+  ]);
+  const rollbackRefs = uniqueStrings([
+    ...normalizeStringArray(source.rollbackRefs),
+    ...normalizeStringArray(options.rollbackRefs),
+    ...[source.rollbackRef].filter((ref) => ref),
+    ...[options.rollbackRef].filter((ref) => ref),
+  ]);
+  const secretBoundaryRefs = uniqueStrings([
+    ...normalizeStringArray(source.secretBoundaryRefs),
+    ...normalizeStringArray(options.secretBoundaryRefs),
+    ...[source.secretBoundaryRef].filter((ref) => ref),
+    ...[options.secretBoundaryRef].filter((ref) => ref),
+  ]);
+  const trustRefs = uniqueStrings([
+    ...normalizeStringArray(source.trustRefs),
+    ...normalizeStringArray(options.trustRefs),
+    ...[source.trustRef].filter((ref) => ref),
+    ...[options.trustRef].filter((ref) => ref),
+  ]);
+  const evidenceRefs = uniqueStrings([
+    ...normalizeStringArray(source.evidenceRefs),
+    ...normalizeStringArray(options.evidenceRefs),
+  ]);
+  const remoteCandidateRefs = uniqueStrings([
+    ...remoteSourceRefs,
+    ...storageObjectRefs,
+    ...releaseSourceRefs,
+    ...swarmSourceRefs,
+  ]);
+  const candidateRefs = uniqueStrings([
+    ...(bundled ? bundledSourceRefs : remoteCandidateRefs),
+    ...(bundled && bundledContractAvailable && appContractRef ? [appContractRef] : []),
+    ...normalizeStringArray(source.candidateRefs),
+    ...normalizeStringArray(options.candidateRefs),
+  ]);
+  const sourceTrusted = options.sourceTrusted ?? source.sourceTrusted;
+  const blockedReasons = uniqueStrings([
+    ...(bundled && candidateRefs.length === 0 && !bundledContractAvailable ? ["missingBundledSourceRef"] : []),
+    ...(!bundled && candidateRefs.length === 0 ? ["missingRemoteSourceRef"] : []),
+    ...(!bundled && !releaseContractRef ? ["missingReleaseContractRef"] : []),
+    ...(!bundled && proofDigestRefs.length === 0 ? ["missingProofDigestRef"] : []),
+    ...(!bundled && rollbackRefs.length === 0 ? ["missingRollbackRef"] : []),
+    ...(!bundled && secretBoundaryRefs.length === 0 ? ["missingSecretBoundaryRef"] : []),
+    ...(!bundled && compatibilityRefs.length === 0 ? ["missingCompatibilityRef"] : []),
+    ...(!bundled && trustRefs.length === 0 && sourceTrusted !== true ? ["missingSourceTrustRef"] : []),
+    ...(sourceTrusted === false ? ["sourceUntrusted"] : []),
+    ...normalizeStringArray(source.blockedReasons),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  return deepFreeze({
+    kind: "surface.app.source.candidate.posture",
+    state: blockedReasons.length ? "blocked" : "ready",
+    sourceMode,
+    sourceClass,
+    candidateRefs,
+    bundledSourceRefs,
+    remoteSourceRefs,
+    storageObjectRefs,
+    releaseSourceRefs,
+    swarmSourceRefs,
+    releaseContractRef,
+    compatibilityRefs,
+    proofDigestRefs,
+    rollbackRefs,
+    secretBoundaryRefs,
+    trustRefs,
+    evidenceRefs,
+    blockedReasons,
+    issuedAt: Number(options.issuedAt || source.issuedAt || Date.now()),
+    expiresAt: options.expiresAt || source.expiresAt,
   });
 }
 
@@ -1402,6 +1595,9 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
       })
   )));
   const compatibilityResult = surfaceAppCompatibilityResult(selection, options);
+  const sourceCandidatePosture = isObject(selection.sourceCandidatePosture)
+    ? selection.sourceCandidatePosture
+    : surfaceAppSourceCandidatePosture(selection, options);
   const sourceTrustResult = surfaceAppSourceTrustResult(selection, options);
   const runnerReadiness = deepFreeze({
     kind: "surface.app.runtime.runner.readiness",
@@ -1464,6 +1660,7 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
     sourceMode: selection.sourceMode,
     requiredModuleRoles,
     compatibilityResult,
+    sourceCandidatePosture,
     sourceTrustResult,
     modulePostures,
     runnerReadiness,
@@ -2321,14 +2518,14 @@ function surfaceAppCompatibilityResult(selection, options = {}) {
 }
 
 function surfaceAppSourceTrustResult(selection, options = {}) {
-  const sourceMode = String(selection.sourceMode || "").trim();
+  const candidatePosture = isObject(selection.sourceCandidatePosture)
+    ? selection.sourceCandidatePosture
+    : surfaceAppSourceCandidatePosture(selection, options);
+  const sourceMode = String(candidatePosture.sourceMode || selection.sourceMode || "").trim();
   const bundled = !nonBundledSourceMode(sourceMode);
-  const sourceRefs = bundled ? selection.bundledSourceRefs : selection.remoteSourceRefs;
-  const bundledContractAvailable = Boolean(selection.bundledContractAvailable || selection.surfaceApp);
+  const sourceRefs = normalizeStringArray(candidatePosture.candidateRefs);
   const blockedReasons = uniqueStrings([
-    ...(bundled && sourceRefs.length === 0 && !bundledContractAvailable ? ["missingBundledSourceRef"] : []),
-    ...(!bundled && sourceRefs.length === 0 ? ["missingRemoteSourceRef"] : []),
-    ...(!bundled && !selection.releaseContractRef ? ["missingReleaseContractRef"] : []),
+    ...normalizeStringArray(candidatePosture.blockedReasons),
     ...(options.sourceTrusted === false ? ["sourceUntrusted"] : []),
     ...normalizeStringArray(options.sourceBlockedReasons),
   ]);
@@ -2337,7 +2534,7 @@ function surfaceAppSourceTrustResult(selection, options = {}) {
     state: blockedReasons.length ? "blocked" : "ready",
     sourceMode,
     sourceRefs: Object.freeze([...sourceRefs]),
-    releaseContractRef: selection.releaseContractRef,
+    releaseContractRef: candidatePosture.releaseContractRef || selection.releaseContractRef,
     bundled,
     blockedReasons,
   });
@@ -2394,7 +2591,26 @@ function indexSurfaceApps(surfaceAppsOrContracts) {
 }
 
 function nonBundledSourceMode(sourceMode) {
-  return ["swarmPackage", "storageObject", "nativeInstalled"].includes(String(sourceMode || ""));
+  return ["swarmPackage", "storageObject", "nativeInstalled", "devOverlay"].includes(String(sourceMode || ""));
+}
+
+function surfaceAppSourceClass(sourceMode, explicitSourceClass) {
+  const explicit = String(explicitSourceClass || "").trim();
+  if (explicit) return explicit;
+  switch (String(sourceMode || "")) {
+    case "bundled":
+      return "bundled";
+    case "storageObject":
+      return "storagePinned";
+    case "swarmPackage":
+      return "swarmHosted";
+    case "nativeInstalled":
+      return "nativeInstalled";
+    case "devOverlay":
+      return "devOverlay";
+    default:
+      return "unknown";
+  }
 }
 
 function attachLocalSelectionContext(record, surfaceApp, contract) {

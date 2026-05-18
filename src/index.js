@@ -504,6 +504,7 @@ export {
   surfaceAppRunnerFulfillmentReadiness,
   surfaceAppRunnerPlan,
   surfaceAppRunnerPlanFromManifest,
+  surfaceAppSourceCandidatePosture,
   surfaceMaterializationBudgetPosture,
   surfaceModuleTaxonomyPosture,
   surfaceServiceManagerLabProof,

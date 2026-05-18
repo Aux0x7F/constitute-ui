@@ -395,6 +395,10 @@ test("surface module registry blocks untrusted and unsupported remote module sou
     sourceMode: "swarmPackage",
     remoteSourceRefs: ["storage-object:nvr-ui@0.1.0"],
     releaseContractRef: "release:nvr-ui:0.1.0",
+    proofDigestRefs: ["proof-digest:nvr-ui@0.1.0"],
+    rollbackRefs: ["rollback:nvr-ui:0.0.9"],
+    secretBoundaryRefs: ["secret-boundary:nvr-ui"],
+    trustRefs: ["trust:nvr-ui@0.1.0"],
     requiredModuleRoles: ["platformAdapter"],
   }), [surfaceApp], {
     runtimeVersion: "0.1.0",

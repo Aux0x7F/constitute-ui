@@ -8,6 +8,7 @@ import {
   assertSurfaceAppInstancePosture,
   assertSurfaceAppManifestRunnerPlan,
   assertSurfaceAppManifestSelection,
+  assertSurfaceAppSourceCandidatePosture,
   assertSurfaceAppRuntimeSelectionPosture,
   assertSurfaceAppRunnerPlan,
 } from "../../constitute-protocol/src/index.js";
@@ -34,6 +35,7 @@ import {
   surfaceAppRunnerFulfillmentReadiness,
   surfaceAppRunnerPlan,
   surfaceAppRunnerPlanFromManifest,
+  surfaceAppSourceCandidatePosture,
   surfaceMaterializationBudgetPosture,
   surfaceServiceManagerLabProof,
   surfaceServiceManagerOperationPosture,
@@ -929,6 +931,15 @@ test("surface app manifest selection blocks missing bundles and unproven remote 
   assert(selection.blockedReasons.includes("missingBundledContract"));
   assert(selection.blockedReasons.includes("missingReleaseContractRef"));
   assert(selection.blockedReasons.includes("missingRemoteSourceRef"));
+  assert(selection.blockedReasons.includes("missingProofDigestRef"));
+  assert(selection.blockedReasons.includes("missingRollbackRef"));
+  assert(selection.blockedReasons.includes("missingSecretBoundaryRef"));
+  assert(selection.blockedReasons.includes("missingCompatibilityRef"));
+  assert(selection.blockedReasons.includes("missingSourceTrustRef"));
+  assert.equal(selection.sourceCandidatePosture.kind, "surface.app.source.candidate.posture");
+  assert.equal(selection.sourceCandidatePosture.state, "blocked");
+  assert.equal(selection.sourceCandidatePosture.sourceClass, "swarmHosted");
+  assertSurfaceAppSourceCandidatePosture(selection.sourceCandidatePosture);
 
   const plan = surfaceAppRunnerPlanFromManifest(manifest, [makeContract()], { issuedAt: 1234 });
   assert.equal(plan.state, "blocked");
@@ -941,6 +952,52 @@ test("surface app manifest selection blocks missing bundles and unproven remote 
   assert.equal(posture.state, "blocked");
   assert(posture.blockedReasons.includes("manifest:missingRemoteSourceRef"));
   assert(posture.blockedReasons.includes("source:missingRemoteSourceRef"));
+  assert(posture.blockedReasons.includes("source:missingProofDigestRef"));
+  assert.equal(posture.sourceCandidatePosture.state, "blocked");
+  assertSurfaceAppRuntimeSelectionPosture(posture);
+});
+
+test("surface app source candidate posture gates non-bundled sources explicitly", () => {
+  const bundled = surfaceAppSourceCandidatePosture({
+    sourceMode: "bundled",
+    appContractRef: "surface-app:logging-ui@0.1.0",
+    bundledContractAvailable: true,
+    bundledSourceRefs: ["bundle:logging-ui@0.1.0"],
+    issuedAt: 1234,
+  });
+  assert.equal(bundled.state, "ready");
+  assert.equal(bundled.sourceClass, "bundled");
+  assert.deepEqual(bundled.candidateRefs, ["bundle:logging-ui@0.1.0", "surface-app:logging-ui@0.1.0"]);
+  assertSurfaceAppSourceCandidatePosture(bundled);
+
+  const storagePinned = surfaceAppSourceCandidatePosture({
+    sourceMode: "storageObject",
+    remoteSourceRefs: ["storage-object:logging-ui@0.2.0"],
+    releaseContractRef: "release:logging-ui@0.2.0",
+    compatibilityRefs: ["protocol:surface-app:v1"],
+    proofDigestRefs: ["proof-digest:logging-ui@0.2.0"],
+    rollbackRefs: ["rollback:logging-ui@0.1.0"],
+    secretBoundaryRefs: ["secret-boundary:logging-ui"],
+    trustRefs: ["trust:logging-ui@0.2.0"],
+    issuedAt: 1234,
+  });
+  assert.equal(storagePinned.state, "ready");
+  assert.equal(storagePinned.sourceClass, "storagePinned");
+  assert.deepEqual(storagePinned.storageObjectRefs, ["storage-object:logging-ui@0.2.0"]);
+  assertSurfaceAppSourceCandidatePosture(storagePinned);
+
+  const incompleteRemote = surfaceAppSourceCandidatePosture({
+    sourceMode: "storageObject",
+    remoteSourceRefs: ["storage-object:logging-ui@0.2.0"],
+    releaseContractRef: "release:logging-ui@0.2.0",
+    compatibilityRefs: ["protocol:surface-app:v1"],
+    issuedAt: 1234,
+  });
+  assert.equal(incompleteRemote.state, "blocked");
+  assert(incompleteRemote.blockedReasons.includes("missingProofDigestRef"));
+  assert(incompleteRemote.blockedReasons.includes("missingRollbackRef"));
+  assert(incompleteRemote.blockedReasons.includes("missingSecretBoundaryRef"));
+  assert(incompleteRemote.blockedReasons.includes("missingSourceTrustRef"));
 });
 
 test("surface app helper gates bundled module roles by contract", () => {

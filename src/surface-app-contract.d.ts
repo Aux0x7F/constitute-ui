@@ -521,6 +521,29 @@ export type SurfaceAppRunnerPlan = {
   expiresAt?: unknown;
 };
 
+export type SurfaceAppSourceCandidatePosture = {
+  kind: "surface.app.source.candidate.posture";
+  state: "ready" | "degraded" | "blocked";
+  sourceMode: string;
+  sourceClass: string;
+  candidateRefs: string[];
+  bundledSourceRefs: string[];
+  remoteSourceRefs: string[];
+  storageObjectRefs: string[];
+  releaseSourceRefs: string[];
+  swarmSourceRefs: string[];
+  releaseContractRef: string;
+  compatibilityRefs: string[];
+  proofDigestRefs: string[];
+  rollbackRefs: string[];
+  secretBoundaryRefs: string[];
+  trustRefs: string[];
+  evidenceRefs: string[];
+  blockedReasons: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
 export type SurfaceAppManifestSelection = {
   kind: "surface.app.manifest.selection";
   manifestId: string;
@@ -533,6 +556,9 @@ export type SurfaceAppManifestSelection = {
   requiredModuleRoles: string[];
   bundledSourceRefs: string[];
   remoteSourceRefs: string[];
+  storageObjectRefs: string[];
+  releaseSourceRefs: string[];
+  swarmSourceRefs: string[];
   grantRefs: string[];
   runnerRequirementRefs: string[];
   serviceManagerRequirementRefs: string[];
@@ -540,6 +566,7 @@ export type SurfaceAppManifestSelection = {
   compatibilityRefs: string[];
   bootstrapContractRef: string;
   releaseContractRef: string;
+  sourceCandidatePosture: SurfaceAppSourceCandidatePosture;
   evidenceRefs: string[];
   blockedReasons: string[];
   claim: Readonly<Record<string, unknown>> | null;
@@ -573,6 +600,7 @@ export type SurfaceAppRuntimeSelectionPosture = {
   sourceMode: string;
   requiredModuleRoles: string[];
   compatibilityResult: Readonly<Record<string, unknown>>;
+  sourceCandidatePosture: SurfaceAppSourceCandidatePosture;
   sourceTrustResult: Readonly<Record<string, unknown>>;
   modulePostures: readonly SurfaceModuleRolePosture[];
   runnerReadiness: Readonly<Record<string, unknown>>;
@@ -677,6 +705,10 @@ export function surfaceAppManifestSelection(
   surfaceAppsOrContracts: readonly (DefinedSurfaceApp | SurfaceAppContractShape)[] | Record<string, DefinedSurfaceApp | SurfaceAppContractShape>,
   options?: Record<string, unknown>,
 ): SurfaceAppManifestSelection;
+export function surfaceAppSourceCandidatePosture(
+  selectionOrOptions: Record<string, unknown>,
+  options?: Record<string, unknown>,
+): SurfaceAppSourceCandidatePosture;
 export function surfaceAppRunnerPlanFromManifest(
   manifest: Record<string, unknown>,
   surfaceAppsOrContracts: readonly (DefinedSurfaceApp | SurfaceAppContractShape)[] | Record<string, DefinedSurfaceApp | SurfaceAppContractShape>,
