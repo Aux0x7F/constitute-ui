@@ -253,16 +253,13 @@ export function surfaceServiceManagerProofDigest(surfaceAppOrContract, options =
   const state = blockedReasons.length && !["blocked", "failed", "expired"].includes(requestedState)
     ? "blocked"
     : (requestedState || (blockedReasons.length ? "blocked" : "pending"));
-  return deepFreeze({
+  const record = {
     kind: "service.manager.proof.digest",
     digestId: String(options.digestId || `proof-digest:${contract.contractId || contract.appId || "surface-app"}:${operationId}`),
     operationId,
     managerId,
     subjectRef,
     state,
-    trainRef: String(options.trainRef || ""),
-    releaseRef: String(options.releaseRef || operationPosture.releaseRef || ""),
-    rollbackRef: String(options.rollbackRef || operationPosture.rollbackRef || ""),
     commitRefs: uniqueStrings(normalizeStringArray(options.commitRefs)),
     artifactRefs,
     proofRefs,
@@ -280,10 +277,14 @@ export function surfaceServiceManagerProofDigest(surfaceAppOrContract, options =
       ...normalizeStringArray(options.evidenceRefs),
     ]),
     blockedReasons,
-    safeFacts: isObject(options.safeFacts) ? deepFreeze({ ...options.safeFacts }) : undefined,
     observedAt: Number(options.observedAt || Date.now()),
-    expiresAt: options.expiresAt || operationPosture.expiresAt || contract.expiresAt,
-  });
+  };
+  assignIfPresent(record, "trainRef", options.trainRef);
+  assignIfPresent(record, "releaseRef", options.releaseRef || operationPosture.releaseRef);
+  assignIfPresent(record, "rollbackRef", options.rollbackRef || operationPosture.rollbackRef);
+  assignObjectIfPresent(record, "safeFacts", options.safeFacts);
+  assignIfPresent(record, "expiresAt", options.expiresAt || operationPosture.expiresAt || contract.expiresAt);
+  return deepFreeze(record);
 }
 
 export function surfaceServiceManagerSecretBoundary(surfaceAppOrContract, options = {}) {
@@ -386,7 +387,7 @@ export function surfaceServiceManagerReleaseContract(surfaceAppOrContract, optio
   const state = blockedReasons.length
     ? "blocked"
     : (explicitState || "ready");
-  return deepFreeze({
+  const record = {
     kind: "service.manager.release.contract",
     contractId: String(options.contractId || releasePosture.contractId || `release-contract:${contract.contractId || contract.appId || "surface-app"}`),
     managerId: String(options.managerId || serviceManagerPosture.managerId || `manager:${contract.appId || contract.contractId || "surface-app"}`),
@@ -395,9 +396,6 @@ export function surfaceServiceManagerReleaseContract(surfaceAppOrContract, optio
     state,
     appContractRef: surfaceAppContractRef(contract, options.appContractRef),
     version: String(options.version || contract.version || ""),
-    buildRef,
-    releaseRef,
-    rollbackRef,
     rollbackRequired,
     compatibilityRefs: uniqueStrings([
       ...normalizeStringArray(releasePosture.compatibilityRefs),
@@ -428,12 +426,16 @@ export function surfaceServiceManagerReleaseContract(surfaceAppOrContract, optio
     ]),
     blockedReasons,
     secretBoundary,
-    releasePosture: Object.keys(releasePosture).length ? deepFreeze({ ...releasePosture }) : undefined,
-    rollbackPosture: Object.keys(rollbackPosture).length ? deepFreeze({ ...rollbackPosture }) : undefined,
-    safeFacts: isObject(options.safeFacts) ? deepFreeze({ ...options.safeFacts }) : undefined,
     issuedAt: Number(options.issuedAt || releasePosture.issuedAt || Date.now()),
-    expiresAt: options.expiresAt || releasePosture.expiresAt || contract.expiresAt,
-  });
+  };
+  assignIfPresent(record, "buildRef", buildRef);
+  assignIfPresent(record, "releaseRef", releaseRef);
+  assignIfPresent(record, "rollbackRef", rollbackRef);
+  assignObjectIfPresent(record, "releasePosture", releasePosture);
+  assignObjectIfPresent(record, "rollbackPosture", rollbackPosture);
+  assignObjectIfPresent(record, "safeFacts", options.safeFacts);
+  assignIfPresent(record, "expiresAt", options.expiresAt || releasePosture.expiresAt || contract.expiresAt);
+  return deepFreeze(record);
 }
 
 export function surfaceServiceManagerLabProof(surfaceAppOrContract, options = {}) {
@@ -453,15 +455,13 @@ export function surfaceServiceManagerLabProof(surfaceAppOrContract, options = {}
     ...normalizeStringArray(options.blockedReasons),
   ]);
   const state = blockedReasons.length ? "blocked" : String(options.state || "pending");
-  return deepFreeze({
+  const record = {
     kind: "service.manager.labProof",
     proofId: String(options.proofId || `lab-proof:${contract.contractId || contract.appId || "surface-app"}:${String(options.profile || "surfaceLandscape")}`),
     managerId: String(options.managerId || serviceManagerPosture.managerId || `manager:${contract.appId || contract.contractId || "surface-app"}`),
     subjectRef: surfaceSubjectRef(contract, options.subjectRef),
     profile: String(options.profile || "surfaceLandscape"),
     state,
-    trainRef: String(options.trainRef || ""),
-    releaseContractRef: String(options.releaseContractRef || ""),
     appContractRef: surfaceAppContractRef(contract, options.appContractRef),
     surfaceRefs: uniqueStrings([
       contract.surfaceRef,
@@ -480,13 +480,16 @@ export function surfaceServiceManagerLabProof(surfaceAppOrContract, options = {}
       ...normalizeStringArray(options.evidenceRefs),
     ]),
     blockedReasons,
-    safeFacts: isObject(options.safeFacts) ? deepFreeze({ ...options.safeFacts }) : undefined,
     startedAt: Number(options.startedAt || Date.now()),
-    acceptedAt: options.acceptedAt,
-    completedAt: options.completedAt,
-    observedAt: options.observedAt,
-    expiresAt: options.expiresAt || contract.expiresAt,
-  });
+  };
+  assignIfPresent(record, "trainRef", options.trainRef);
+  assignIfPresent(record, "releaseContractRef", options.releaseContractRef);
+  assignObjectIfPresent(record, "safeFacts", options.safeFacts);
+  assignIfPresent(record, "acceptedAt", options.acceptedAt);
+  assignIfPresent(record, "completedAt", options.completedAt);
+  assignIfPresent(record, "observedAt", options.observedAt);
+  assignIfPresent(record, "expiresAt", options.expiresAt || contract.expiresAt);
+  return deepFreeze(record);
 }
 
 export function surfaceServiceManagerTrainDigest(surfaceAppOrContract, options = {}) {
@@ -572,7 +575,7 @@ export function surfaceAppBootstrapContract(surfaceAppOrContract, options = {}) 
   const state = blockedReasons.length
     ? "blocked"
     : (explicitState || "ready");
-  return deepFreeze({
+  const record = {
     kind: "surface.app.bootstrap.contract",
     bootstrapContractId: String(options.bootstrapContractId || `bootstrap-contract:${contract.contractId || contract.appId || "surface-app"}`),
     appContractRef: surfaceAppContractRef(contract, options.appContractRef),
@@ -580,10 +583,6 @@ export function surfaceAppBootstrapContract(surfaceAppOrContract, options = {}) 
     state,
     sourceMode,
     moduleRefs,
-    serviceManagerRef: String(options.serviceManagerRef || serviceManagerPosture.managerId || serviceManagerPosture.serviceManagerRef || ""),
-    releaseContractRef,
-    secretBoundaryRef: String(options.secretBoundaryRef || secretBoundary.boundaryId || ""),
-    trainDigestRef: String(options.trainDigestRef || ""),
     labProofProfileRefs: uniqueStrings(normalizeStringArray(options.labProofProfileRefs)),
     authorityRefs: uniqueStrings([
       ...normalizeStringArray(secretBoundary.authorityRefs),
@@ -595,11 +594,16 @@ export function surfaceAppBootstrapContract(surfaceAppOrContract, options = {}) 
     ]),
     blockedReasons,
     secretBoundary,
-    releaseContract: releaseContract || undefined,
-    safeFacts: isObject(options.safeFacts) ? deepFreeze({ ...options.safeFacts }) : undefined,
     issuedAt: Number(options.issuedAt || Date.now()),
-    expiresAt: options.expiresAt || contract.expiresAt,
-  });
+  };
+  assignIfPresent(record, "serviceManagerRef", options.serviceManagerRef || serviceManagerPosture.managerId || serviceManagerPosture.serviceManagerRef);
+  assignIfPresent(record, "releaseContractRef", releaseContractRef);
+  assignIfPresent(record, "secretBoundaryRef", options.secretBoundaryRef || secretBoundary.boundaryId);
+  assignIfPresent(record, "trainDigestRef", options.trainDigestRef);
+  assignObjectIfPresent(record, "releaseContract", releaseContract);
+  assignObjectIfPresent(record, "safeFacts", options.safeFacts);
+  assignIfPresent(record, "expiresAt", options.expiresAt || contract.expiresAt);
+  return deepFreeze(record);
 }
 
 export function surfaceAppRunnerPlan(surfaceAppOrContract, options = {}) {
@@ -1030,6 +1034,21 @@ export function materializationEventReplayPosture(budget, {
 
 function surfaceSubjectRef(contract, override) {
   return String(override || contract.serviceRef || contract.appRef || `surface-app:${contract.appId || contract.contractId || "unknown"}`);
+}
+
+function assignIfPresent(target, key, value) {
+  if (value === undefined || value === null) return target;
+  if (typeof value === "string" && !value.trim()) return target;
+  if (typeof value !== "string" && value === "") return target;
+  target[key] = typeof value === "string" ? value.trim() : value;
+  return target;
+}
+
+function assignObjectIfPresent(target, key, value) {
+  if (!isObject(value)) return target;
+  if (Object.keys(value).length === 0) return target;
+  target[key] = deepFreeze({ ...value });
+  return target;
 }
 
 function surfaceAppContractRef(contract, override) {
