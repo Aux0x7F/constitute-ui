@@ -12,6 +12,7 @@ import {
   assertSurfaceAppRunnerPlan,
 } from "../../constitute-protocol/src/index.js";
 import {
+  SURFACE_ADAPTER_TAXONOMY,
   defineSurfaceAppContract,
   materializationBudgetRecord,
   materializationEnforcementPosture,
@@ -40,7 +41,9 @@ import {
   surfaceServiceManagerReleaseContract,
   surfaceServiceManagerSecretBoundary,
   surfaceServiceManagerTrainDigest,
+  surfaceAdapterTaxonomyPosture,
   surfaceModuleRolePosture,
+  surfaceModuleTaxonomyPosture,
 } from "../src/surface-app-contract.js";
 import { surfaceAppSelectionReadModel } from "../src/surface-selection-read-model.js";
 import { createSurfaceModuleRegistry } from "../src/surface-module-registry.js";
@@ -847,6 +850,69 @@ test("surface app helper gates bundled module roles by contract", () => {
     () => requireSurfaceModuleRole(surfaceApp, "runtimeClient", { moduleRef: "missing/module@0.1.0" }),
     /missingModuleRef/
   );
+});
+
+test("surface app helper emits shared module taxonomy posture", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract({
+    requiredModuleRoles: [
+      "runtimeClient",
+      "projectionModel",
+      "platformAdapter",
+      "serviceSurfaceAdapter",
+      "serviceEdgeAdapter",
+      "productView",
+    ],
+    releasePosture: {
+      state: "releaseReady",
+      buildRef: "build:logging-ui",
+      releaseRef: "release:logging-ui",
+    },
+    modules: [
+      ...makeContract().modules,
+      {
+        moduleRef: "constitute-ui/media-webrtc-adapter@0.1.0",
+        role: "platformAdapter",
+        participantSide: "window",
+        fulfillmentMode: "bundled",
+        version: "0.1.0",
+        primitiveRefs: ["media.transport.path"],
+        outputs: ["media.transport.observation"],
+        materializationBudgetRefs: ["logging-ui.event-table"],
+      },
+      {
+        moduleRef: "constitute-logging-ui/service-surface-adapter@0.1.0",
+        role: "serviceSurfaceAdapter",
+        participantSide: "window",
+        fulfillmentMode: "bundled",
+        version: "0.1.0",
+        primitiveRefs: ["logging.events.intent"],
+        outputs: ["runtime.intent"],
+      },
+      {
+        moduleRef: "constitute-logging/service-edge-adapter@0.1.0",
+        role: "serviceEdgeAdapter",
+        participantSide: "service",
+        fulfillmentMode: "nativeInstalled",
+        version: "0.1.0",
+        primitiveRefs: ["service.admission", "projection.delta"],
+        outputs: ["service.accepted", "projection.delta"],
+        releaseRefs: ["release:logging-service"],
+      },
+    ],
+  }));
+
+  const posture = surfaceModuleTaxonomyPosture(surfaceApp, { issuedAt: 1700000001 });
+
+  assert.equal(posture.kind, "surface.module.taxonomy.posture");
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.byRole.serviceEdgeAdapter.taxonomyKey, "serviceEdgeAdapter");
+  assert.deepEqual(posture.byRole.serviceEdgeAdapter.participantSides, ["service"]);
+  assert(posture.byRole.platformAdapter.evidenceChannels.includes("media.transport.observation"));
+  assert(posture.materializationBudgetRefs.includes("logging-ui.event-table"));
+  assert(posture.releaseRefs.includes("release:logging-ui"));
+  assert(posture.releaseRefs.includes("release:logging-service"));
+  assert.equal(surfaceAdapterTaxonomyPosture(surfaceApp).byRole.runtimeClient.taxonomyKey, "surfaceClient");
+  assert.equal(SURFACE_ADAPTER_TAXONOMY.serviceEdgeAdapter.role, "serviceEdgeAdapter");
 });
 
 test("surface app helper gates materialization budgets by contract", () => {

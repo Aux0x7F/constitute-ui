@@ -464,7 +464,9 @@ export {
 } from "./surface-module-registry.js";
 
 export {
+  SURFACE_ADAPTER_TAXONOMY,
   SURFACE_CONTRACT_ROLE_ORDER,
+  SURFACE_MODULE_ROLE_TAXONOMY,
   defineSurfaceAppContract,
   materializationBudgetRecord,
   materializationEnforcementPosture,
@@ -474,6 +476,7 @@ export {
   materializationEventReplayPosture,
   requireSurfaceMaterializationBudget,
   requireSurfaceModuleRole,
+  surfaceAdapterTaxonomyPosture,
   surfaceAppBootstrapContract,
   surfaceAppAttachContext,
   surfaceAppAuthorityAccessPosture,
@@ -486,6 +489,7 @@ export {
   surfaceAppRunnerPlan,
   surfaceAppRunnerPlanFromManifest,
   surfaceMaterializationBudgetPosture,
+  surfaceModuleTaxonomyPosture,
   surfaceServiceManagerLabProof,
   surfaceServiceManagerOperationPosture,
   surfaceServiceManagerProofDigest,

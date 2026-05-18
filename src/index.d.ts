@@ -74,6 +74,48 @@ export type SurfaceModuleRolePosture = {
   moduleCount: number;
   modules: readonly SurfaceAppModuleClaim[];
 };
+
+export type SurfaceModuleTaxonomyRole = {
+  taxonomyKey: string;
+  role: string;
+  participantSides: readonly string[];
+  evidenceChannels: readonly string[];
+  lifecycle: Record<string, unknown>;
+};
+
+export type SurfaceModuleTaxonomyRolePosture = {
+  kind: "surface.module.taxonomy.role.posture";
+  state: "ready" | "optional" | "blocked";
+  blockedReason: string;
+  blockedReasons: readonly string[];
+  taxonomyKey: string;
+  role: string;
+  required: boolean;
+  moduleRefs: readonly string[];
+  participantSides: readonly string[];
+  evidenceChannels: readonly string[];
+  lifecycle: Record<string, unknown>;
+  materializationBudgetRefs: readonly string[];
+  releaseRefs: readonly string[];
+  moduleCount: number;
+  modules: readonly SurfaceAppModuleClaim[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceModuleTaxonomyPosture = {
+  kind: "surface.module.taxonomy.posture";
+  state: "ready" | "blocked";
+  blockedReasons: readonly string[];
+  roleOrder: readonly string[];
+  roles: readonly SurfaceModuleTaxonomyRolePosture[];
+  byRole: Readonly<Record<string, SurfaceModuleTaxonomyRolePosture>>;
+  moduleCount: number;
+  materializationBudgetRefs: readonly string[];
+  releaseRefs: readonly string[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
 export type SurfaceMaterializationBudgetPosture = {
   kind: "surface.materialization.budget.posture";
   state: "ready" | "blocked";
@@ -563,11 +605,18 @@ export type DefinedSurfaceApp = {
 };
 
 export const SURFACE_CONTRACT_ROLE_ORDER: readonly string[];
+export const SURFACE_MODULE_ROLE_TAXONOMY: Readonly<Record<string, SurfaceModuleTaxonomyRole>>;
+export const SURFACE_ADAPTER_TAXONOMY: Readonly<Record<string, SurfaceModuleTaxonomyRole>>;
 export function defineSurfaceAppContract(
   contract: SurfaceAppContractShape,
   options?: { validate?: (contract: SurfaceAppContractShape) => SurfaceAppContractShape },
 ): DefinedSurfaceApp;
 export function surfaceAppContractPosture(surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape): SurfaceAppPosture;
+export function surfaceModuleTaxonomyPosture(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceModuleTaxonomyPosture;
+export const surfaceAdapterTaxonomyPosture: typeof surfaceModuleTaxonomyPosture;
 export function surfaceAppAttachContext(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   extra?: Record<string, unknown>,

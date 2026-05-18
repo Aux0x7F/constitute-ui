@@ -3,10 +3,72 @@ export const SURFACE_CONTRACT_ROLE_ORDER = Object.freeze([
   "projectionModel",
   "platformAdapter",
   "serviceSurfaceAdapter",
+  "serviceEdgeAdapter",
   "productView",
   "operatorHelper",
   "releaseHelper",
 ]);
+
+export const SURFACE_MODULE_ROLE_TAXONOMY = Object.freeze({
+  runtimeClient: freezeTaxonomyRole({
+    taxonomyKey: "surfaceClient",
+    role: "runtimeClient",
+    participantSides: ["window"],
+    evidenceChannels: ["runtime.attach", "runtime.snapshot", "runtime.intent"],
+    lifecycle: { state: "surfaceSession" },
+  }),
+  projectionModel: freezeTaxonomyRole({
+    taxonomyKey: "projectionModel",
+    role: "projectionModel",
+    participantSides: ["window", "runtime"],
+    evidenceChannels: ["projection.materialization", "projection.delta"],
+    lifecycle: { state: "readModel" },
+  }),
+  platformAdapter: freezeTaxonomyRole({
+    taxonomyKey: "platformAdapter",
+    role: "platformAdapter",
+    participantSides: ["window", "native"],
+    evidenceChannels: ["adapter.evidence", "media.transport.observation"],
+    lifecycle: { state: "platformBinding" },
+  }),
+  serviceSurfaceAdapter: freezeTaxonomyRole({
+    taxonomyKey: "serviceSurfaceAdapter",
+    role: "serviceSurfaceAdapter",
+    participantSides: ["window"],
+    evidenceChannels: ["runtime.intent", "adapter.evidence"],
+    lifecycle: { state: "surfaceMapping" },
+  }),
+  serviceEdgeAdapter: freezeTaxonomyRole({
+    taxonomyKey: "serviceEdgeAdapter",
+    role: "serviceEdgeAdapter",
+    participantSides: ["service", "native"],
+    evidenceChannels: ["service.admission", "service.response", "projection.delta"],
+    lifecycle: { state: "serviceEdgeSession" },
+  }),
+  productView: freezeTaxonomyRole({
+    taxonomyKey: "productView",
+    role: "productView",
+    participantSides: ["window"],
+    evidenceChannels: ["product.intent", "runtime.posture.render"],
+    lifecycle: { state: "viewBinding" },
+  }),
+  operatorHelper: freezeTaxonomyRole({
+    taxonomyKey: "operatorHelper",
+    role: "operatorHelper",
+    participantSides: ["operator"],
+    evidenceChannels: ["operator.proof", "operator.metrics"],
+    lifecycle: { state: "operatorLease" },
+  }),
+  releaseHelper: freezeTaxonomyRole({
+    taxonomyKey: "releaseHelper",
+    role: "releaseHelper",
+    participantSides: ["operator", "service"],
+    evidenceChannels: ["service.manager.proof", "release.posture"],
+    lifecycle: { state: "releaseBinding" },
+  }),
+});
+
+export const SURFACE_ADAPTER_TAXONOMY = SURFACE_MODULE_ROLE_TAXONOMY;
 
 export function defineSurfaceAppContract(contract, { validate } = {}) {
   const validated = typeof validate === "function" ? validate(contract) : contract;
@@ -53,6 +115,46 @@ export function surfaceAppContractPosture(surfaceAppOrContract) {
     : defineSurfaceAppContract(surfaceAppOrContract);
   return surfaceApp.posture;
 }
+
+export function surfaceModuleTaxonomyPosture(surfaceAppOrContract, options = {}) {
+  const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
+    ? surfaceAppOrContract
+    : defineSurfaceAppContract(surfaceAppOrContract);
+  const contract = surfaceApp.contract;
+  const roleOrder = uniqueStrings([
+    ...SURFACE_CONTRACT_ROLE_ORDER,
+    ...surfaceApp.requiredRoles,
+    ...surfaceApp.modules.map((module) => String(module.role || "")),
+  ]);
+  const rolePostures = roleOrder.map((role) => surfaceModuleTaxonomyRolePosture(surfaceApp, role, options));
+  const blockedReasons = uniqueStrings(rolePostures.flatMap((posture) => posture.blockedReasons));
+  const byRole = {};
+  for (const posture of rolePostures) byRole[posture.role] = posture;
+  const materializationBudgetRefs = uniqueStrings([
+    ...(contract.materializationBudgets || []).map((budget) => budget?.budgetId),
+    ...rolePostures.flatMap((posture) => posture.materializationBudgetRefs),
+  ]);
+  const releaseRefs = uniqueStrings([
+    ...surfaceReleaseRefs(contract),
+    ...rolePostures.flatMap((posture) => posture.releaseRefs),
+  ]);
+
+  return deepFreeze({
+    kind: "surface.module.taxonomy.posture",
+    state: blockedReasons.length ? "blocked" : "ready",
+    blockedReasons,
+    roleOrder,
+    roles: rolePostures,
+    byRole,
+    moduleCount: surfaceApp.modules.length,
+    materializationBudgetRefs,
+    releaseRefs,
+    issuedAt: Number(options.issuedAt || contract.issuedAt || Date.now()),
+    expiresAt: options.expiresAt || contract.expiresAt,
+  });
+}
+
+export const surfaceAdapterTaxonomyPosture = surfaceModuleTaxonomyPosture;
 
 export function surfaceAppAttachContext(surfaceAppOrContract, extra = {}) {
   const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
@@ -2340,6 +2442,107 @@ function normalizeBudgets(value) {
       evidenceRefs: Object.freeze(normalizeStringArray(budget.evidenceRefs)),
       blockedReasons: Object.freeze(normalizeStringArray(budget.blockedReasons)),
     })));
+}
+
+function surfaceModuleTaxonomyRolePosture(surfaceApp, role, options = {}) {
+  const roleRef = String(role || "");
+  const spec = SURFACE_MODULE_ROLE_TAXONOMY[roleRef] || freezeTaxonomyRole({
+    taxonomyKey: roleRef || "unknown",
+    role: roleRef,
+    participantSides: [],
+    evidenceChannels: [],
+    lifecycle: { state: "custom" },
+  });
+  const required = surfaceApp.requiredRoles.includes(roleRef);
+  const modules = surfaceApp.modulesForRole(roleRef);
+  const state = modules.length ? "ready" : (required ? "blocked" : "optional");
+  const blockedReasons = state === "blocked" ? [`missingModuleRole:${roleRef}`] : [];
+  const lifecycle = firstObject(modules.map((module) => module.lifecycle)) || spec.lifecycle;
+  const materializationBudgetRefs = uniqueStrings(modules.flatMap(moduleMaterializationBudgetRefs));
+  const releaseRefs = uniqueStrings(modules.flatMap(moduleReleaseRefs));
+
+  return deepFreeze({
+    kind: "surface.module.taxonomy.role.posture",
+    state,
+    blockedReasons,
+    blockedReason: blockedReasons[0] || "",
+    taxonomyKey: spec.taxonomyKey,
+    role: roleRef,
+    required,
+    moduleRefs: modules.map((module) => String(module.moduleRef || "")).filter(Boolean),
+    participantSides: uniqueStrings([
+      ...modules.map((module) => module.participantSide),
+      ...(modules.length ? [] : spec.participantSides),
+    ]),
+    evidenceChannels: uniqueStrings([
+      ...spec.evidenceChannels,
+      ...modules.flatMap(moduleEvidenceChannels),
+    ]),
+    lifecycle,
+    materializationBudgetRefs,
+    releaseRefs,
+    moduleCount: modules.length,
+    modules,
+    issuedAt: Number(options.issuedAt || surfaceApp.contract.issuedAt || Date.now()),
+    expiresAt: options.expiresAt || surfaceApp.contract.expiresAt,
+  });
+}
+
+function freezeTaxonomyRole(role) {
+  return Object.freeze({
+    taxonomyKey: String(role.taxonomyKey || role.role || ""),
+    role: String(role.role || ""),
+    participantSides: Object.freeze(normalizeStringArray(role.participantSides)),
+    evidenceChannels: Object.freeze(normalizeStringArray(role.evidenceChannels)),
+    lifecycle: isObject(role.lifecycle) ? Object.freeze({ ...role.lifecycle }) : Object.freeze({ state: "declared" }),
+  });
+}
+
+function moduleEvidenceChannels(module) {
+  const evidenceContract = isObject(module.evidenceContract) ? module.evidenceContract : {};
+  return uniqueStrings([
+    ...normalizeStringArray(module.outputs),
+    ...normalizeStringArray(module.evidenceChannels),
+    ...normalizeStringArray(evidenceContract.channelRefs),
+    ...normalizeStringArray(evidenceContract.channels),
+    ...normalizeStringArray(evidenceContract.outputs),
+  ]);
+}
+
+function moduleMaterializationBudgetRefs(module) {
+  return uniqueStrings([
+    ...normalizeStringArray(module.materializationBudgetRefs),
+    ...normalizeArray(module.materializationBudgets).map((budget) => (isObject(budget) ? budget.budgetId : budget)),
+  ]);
+}
+
+function moduleReleaseRefs(module) {
+  return uniqueStrings([
+    ...normalizeStringArray(module.releaseRefs),
+    module.releaseRef,
+    module.buildRef,
+    module.rollbackRef,
+  ]);
+}
+
+function surfaceReleaseRefs(contract) {
+  const releasePosture = isObject(contract.releasePosture) ? contract.releasePosture : {};
+  const rollbackPosture = isObject(contract.rollbackPosture) ? contract.rollbackPosture : {};
+  return uniqueStrings([
+    ...normalizeStringArray(contract.releaseRefs),
+    releasePosture.releaseRef,
+    releasePosture.buildRef,
+    releasePosture.rollbackRef,
+    ...normalizeStringArray(releasePosture.releaseRefs),
+    rollbackPosture.releaseRef,
+    rollbackPosture.buildRef,
+    rollbackPosture.rollbackRef,
+    ...normalizeStringArray(rollbackPosture.releaseRefs),
+  ]);
+}
+
+function firstObject(values) {
+  return values.find(isObject) || null;
 }
 
 function surfaceModuleBlockedReason(surfaceApp, role, moduleRef, primitiveRef) {
