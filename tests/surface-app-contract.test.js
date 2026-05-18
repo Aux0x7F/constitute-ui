@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertRunnerOperation } from "../../constitute-protocol/src/index.js";
+import {
+  assertRunnerOperation,
+  assertServiceManagerOperationPosture,
+} from "../../constitute-protocol/src/index.js";
 import {
   defineSurfaceAppContract,
   materializationBudgetRecord,
@@ -166,9 +169,13 @@ test("surface app helper reduces service manager operation and proof digest post
     serviceManagerPosture: {
       managerId: "manager:logging-local",
       managerRef: "member:logging-manager",
+      runnerRef: RESOLVED_RUNNER_REF,
+      hostRef: "host:operator-lab",
       state: "ready",
       serviceRefs: ["service:logging"],
       capabilityRefs: ["service.manage"],
+      grantRefs: ["authority-grant:service-manager:logging"],
+      resourceBudget: { maxMemoryMiB: 256, maxCpuPct: 25 },
       evidenceRefs: ["host:manual"],
     },
     releasePosture: {
@@ -196,8 +203,13 @@ test("surface app helper reduces service manager operation and proof digest post
   assert.equal(operation.subjectRef, "service:logging");
   assert.equal(operation.managerRef, "member:logging-manager");
   assert.equal(operation.releaseRef, "release:logging-ui:local");
+  assert.equal(operation.runnerRef, RESOLVED_RUNNER_REF);
+  assert.equal(operation.hostRef, "host:operator-lab");
+  assert.deepEqual(operation.grantRefs, ["authority-grant:service-manager:logging"]);
+  assert.deepEqual(operation.resourceBudget, { maxMemoryMiB: 256, maxCpuPct: 25 });
   assert.deepEqual(operation.blockedReasons, []);
   assert.deepEqual(operation.evidenceRefs, ["host:manual", "build:logging-ui:local"]);
+  assert.equal(assertServiceManagerOperationPosture(operation), operation);
 
   const digest = surfaceServiceManagerProofDigest(surfaceApp, {
     operationPosture: operation,
@@ -289,9 +301,15 @@ test("surface app helper composes execution-bound runner operations", () => {
     resourceBudget: { maxMemoryMiB: 256 },
   }), /requires resolved member ref/);
 
-  assert.throws(() => surfaceRunnerOperation(surfaceApp, {
-    operationPosture,
-    serviceManagerPosture: { runnerRef: RESOLVED_RUNNER_REF },
+  const noGrantSurfaceApp = defineSurfaceAppContract(makeContract({
+    serviceManagerPosture: {
+      managerId: "manager:logging-local",
+      runnerRef: RESOLVED_RUNNER_REF,
+      state: "ready",
+      resourceBudget: { maxMemoryMiB: 256 },
+    },
+  }));
+  assert.throws(() => surfaceRunnerOperation(noGrantSurfaceApp, {
     resourceBudget: { maxMemoryMiB: 256 },
   }), /requires grantRefs/);
 });

@@ -129,9 +129,17 @@ export type SurfaceServiceManagerOperationPosture = {
   serviceRefs: string[];
   capabilityRefs: string[];
   authorityRefs: string[];
+  grantRefs?: string[];
+  runnerOperationRef?: string;
+  runnerRef?: string;
+  hostRef?: string;
   releaseRef: string;
   rollbackRef: string;
   secretBoundary: Readonly<Record<string, unknown>>;
+  releasePosture?: Readonly<Record<string, unknown>>;
+  rollbackPosture?: Readonly<Record<string, unknown>>;
+  resourceBudget?: Readonly<Record<string, unknown>>;
+  resourcePosture?: Readonly<Record<string, unknown>>;
   evidenceRefs: string[];
   proofRefs: string[];
   blockedReasons: string[];

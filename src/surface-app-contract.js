@@ -171,6 +171,16 @@ export function surfaceServiceManagerOperationPosture(surfaceAppOrContract, opti
   const managerRef = String(options.managerRef || serviceManagerPosture.managerRef || serviceManagerPosture.managerId || managerId);
   const requesterRef = String(options.requesterRef || contract.surfaceRef || contract.appRef || `surface-app:${contract.appId || contract.contractId || "unknown"}`);
   const operationId = String(options.operationId || `operation:${contract.contractId || contract.appId || "surface-app"}:${operation}`);
+  const grantRefs = uniqueStrings([
+    ...normalizeStringArray(serviceManagerPosture.grantRefs),
+    ...normalizeStringArray(options.grantRefs),
+  ]);
+  const resourceBudget = isObject(options.resourceBudget)
+    ? options.resourceBudget
+    : (isObject(serviceManagerPosture.resourceBudget) ? serviceManagerPosture.resourceBudget : null);
+  const resourcePosture = isObject(options.resourcePosture)
+    ? options.resourcePosture
+    : (isObject(serviceManagerPosture.resourcePosture) ? serviceManagerPosture.resourcePosture : null);
   const blockedReasons = uniqueStrings([
     ...surfaceApp.missingRoles.map((role) => `missingModuleRole:${role}`),
     ...postureBlockedReasons(serviceManagerPosture, "serviceManager"),
@@ -184,7 +194,7 @@ export function surfaceServiceManagerOperationPosture(surfaceAppOrContract, opti
   const state = blockedReasons.length && !["blocked", "failed", "cancelled", "superseded"].includes(requestedState)
     ? "blocked"
     : (requestedState || (blockedReasons.length ? "blocked" : "requested"));
-  return deepFreeze({
+  const record = {
     kind: "service.manager.operation.posture",
     operationId,
     managerId,
@@ -209,6 +219,7 @@ export function surfaceServiceManagerOperationPosture(surfaceAppOrContract, opti
     releaseRef: String(options.releaseRef || releasePosture.releaseRef || ""),
     rollbackRef: String(options.rollbackRef || releasePosture.rollbackRef || ""),
     secretBoundary: deepFreeze(Object.keys(secretBoundary).length ? { ...secretBoundary } : { state: "notRequired" }),
+    releasePosture: Object.keys(releasePosture).length ? deepFreeze({ ...releasePosture }) : undefined,
     evidenceRefs: uniqueStrings([
       ...normalizeStringArray(serviceManagerPosture.evidenceRefs),
       ...normalizeStringArray(releasePosture.evidenceRefs),
@@ -226,7 +237,17 @@ export function surfaceServiceManagerOperationPosture(surfaceAppOrContract, opti
     completedAt: options.completedAt,
     observedAt: options.observedAt,
     expiresAt: options.expiresAt || serviceManagerPosture.expiresAt || contract.expiresAt,
-  });
+  };
+  assignIfPresent(record, "runnerOperationRef", options.runnerOperationRef);
+  const runnerRef = String(options.runnerRef || serviceManagerPosture.runnerRef || "").trim();
+  if (runnerRef) record.runnerRef = requireResolvedMemberRef(runnerRef, "service manager operation runnerRef");
+  assignIfPresent(record, "hostRef", options.hostRef || serviceManagerPosture.hostRef);
+  if (grantRefs.length) record.grantRefs = grantRefs;
+  assignObjectIfPresent(record, "resourceBudget", resourceBudget);
+  assignObjectIfPresent(record, "resourcePosture", resourcePosture);
+  if (isObject(options.rollbackPosture)) record.rollbackPosture = deepFreeze({ ...options.rollbackPosture });
+  else if (isObject(contract.rollbackPosture)) record.rollbackPosture = deepFreeze({ ...contract.rollbackPosture });
+  return deepFreeze(record);
 }
 
 export function surfaceServiceManagerProofDigest(surfaceAppOrContract, options = {}) {
