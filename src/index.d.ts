@@ -771,6 +771,7 @@ export function materializationEnforcementPosture(
 ): Readonly<Record<string, unknown>>;
 
 export * from "./surface-module-registry.js";
+export * from "./service-surface-adapter.js";
 
 export type ActionDescriptor = {
   id: string;

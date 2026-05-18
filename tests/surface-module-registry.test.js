@@ -10,6 +10,7 @@ import {
   surfaceModuleBinding,
   surfaceModuleRegistryPosture,
   surfacePlatformAdapterBindingPosture,
+  surfaceServiceSurfaceAdapterBindingPosture,
 } from "../src/surface-module-registry.js";
 import {
   defineSurfaceAppContract,
@@ -224,6 +225,41 @@ test("surface adapter binding posture carries platform contract refs without mov
     primitiveRef: "media.transport.path",
   });
   assert.equal(genericPosture.state, "ready");
+});
+
+test("surface service adapter binding posture defaults to runtime intent primitive", () => {
+  const surfaceApp = makeSurfaceApp({
+    requiredModuleRoles: ["serviceSurfaceAdapter"],
+    modules: [
+      {
+        moduleRef: "service-ui/service-surface-adapter@0.1.0",
+        role: "serviceSurfaceAdapter",
+        participantSide: "window",
+        fulfillmentMode: "bundled",
+        version: "0.1.0",
+        primitiveRefs: ["runtime.intent"],
+        actionRefs: ["service.refresh"],
+      },
+    ],
+  });
+  const registry = createSurfaceModuleRegistry([
+    {
+      moduleRef: "service-ui/service-surface-adapter@0.1.0",
+      role: "serviceSurfaceAdapter",
+      version: "0.1.0",
+      primitiveRefs: ["runtime.intent"],
+      implementation: { request: true },
+    },
+  ]);
+
+  const posture = surfaceServiceSurfaceAdapterBindingPosture(registry, surfaceApp);
+
+  assert.equal(posture.kind, "surface.adapter.binding.posture");
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.role, "serviceSurfaceAdapter");
+  assert.equal(posture.taxonomyKey, "serviceSurfaceAdapter");
+  assert.deepEqual(posture.primitiveRefs, ["runtime.intent"]);
+  assert.deepEqual(posture.evidenceChannels, ["runtime.intent", "adapter.evidence"]);
 });
 
 test("surface app module implementation summary preserves role-level blocked reasons", () => {

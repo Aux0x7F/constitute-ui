@@ -452,6 +452,12 @@ export function renderStreamStatus(container, {
 }
 
 export { createRuntimeSurfaceClient } from "./runtime-surface-client.js";
+export {
+  createServiceSurfaceAdapter,
+  normalizeServiceSurfaceAdapterError,
+  serviceSurfaceActionTimeoutMs,
+  serviceSurfaceAdapterPosture,
+} from "./service-surface-adapter.js";
 export { surfaceAppSelectionReadModel } from "./surface-selection-read-model.js";
 export {
   createSurfaceModuleRegistry,
@@ -463,6 +469,7 @@ export {
   surfaceModuleBinding,
   surfaceModuleRegistryPosture,
   surfacePlatformAdapterBindingPosture,
+  surfaceServiceSurfaceAdapterBindingPosture,
 } from "./surface-module-registry.js";
 
 export {

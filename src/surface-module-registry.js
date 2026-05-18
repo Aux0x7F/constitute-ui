@@ -260,6 +260,14 @@ export function surfacePlatformAdapterBindingPosture(registry, surfaceAppOrContr
   });
 }
 
+export function surfaceServiceSurfaceAdapterBindingPosture(registry, surfaceAppOrContract, options = {}) {
+  return surfaceAdapterBindingPosture(registry, surfaceAppOrContract, {
+    primitiveRef: "runtime.intent",
+    ...options,
+    role: options.role || "serviceSurfaceAdapter",
+  });
+}
+
 export function requireSurfaceModuleBinding(registry, surfaceAppOrContract, role, options = {}) {
   const binding = surfaceModuleBinding(registry, surfaceAppOrContract, role, options);
   if (binding.state !== "ready" || !binding.implementation) {
