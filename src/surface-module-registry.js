@@ -108,6 +108,83 @@ export function requireSurfaceModuleImplementation(registry, surfaceAppOrContrac
   return posture.implementation;
 }
 
+export function surfaceModuleBinding(registry, surfaceAppOrContract, role, options = {}) {
+  const posture = surfaceModuleRegistryPosture(registry, surfaceAppOrContract, role, options);
+  const claim = posture.claim || {};
+  const implementationRecord = posture.implementation || {};
+  const implementation = posture.state === "ready" ? implementationRecord.implementation : null;
+  return Object.freeze({
+    kind: "surface.module.binding",
+    state: posture.state,
+    blockedReason: posture.blockedReason,
+    role: posture.role,
+    moduleRef: posture.moduleRef,
+    implementationRef: posture.implementationRef,
+    version: String(claim.version || implementationRecord.version || ""),
+    participantSide: String(claim.participantSide || ""),
+    fulfillmentMode: String(claim.fulfillmentMode || ""),
+    primitiveRefs: Object.freeze(uniqueStrings([
+      ...normalizeStringArray(claim.primitiveRefs),
+      ...normalizeStringArray(implementationRecord.primitiveRefs),
+    ])),
+    requiredCapabilities: Object.freeze(uniqueStrings([
+      ...normalizeStringArray(claim.requiredCapabilities),
+      ...normalizeStringArray(implementationRecord.requiredCapabilities),
+    ])),
+    inputs: Object.freeze(normalizeStringArray(claim.inputs)),
+    outputs: Object.freeze(normalizeStringArray(claim.outputs)),
+    fallbackRefs: posture.fallbackRefs,
+    fallbackTried: posture.fallbackTried,
+    claim: posture.claim,
+    implementationRecord: posture.implementation,
+    implementation,
+  });
+}
+
+export function requireSurfaceModuleBinding(registry, surfaceAppOrContract, role, options = {}) {
+  const binding = surfaceModuleBinding(registry, surfaceAppOrContract, role, options);
+  if (binding.state !== "ready" || !binding.implementation) {
+    const detail = [binding.blockedReason, binding.role, binding.moduleRef]
+      .filter(Boolean)
+      .join(" ");
+    throw new Error(`surface module binding unavailable: ${detail}`.trim());
+  }
+  return binding;
+}
+
+export function surfaceAppModuleBindings(registry, surfaceAppOrContract, roleMapOrRoles = []) {
+  const surfaceApp = asSurfaceApp(surfaceAppOrContract);
+  const entries = normalizeRoleEntries(surfaceApp, roleMapOrRoles);
+  const bindings = entries.map(({ key, role, options }) => {
+    const binding = surfaceModuleBinding(registry, surfaceApp, role, options);
+    return Object.freeze({ key, ...binding });
+  });
+  const blocked = bindings.filter((binding) => binding.state !== "ready");
+  const byKey = {};
+  const byRole = {};
+  for (const binding of bindings) {
+    byKey[binding.key] = binding;
+    if (!byRole[binding.role]) byRole[binding.role] = [];
+    byRole[binding.role].push(binding);
+  }
+  for (const roleKey of Object.keys(byRole)) byRole[roleKey] = Object.freeze([...byRole[roleKey]]);
+  return Object.freeze({
+    kind: "surface.app.module.bindings",
+    state: blocked.length ? "blocked" : "ready",
+    blockedReason: blocked.length ? "missingModuleBinding" : "",
+    roles: Object.freeze(entries.map((entry) => entry.role)),
+    keys: Object.freeze(entries.map((entry) => entry.key)),
+    bindings: Object.freeze(bindings),
+    postures: Object.freeze(bindings),
+    byKey: Object.freeze(byKey),
+    byRole: Object.freeze(byRole),
+    implementations: Object.freeze(bindings
+      .filter((binding) => binding.state === "ready")
+      .map((binding) => binding.implementation)),
+    blockedReasons: Object.freeze(blocked.map((binding) => binding.blockedReason).filter(Boolean)),
+  });
+}
+
 export function surfaceAppModuleImplementations(registry, surfaceAppOrContract, roles = []) {
   const surfaceApp = asSurfaceApp(surfaceAppOrContract);
   const selectedRoles = Array.isArray(roles) && roles.length
@@ -142,6 +219,29 @@ function normalizeRegistryEntries(entries) {
     .filter((entry) => entry.moduleRef && entry.role));
 }
 
+function normalizeRoleEntries(surfaceApp, roleMapOrRoles) {
+  if (Array.isArray(roleMapOrRoles) && roleMapOrRoles.length) {
+    return roleMapOrRoles
+      .map((role) => ({ key: String(role || ""), role: String(role || ""), options: {} }))
+      .filter((entry) => entry.role);
+  }
+  if (isObject(roleMapOrRoles) && Object.keys(roleMapOrRoles).length) {
+    return Object.entries(roleMapOrRoles)
+      .map(([key, value]) => {
+        if (isObject(value)) {
+          return {
+            key: String(key || ""),
+            role: String(value.role || value.moduleRole || ""),
+            options: isObject(value.options) ? value.options : {},
+          };
+        }
+        return { key: String(key || ""), role: String(value || ""), options: {} };
+      })
+      .filter((entry) => entry.key && entry.role);
+  }
+  return surfaceApp.requiredRoles.map((role) => ({ key: role, role, options: {} }));
+}
+
 function asSurfaceApp(surfaceAppOrContract) {
   if (surfaceAppOrContract?.contract && surfaceAppOrContract?.modulesByRole) return surfaceAppOrContract;
   return defineSurfaceAppContract(surfaceAppOrContract);
@@ -152,6 +252,18 @@ function normalizeStringArray(value) {
   return value
     .filter((item) => item !== null && item !== undefined && item !== "")
     .map((item) => String(item));
+}
+
+function uniqueStrings(value) {
+  const seen = new Set();
+  const out = [];
+  for (const item of value) {
+    const normalized = String(item || "").trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
 }
 
 function isObject(value) {

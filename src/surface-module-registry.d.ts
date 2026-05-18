@@ -46,6 +46,41 @@ export type SurfaceModuleRegistryPosture<TImplementation = unknown> = {
   implementation: SurfaceModuleImplementation<TImplementation> | null;
 };
 
+export type SurfaceModuleBinding<TImplementation = unknown> = {
+  kind: "surface.module.binding";
+  state: "ready" | "blocked";
+  blockedReason: string;
+  role: string;
+  moduleRef: string;
+  implementationRef: string;
+  version: string;
+  participantSide: string;
+  fulfillmentMode: string;
+  primitiveRefs: readonly string[];
+  requiredCapabilities: readonly string[];
+  inputs: readonly string[];
+  outputs: readonly string[];
+  fallbackRefs: readonly string[];
+  fallbackTried: readonly string[];
+  claim: SurfaceAppModuleClaim | null;
+  implementationRecord: SurfaceModuleImplementation<TImplementation> | null;
+  implementation: TImplementation | null;
+};
+
+export type SurfaceAppModuleBindings<TImplementation = unknown> = {
+  kind: "surface.app.module.bindings";
+  state: "ready" | "blocked";
+  blockedReason: string;
+  roles: readonly string[];
+  keys: readonly string[];
+  bindings: readonly Array<SurfaceModuleBinding<TImplementation> & { key: string }>;
+  postures: readonly Array<SurfaceModuleBinding<TImplementation> & { key: string }>;
+  byKey: Readonly<Record<string, SurfaceModuleBinding<TImplementation> & { key: string }>>;
+  byRole: Readonly<Record<string, readonly Array<SurfaceModuleBinding<TImplementation> & { key: string }>>>;
+  implementations: readonly TImplementation[];
+  blockedReasons: readonly string[];
+};
+
 export type SurfaceAppModuleImplementationPosture<TImplementation = unknown> = {
   kind: "surface.app.module.implementations";
   state: "ready" | "blocked";
@@ -72,6 +107,26 @@ export function requireSurfaceModuleImplementation<TImplementation = unknown>(
   role: string,
   options?: { moduleRef?: string; primitiveRef?: string },
 ): SurfaceModuleImplementation<TImplementation>;
+
+export function surfaceModuleBinding<TImplementation = unknown>(
+  registry: SurfaceModuleRegistry<TImplementation>,
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  role: string,
+  options?: { moduleRef?: string; primitiveRef?: string },
+): SurfaceModuleBinding<TImplementation>;
+
+export function requireSurfaceModuleBinding<TImplementation = unknown>(
+  registry: SurfaceModuleRegistry<TImplementation>,
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  role: string,
+  options?: { moduleRef?: string; primitiveRef?: string },
+): SurfaceModuleBinding<TImplementation>;
+
+export function surfaceAppModuleBindings<TImplementation = unknown>(
+  registry: SurfaceModuleRegistry<TImplementation>,
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  roleMapOrRoles?: readonly string[] | Record<string, string | { role: string; options?: { moduleRef?: string; primitiveRef?: string } }>,
+): SurfaceAppModuleBindings<TImplementation>;
 
 export function surfaceAppModuleImplementations<TImplementation = unknown>(
   registry: SurfaceModuleRegistry<TImplementation>,
