@@ -457,10 +457,12 @@ export {
   createSurfaceModuleRegistry,
   requireSurfaceModuleBinding,
   requireSurfaceModuleImplementation,
+  surfaceAdapterBindingPosture,
   surfaceAppModuleBindings,
   surfaceAppModuleImplementations,
   surfaceModuleBinding,
   surfaceModuleRegistryPosture,
+  surfacePlatformAdapterBindingPosture,
 } from "./surface-module-registry.js";
 
 export {

@@ -4,10 +4,12 @@ import {
   createSurfaceModuleRegistry,
   requireSurfaceModuleBinding,
   requireSurfaceModuleImplementation,
+  surfaceAdapterBindingPosture,
   surfaceAppModuleBindings,
   surfaceAppModuleImplementations,
   surfaceModuleBinding,
   surfaceModuleRegistryPosture,
+  surfacePlatformAdapterBindingPosture,
 } from "../src/surface-module-registry.js";
 import {
   defineSurfaceAppContract,
@@ -36,6 +38,12 @@ function makeSurfaceApp(overrides = {}) {
         fulfillmentMode: "bundled",
         version: "0.1.0",
         primitiveRefs: ["media.transport.path"],
+        evidenceChannels: ["media.transport.observation"],
+        lifecycle: { state: "platformBinding", owner: "runtime" },
+        materializationBudgetRefs: ["media-webrtc.correlation"],
+        renderEvidenceBudgetRef: "media-webrtc.render",
+        releaseRefs: ["release:media-webrtc"],
+        transportProfileRefs: ["media.transport.profile:browser-webrtc"],
         fallbackRefs: ["constitute-ui/media-webrtc-adapter@0.1.0-local"],
       },
       {
@@ -170,6 +178,52 @@ test("surface module registry reduces contract claims into reusable module bindi
   assert.equal(bindings.byKey.media.implementation.bind, true);
   assert.equal(bindings.byRole.platformAdapter[0], bindings.byKey.media);
   assert.deepEqual(bindings.implementations, [{ attach: true }, { bind: true }, { render: true }]);
+});
+
+test("surface adapter binding posture carries platform contract refs without moving policy into UI", () => {
+  const registry = createSurfaceModuleRegistry([
+    {
+      moduleRef: "constitute-ui/media-webrtc-adapter@0.1.0",
+      role: "platformAdapter",
+      version: "0.1.0",
+      primitiveRefs: ["media.transport.path"],
+      evidenceChannels: ["adapter.evidence"],
+      materializationBudgetRefs: ["media-webrtc.adapter"],
+      transportProfileRefs: ["media.transport.profile:runtime"],
+      implementation: { bind: true },
+    },
+  ]);
+
+  const posture = surfacePlatformAdapterBindingPosture(registry, makeSurfaceApp(), {
+    renderEvidenceBudgetRef: "media-webrtc.render",
+  });
+
+  assert.equal(posture.kind, "surface.adapter.binding.posture");
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.role, "platformAdapter");
+  assert.equal(posture.taxonomyKey, "platformAdapter");
+  assert.equal(posture.moduleRef, "constitute-ui/media-webrtc-adapter@0.1.0");
+  assert.equal(posture.implementationRef, "constitute-ui/media-webrtc-adapter@0.1.0");
+  assert.equal(posture.participantSide, "window");
+  assert.deepEqual(posture.primitiveRefs, ["media.transport.path"]);
+  assert.deepEqual(posture.evidenceChannels, ["adapter.evidence", "media.transport.observation"]);
+  assert.deepEqual(posture.transportProfileRefs, [
+    "media.transport.profile:browser-webrtc",
+    "media.transport.profile:runtime",
+  ]);
+  assert.equal(posture.renderEvidenceBudgetRef, "media-webrtc.render");
+  assert.deepEqual(posture.materializationBudgetRefs, [
+    "media-webrtc.correlation",
+    "media-webrtc.adapter",
+  ]);
+  assert.deepEqual(posture.releaseRefs, ["release:media-webrtc"]);
+  assert.equal(posture.moduleBinding.implementation.bind, true);
+
+  const genericPosture = surfaceAdapterBindingPosture(registry, makeSurfaceApp(), {
+    role: "platformAdapter",
+    primitiveRef: "media.transport.path",
+  });
+  assert.equal(genericPosture.state, "ready");
 });
 
 test("surface app module implementation summary preserves role-level blocked reasons", () => {

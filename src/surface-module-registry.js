@@ -1,5 +1,6 @@
 import {
   defineSurfaceAppContract,
+  surfaceModuleTaxonomyPosture,
   surfaceModuleRolePosture,
 } from "./surface-app-contract.js";
 
@@ -173,6 +174,92 @@ export function surfaceModuleBinding(registry, surfaceAppOrContract, role, optio
   });
 }
 
+export function surfaceAdapterBindingPosture(registry, surfaceAppOrContract, options = {}) {
+  const role = String(options.role || "platformAdapter").trim();
+  const binding = surfaceModuleBinding(registry, surfaceAppOrContract, role, options);
+  const claim = binding.claim || {};
+  const implementationRecord = binding.implementationRecord || {};
+  const taxonomyRole = surfaceAdapterTaxonomyRolePosture(surfaceAppOrContract, role, options);
+  const blockedReasons = uniqueStrings([
+    binding.blockedReason,
+    ...normalizeStringArray(taxonomyRole?.blockedReasons),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  const state = binding.state === "ready" && blockedReasons.length === 0 ? "ready" : "blocked";
+  const materializationBudgetRefs = uniqueStrings([
+    ...normalizeStringArray(taxonomyRole?.materializationBudgetRefs),
+    ...normalizeStringArray(claim.materializationBudgetRefs),
+    ...normalizeStringArray(implementationRecord.materializationBudgetRefs),
+    ...normalizeStringArray(options.materializationBudgetRefs),
+  ]);
+  const releaseRefs = uniqueStrings([
+    ...normalizeStringArray(taxonomyRole?.releaseRefs),
+    ...normalizeStringArray(claim.releaseRefs),
+    claim.releaseRef,
+    implementationRecord.releaseRef,
+    ...normalizeStringArray(implementationRecord.releaseRefs),
+    ...normalizeStringArray(options.releaseRefs),
+  ]);
+  const transportProfileRefs = uniqueStrings([
+    claim.transportProfileRef,
+    implementationRecord.transportProfileRef,
+    ...normalizeStringArray(claim.transportProfileRefs),
+    ...normalizeStringArray(implementationRecord.transportProfileRefs),
+    ...normalizeStringArray(options.transportProfileRefs),
+  ]);
+  const renderEvidenceBudgetRef = String(
+    options.renderEvidenceBudgetRef
+      || claim.renderEvidenceBudgetRef
+      || implementationRecord.renderEvidenceBudgetRef
+      || materializationBudgetRefs.find((ref) => String(ref).includes("render"))
+      || "",
+  ).trim();
+
+  return Object.freeze({
+    kind: "surface.adapter.binding.posture",
+    state,
+    blockedReason: blockedReasons[0] || "",
+    blockedReasons: Object.freeze(blockedReasons),
+    role: binding.role,
+    taxonomyKey: String(taxonomyRole?.taxonomyKey || binding.role || ""),
+    moduleRef: binding.moduleRef,
+    implementationRef: binding.implementationRef,
+    version: binding.version,
+    participantSide: binding.participantSide,
+    fulfillmentMode: binding.fulfillmentMode,
+    primitiveRefs: binding.primitiveRefs,
+    requiredCapabilities: binding.requiredCapabilities,
+    evidenceChannels: Object.freeze(uniqueStrings([
+      ...normalizeStringArray(taxonomyRole?.evidenceChannels),
+      ...normalizeStringArray(claim.evidenceChannels),
+      ...normalizeStringArray(implementationRecord.evidenceChannels),
+      ...normalizeStringArray(options.evidenceChannels),
+    ])),
+    lifecycle: Object.freeze({
+      ...(isObject(taxonomyRole?.lifecycle) ? taxonomyRole.lifecycle : {}),
+      ...(isObject(claim.lifecycle) ? claim.lifecycle : {}),
+      ...(isObject(implementationRecord.lifecycle) ? implementationRecord.lifecycle : {}),
+      ...(isObject(options.lifecycle) ? options.lifecycle : {}),
+    }),
+    transportProfileRefs: Object.freeze(transportProfileRefs),
+    renderEvidenceBudgetRef,
+    materializationBudgetRefs: Object.freeze(materializationBudgetRefs),
+    releaseRefs: Object.freeze(releaseRefs),
+    sourceMode: binding.sourceMode,
+    sourcePosture: binding.sourcePosture,
+    runtimeSelectionPosture: binding.runtimeSelectionPosture,
+    moduleBinding: binding,
+  });
+}
+
+export function surfacePlatformAdapterBindingPosture(registry, surfaceAppOrContract, options = {}) {
+  return surfaceAdapterBindingPosture(registry, surfaceAppOrContract, {
+    primitiveRef: "media.transport.path",
+    ...options,
+    role: options.role || "platformAdapter",
+  });
+}
+
 export function requireSurfaceModuleBinding(registry, surfaceAppOrContract, role, options = {}) {
   const binding = surfaceModuleBinding(registry, surfaceAppOrContract, role, options);
   if (binding.state !== "ready" || !binding.implementation) {
@@ -338,6 +425,19 @@ function sourceBlockedReason(resolutionSource, options = {}) {
 
 function isRuntimeSelectionPosture(value) {
   return Boolean(value && typeof value === "object" && value.kind === "surface.app.runtime.selection.posture");
+}
+
+function surfaceAdapterTaxonomyRolePosture(surfaceAppOrContract, role, options = {}) {
+  const source = isRuntimeSelectionPosture(surfaceAppOrContract)
+    ? (surfaceAppOrContract.manifestSelection?.surfaceApp || surfaceAppOrContract.manifestSelection?.contract || null)
+    : surfaceAppOrContract;
+  if (!source) return null;
+  try {
+    const posture = surfaceModuleTaxonomyPosture(source, options);
+    return posture.byRole?.[String(role || "")] || null;
+  } catch {
+    return null;
+  }
 }
 
 function firstReason(value, fallback) {
