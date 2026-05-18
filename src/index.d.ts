@@ -26,7 +26,11 @@ export type SurfaceAppContractShape = {
   contractId: string;
   appId: string;
   appRef?: string;
+  serviceContractRef?: string;
   serviceRef?: string;
+  serviceRouteRefs?: string[];
+  hostRefs?: string[];
+  routeRefs?: string[];
   surfaceRef?: string;
   version: string;
   displayName?: string;
@@ -79,10 +83,12 @@ export type SurfaceAppAttachContext = {
   contractId: string;
   appId: string;
   appRef: string;
+  serviceContractRef: string;
   serviceRef: string;
   surfaceRef: string;
   version: string;
   displayName: string;
+  fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
   posture: SurfaceAppPosture;
   requiredModuleRoles: string[];
   moduleRefs: Array<{
@@ -96,6 +102,34 @@ export type SurfaceAppAttachContext = {
   materializationBudgetRefs: string[];
   updatePosture?: Record<string, unknown>;
   [key: string]: unknown;
+};
+
+export type SurfaceAppFulfillmentIdentityPosture = {
+  kind: "surface.app.fulfillment.identity.posture";
+  identityId: string;
+  state: "ready" | "degraded" | "blocked" | "unknown" | "unchecked";
+  appContractRef: string;
+  appId: string;
+  version: string;
+  surfaceRef: string;
+  serviceRequired: boolean;
+  serviceContractRef?: string;
+  serviceRef?: string;
+  serviceRouteRefs: string[];
+  routeRefs: string[];
+  hostRefs: string[];
+  managerRefs: string[];
+  runnerRefs: string[];
+  memberRefs: string[];
+  capabilityRefs: string[];
+  grantRefs: string[];
+  authorityRefs: string[];
+  evidenceRefs: string[];
+  identityPosture: Readonly<Record<string, unknown>>;
+  safeFacts: Readonly<Record<string, unknown>>;
+  blockedReasons: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
 };
 
 export type SurfaceAppBootstrapPosture = {
@@ -142,6 +176,7 @@ export type SurfaceAppInstancePosture = {
   runtimeSelectionPosture: Readonly<Record<string, unknown>> | null;
   runnerReadiness: Readonly<Record<string, unknown>> | null;
   serviceManagerReadiness: Readonly<Record<string, unknown>> | null;
+  fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
   runnerPlanRef: string;
   bootstrapContractRef: string;
   bootstrapPosture: Readonly<Record<string, unknown>> | null;
@@ -169,6 +204,7 @@ export type SurfaceAppSelectionReadModel = {
   runtimeSelectionPosture: SurfaceAppRuntimeSelectionPosture;
   moduleBindings: Readonly<Record<string, unknown>> | null;
   runnerPlan: SurfaceAppRunnerPlan;
+  fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
   serviceManagerSecretBoundary: SurfaceServiceManagerSecretBoundary;
   bootstrapContract: Readonly<Record<string, unknown>>;
   bootstrapPosture: SurfaceAppBootstrapPosture;
@@ -465,6 +501,7 @@ export type SurfaceAppRuntimeSelectionPosture = {
   modulePostures: readonly SurfaceModuleRolePosture[];
   runnerReadiness: Readonly<Record<string, unknown>>;
   serviceManagerReadiness: Readonly<Record<string, unknown>>;
+  fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture | null;
   manifestSelection: SurfaceAppManifestSelection;
   manifestRunnerPlan: SurfaceAppManifestRunnerPlan;
   runnerPlan: SurfaceAppRunnerPlan | null;
@@ -500,6 +537,10 @@ export function surfaceAppBootstrapPosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
 ): SurfaceAppBootstrapPosture;
+export function surfaceAppFulfillmentIdentityPosture(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceAppFulfillmentIdentityPosture;
 export function surfaceAppInstancePosture(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
@@ -573,6 +614,8 @@ export function surfaceAppSelectionReadModel(options?: {
   moduleBindingPosture?: Record<string, unknown>;
   runnerPlan?: SurfaceAppRunnerPlan;
   runnerPlanOptions?: Record<string, unknown>;
+  fulfillmentIdentityPosture?: SurfaceAppFulfillmentIdentityPosture;
+  fulfillmentIdentityOptions?: Record<string, unknown>;
   serviceManagerSecretBoundary?: SurfaceServiceManagerSecretBoundary;
   bootstrapContract?: Record<string, unknown>;
   bootstrapPosture?: SurfaceAppBootstrapPosture;

@@ -3,6 +3,7 @@ import {
   assertServiceManagerProofDigest,
   assertServiceManagerSecretBoundary,
   assertSurfaceAppBootstrapContract,
+  assertSurfaceAppFulfillmentIdentityPosture,
   assertSurfaceAppInstancePosture,
   assertSurfaceAppRuntimeSelectionPosture,
   assertSurfaceAppRunnerPlan,
@@ -11,6 +12,7 @@ import {
   defineSurfaceAppContract,
   surfaceAppAttachContext,
   surfaceAppBootstrapPosture,
+  surfaceAppFulfillmentIdentityPosture,
   surfaceAppInstancePosture,
   surfaceAppRuntimeSelectionPosture,
   surfaceAppRunnerPlan,
@@ -73,6 +75,13 @@ export function surfaceAppSelectionReadModel(options = {}) {
       observedAt: options.serviceManagerProofDigestOptions?.observedAt || issuedAt,
     }),
   );
+  const fulfillmentIdentityPosture = assertSurfaceAppFulfillmentIdentityPosture(
+    options.fulfillmentIdentityPosture || surfaceAppFulfillmentIdentityPosture(surfaceApp, {
+      ...(isObject(options.fulfillmentIdentityOptions) ? options.fulfillmentIdentityOptions : {}),
+      serviceManagerPosture: options.fulfillmentIdentityOptions?.serviceManagerPosture || surfaceApp.contract.serviceManagerPosture,
+      issuedAt,
+    }),
+  );
   const appInstancePosture = assertSurfaceAppInstancePosture(
     options.appInstancePosture || surfaceAppInstancePosture(surfaceApp, {
       ...(isObject(options.appInstanceOptions) ? options.appInstanceOptions : {}),
@@ -81,6 +90,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
       runnerPlan,
       bootstrapContract,
       bootstrapPosture,
+      fulfillmentIdentityPosture,
       serviceManagerOperationPosture,
       serviceManagerProofDigest,
       issuedAt,
@@ -95,6 +105,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
     bootstrapContract,
     serviceManagerSecretBoundary,
     bootstrapPosture,
+    fulfillmentIdentityPosture,
     serviceManagerOperationPosture,
     serviceManagerProofDigest,
   });
@@ -102,6 +113,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
     ...normalizeStringArray(runtimeSelectionPosture.blockedReasons),
     ...normalizeStringArray(moduleBindings?.blockedReasons),
     ...normalizeStringArray(runnerPlan.blockedReasons),
+    ...normalizeStringArray(fulfillmentIdentityPosture.blockedReasons),
     ...normalizeStringArray(bootstrapPosture.blockedReasons),
     ...normalizeStringArray(serviceManagerOperationPosture.blockedReasons),
     ...normalizeStringArray(serviceManagerProofDigest.blockedReasons),
@@ -129,6 +141,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
     runtimeSelectionPosture,
     moduleBindings: moduleBindings || null,
     runnerPlan,
+    fulfillmentIdentityPosture,
     serviceManagerSecretBoundary,
     bootstrapContract,
     bootstrapPosture,

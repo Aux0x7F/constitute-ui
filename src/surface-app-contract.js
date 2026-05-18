@@ -59,15 +59,20 @@ export function surfaceAppAttachContext(surfaceAppOrContract, extra = {}) {
     ? surfaceAppOrContract
     : defineSurfaceAppContract(surfaceAppOrContract);
   const contract = surfaceApp.contract;
+  const fulfillmentIdentityPosture = isObject(extra.fulfillmentIdentityPosture)
+    ? extra.fulfillmentIdentityPosture
+    : surfaceAppFulfillmentIdentityPosture(surfaceApp, extra.identityOptions || {});
   return Object.freeze({
     kind: "surface.app.attachContext",
     contractId: String(contract.contractId || ""),
     appId: String(contract.appId || ""),
     appRef: String(contract.appRef || ""),
+    serviceContractRef: String(contract.serviceContractRef || contract.serviceRef || ""),
     serviceRef: String(contract.serviceRef || ""),
     surfaceRef: String(contract.surfaceRef || ""),
     version: String(contract.version || ""),
     displayName: String(contract.displayName || ""),
+    fulfillmentIdentityPosture,
     posture: surfaceApp.posture,
     requiredModuleRoles: Object.freeze([...surfaceApp.requiredRoles]),
     moduleRefs: Object.freeze(surfaceApp.modules.map((module) => Object.freeze({
@@ -888,6 +893,119 @@ export function surfaceAppRunnerPlanFromManifest(manifest, surfaceAppsOrContract
   });
 }
 
+export function surfaceAppFulfillmentIdentityPosture(surfaceAppOrContract, options = {}) {
+  const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
+    ? surfaceAppOrContract
+    : defineSurfaceAppContract(surfaceAppOrContract);
+  const contract = surfaceApp.contract;
+  const serviceManagerPosture = isObject(options.serviceManagerPosture)
+    ? options.serviceManagerPosture
+    : (isObject(contract.serviceManagerPosture) ? contract.serviceManagerPosture : {});
+  const appContractRef = surfaceAppContractRef(contract, options.appContractRef);
+  const serviceContractRef = String(options.serviceContractRef || contract.serviceContractRef || contract.serviceRef || "").trim();
+  const serviceRef = String(options.serviceRef || contract.serviceRef || serviceContractRef || "").trim();
+  const serviceRequired = Boolean(options.serviceRequired ?? Boolean(contract.serviceRef || contract.serviceContractRef));
+  const runnerCandidates = uniqueStrings([
+    options.runnerRef,
+    serviceManagerPosture.runnerRef,
+    ...(Array.isArray(options.runnerRefs) ? options.runnerRefs : []),
+  ]);
+  const memberCandidates = uniqueStrings([
+    ...runnerCandidates,
+    options.memberRef,
+    ...(Array.isArray(options.memberRefs) ? options.memberRefs : []),
+  ]);
+  const invalidRunnerRefs = runnerCandidates.filter((ref) => !isResolvedMemberRef(ref));
+  const invalidMemberRefs = memberCandidates.filter((ref) => !isResolvedMemberRef(ref));
+  const runnerRefs = runnerCandidates.filter(isResolvedMemberRef);
+  const memberRefs = memberCandidates.filter(isResolvedMemberRef);
+  const serviceRouteRefs = uniqueStrings([
+    serviceRef,
+    ...(Array.isArray(contract.serviceRouteRefs) ? contract.serviceRouteRefs : []),
+    ...(Array.isArray(options.serviceRouteRefs) ? options.serviceRouteRefs : []),
+  ]);
+  const routeRefs = uniqueStrings([
+    ...serviceRouteRefs,
+    ...(Array.isArray(contract.routeRefs) ? contract.routeRefs : []),
+    ...(Array.isArray(options.routeRefs) ? options.routeRefs : []),
+  ]);
+  const hostRefs = uniqueStrings([
+    options.hostRef,
+    serviceManagerPosture.hostRef,
+    ...(Array.isArray(contract.hostRefs) ? contract.hostRefs : []),
+    ...(Array.isArray(options.hostRefs) ? options.hostRefs : []),
+  ]);
+  const managerRefs = uniqueStrings([
+    options.managerRef,
+    serviceManagerPosture.managerRef,
+    serviceManagerPosture.managerId,
+    serviceManagerPosture.serviceManagerRef,
+    ...(Array.isArray(options.managerRefs) ? options.managerRefs : []),
+  ]);
+  const blockedReasons = uniqueStrings([
+    ...surfaceApp.missingRoles.map((role) => `missingModuleRole:${role}`),
+    ...(serviceRequired && !serviceContractRef ? ["missingServiceContractRef"] : []),
+    ...(serviceContractRef && serviceRef && serviceContractRef !== serviceRef ? ["serviceRefMismatch"] : []),
+    ...invalidRunnerRefs.map(() => "unresolvedRunnerRef"),
+    ...invalidMemberRefs.filter((ref) => !runnerCandidates.includes(ref)).map(() => "unresolvedMemberRef"),
+    ...postureBlockedReasons(serviceManagerPosture, "serviceManager"),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  const degraded = postureIsDegraded(serviceManagerPosture);
+  const explicitState = String(options.state || "").trim();
+  const state = blockedReasons.length
+    ? "blocked"
+    : (explicitState || (degraded ? "degraded" : "ready"));
+  const record = {
+    kind: "surface.app.fulfillment.identity.posture",
+    identityId: String(options.identityId || `identity:${appContractRef || contract.appId || "surface-app"}`),
+    state,
+    appContractRef,
+    appId: String(contract.appId || ""),
+    version: String(contract.version || ""),
+    surfaceRef: String(options.surfaceRef || contract.surfaceRef || ""),
+    serviceRequired,
+    serviceRouteRefs,
+    routeRefs,
+    hostRefs,
+    managerRefs,
+    runnerRefs,
+    memberRefs,
+    capabilityRefs: uniqueStrings([
+      ...normalizeStringArray(serviceManagerPosture.capabilityRefs),
+      ...normalizeStringArray(options.capabilityRefs),
+    ]),
+    grantRefs: uniqueStrings([
+      ...normalizeStringArray(serviceManagerPosture.grantRefs),
+      ...normalizeStringArray(options.grantRefs),
+    ]),
+    authorityRefs: uniqueStrings(normalizeStringArray(options.authorityRefs)),
+    evidenceRefs: uniqueStrings([
+      ...normalizeStringArray(serviceManagerPosture.evidenceRefs),
+      ...normalizeStringArray(options.evidenceRefs),
+    ]),
+    identityPosture: deepFreeze({
+      app: appContractRef ? "ready" : "blocked",
+      service: serviceRequired ? (serviceContractRef ? "ready" : "blocked") : "notRequired",
+      route: routeRefs.length ? "ready" : "notRequired",
+      host: hostRefs.length || managerRefs.length || runnerRefs.length ? "ready" : "unknown",
+    }),
+    blockedReasons,
+    safeFacts: {
+      serviceRequired,
+      serviceRouteRefCount: serviceRouteRefs.length,
+      hostRefCount: hostRefs.length,
+      runnerRefCount: runnerRefs.length,
+      memberRefCount: memberRefs.length,
+    },
+    issuedAt: Number(options.issuedAt || contract.issuedAt || Date.now()),
+    expiresAt: options.expiresAt || serviceManagerPosture.expiresAt || contract.expiresAt,
+  };
+  assignIfPresent(record, "serviceContractRef", serviceContractRef);
+  assignIfPresent(record, "serviceRef", serviceRef);
+  return deepFreeze(record);
+}
+
 export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContracts, options = {}) {
   const issuedAt = Number(options.issuedAt || Date.now());
   const requestedAppRef = String(options.requestedAppRef || options.appContractRef || manifest?.currentAppContractRef || "").trim();
@@ -932,6 +1050,14 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
     blockedReasons: Object.freeze([...manifestRunnerPlan.blockedReasons]),
   });
   const serviceManagerReadiness = surfaceAppServiceManagerReadiness(selection, options);
+  const fulfillmentIdentityPosture = surfaceApp
+    ? surfaceAppFulfillmentIdentityPosture(surfaceApp, {
+      ...(isObject(options.fulfillmentIdentityOptions) ? options.fulfillmentIdentityOptions : {}),
+      serviceManagerPosture: options.fulfillmentIdentityOptions?.serviceManagerPosture || selection.contract?.serviceManagerPosture,
+      issuedAt,
+      expiresAt: options.expiresAt || selection.expiresAt,
+    })
+    : null;
   const blockedReasons = uniqueStrings([
     ...selection.blockedReasons.map((reason) => `manifest:${reason}`),
     ...compatibilityResult.blockedReasons.map((reason) => `compatibility:${reason}`),
@@ -941,13 +1067,15 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
       .map((posture) => `module:${posture.role}:${posture.blockedReason}`),
     ...prefixedBlockedReasons(runnerReadiness, "runner"),
     ...prefixedBlockedReasons(serviceManagerReadiness, "serviceManager"),
+    ...prefixedBlockedReasons(fulfillmentIdentityPosture, "identity"),
     ...normalizeStringArray(options.blockedReasons),
   ]);
   const degraded = [
     compatibilityResult,
     sourceTrustResult,
     serviceManagerReadiness,
-  ].some((posture) => String(posture.state || "") === "degraded" || String(posture.state || "") === "unchecked");
+    fulfillmentIdentityPosture,
+  ].some((posture) => String(posture?.state || "") === "degraded" || String(posture?.state || "") === "unchecked");
   return deepFreeze({
     kind: "surface.app.runtime.selection.posture",
     selectionId: String(options.selectionId || `runtime-selection:${selection.manifestId || selection.appId || "surface-app"}`),
@@ -965,6 +1093,7 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
     modulePostures,
     runnerReadiness,
     serviceManagerReadiness,
+    fulfillmentIdentityPosture,
     manifestSelection: selection,
     manifestRunnerPlan,
     runnerPlan: manifestRunnerPlan.runnerPlan,
@@ -997,6 +1126,16 @@ export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
   const serviceManagerProofDigest = isObject(options.serviceManagerProofDigest)
     ? options.serviceManagerProofDigest
     : null;
+  const fulfillmentIdentityPosture = isObject(options.fulfillmentIdentityPosture)
+    ? options.fulfillmentIdentityPosture
+    : (isObject(runtimeSelectionPosture?.fulfillmentIdentityPosture)
+      ? runtimeSelectionPosture.fulfillmentIdentityPosture
+      : surfaceAppFulfillmentIdentityPosture(surfaceApp, {
+        ...(isObject(options.fulfillmentIdentityOptions) ? options.fulfillmentIdentityOptions : {}),
+        serviceManagerPosture: options.fulfillmentIdentityOptions?.serviceManagerPosture || contract.serviceManagerPosture,
+        issuedAt: options.issuedAt,
+        expiresAt: options.expiresAt || runtimeSelectionPosture?.expiresAt || contract.expiresAt,
+      }));
   const moduleBindingPosture = surfaceAppModuleBindingPosture(options.moduleBindings || options.moduleBindingPosture);
   const modulePostures = deepFreeze((Array.isArray(options.modulePostures) && options.modulePostures.length
     ? options.modulePostures
@@ -1025,6 +1164,7 @@ export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
     ...instancePostureBlockedReasons(runnerPlan, "runner"),
     ...instancePostureBlockedReasons(bootstrapContract, "bootstrapContract"),
     ...instancePostureBlockedReasons(bootstrapPosture, "bootstrap"),
+    ...instancePostureBlockedReasons(fulfillmentIdentityPosture, "identity"),
     ...instancePostureBlockedReasons(serviceManagerOperationPosture, "serviceManagerOperation"),
     ...instancePostureBlockedReasons(serviceManagerProofDigest, "serviceManagerProof"),
     ...normalizeStringArray(options.blockedReasons),
@@ -1035,6 +1175,7 @@ export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
     runnerPlan,
     bootstrapContract,
     bootstrapPosture,
+    fulfillmentIdentityPosture,
     serviceManagerOperationPosture,
     serviceManagerProofDigest,
   ].some(postureIsInstanceDegraded);
@@ -1081,6 +1222,7 @@ export function surfaceAppInstancePosture(surfaceAppOrContract, options = {}) {
     runnerPlanRef: String(runnerPlan?.planId || ""),
     bootstrapContractRef: String(bootstrapContract?.bootstrapContractId || bootstrapContract?.contractId || ""),
     bootstrapPosture,
+    fulfillmentIdentityPosture,
     serviceManagerOperationRef: String(serviceManagerOperationPosture?.operationId || ""),
     serviceManagerProofRef: String(serviceManagerProofDigest?.digestId || ""),
     blockedReasons,
@@ -1643,6 +1785,10 @@ function requireResolvedMemberRef(value, context) {
   return text;
 }
 
+function isResolvedMemberRef(value) {
+  return /^[0-9a-fA-F]{64}$/.test(String(value || "").trim());
+}
+
 function serviceManagerOperationToRunnerOperation(operation) {
   switch (String(operation || "")) {
     case "healthCheck":
@@ -1965,6 +2111,9 @@ function freezeContract(contract, modules, requiredRoles) {
     permissionRequirements: Object.freeze(normalizeArray(contract.permissionRequirements)),
     capabilityRequirements: Object.freeze(normalizeArray(contract.capabilityRequirements)),
     materializationBudgets: normalizeBudgets(contract.materializationBudgets),
+    serviceRouteRefs: Object.freeze(normalizeStringArray(contract.serviceRouteRefs)),
+    hostRefs: Object.freeze(normalizeStringArray(contract.hostRefs)),
+    routeRefs: Object.freeze(normalizeStringArray(contract.routeRefs)),
   });
 }
 

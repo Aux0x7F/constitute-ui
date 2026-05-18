@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   assertRunnerOperation,
   assertServiceManagerOperationPosture,
+  assertSurfaceAppFulfillmentIdentityPosture,
   assertSurfaceAppInstancePosture,
   assertSurfaceAppManifestRunnerPlan,
   assertSurfaceAppManifestSelection,
@@ -23,6 +24,7 @@ import {
   surfaceAppAttachContext,
   surfaceAppBootstrapPosture,
   surfaceAppContractPosture,
+  surfaceAppFulfillmentIdentityPosture,
   surfaceAppInstancePosture,
   surfaceAppManifestSelection,
   surfaceAppRuntimeSelectionPosture,
@@ -255,6 +257,8 @@ test("surface app helper reduces service manager operation and proof digest post
 test("surface app helper composes execution-bound runner operations", () => {
   const surfaceApp = defineSurfaceAppContract(makeContract({
     serviceRef: "service:logging",
+    serviceContractRef: "service:logging",
+    serviceRouteRefs: ["route:service:logging"],
     appRef: "surface-app:logging-ui",
     surfaceRef: "surface:logging-ui",
     serviceManagerPosture: {
@@ -322,6 +326,49 @@ test("surface app helper composes execution-bound runner operations", () => {
   assert.throws(() => surfaceRunnerOperation(noGrantSurfaceApp, {
     resourceBudget: { maxMemoryMiB: 256 },
   }), /requires grantRefs/);
+});
+
+test("surface app helper separates app, service, host, runner, and route identity", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract({
+    serviceContractRef: "service:logging",
+    serviceRef: "service:logging",
+    serviceRouteRefs: ["route:service:logging"],
+    hostRefs: ["host:operator-lab"],
+    appRef: "surface-app:logging-ui",
+    surfaceRef: "surface:logging-ui",
+    serviceManagerPosture: {
+      managerId: "manager:logging-local",
+      managerRef: "member:logging-manager",
+      runnerRef: RESOLVED_RUNNER_REF,
+      hostRef: "host:operator-lab",
+      state: "ready",
+      serviceRefs: ["service:logging"],
+      capabilityRefs: ["service.manage"],
+      grantRefs: ["authority-grant:service-manager:logging"],
+      evidenceRefs: ["host:manual"],
+    },
+  }));
+  const posture = surfaceAppFulfillmentIdentityPosture(surfaceApp, { issuedAt: 1234 });
+
+  assert.equal(posture.kind, "surface.app.fulfillment.identity.posture");
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.appContractRef, "surface-app:logging-ui");
+  assert.equal(posture.serviceContractRef, "service:logging");
+  assert.deepEqual(posture.serviceRouteRefs, ["service:logging", "route:service:logging"]);
+  assert.deepEqual(posture.hostRefs, ["host:operator-lab"]);
+  assert.deepEqual(posture.runnerRefs, [RESOLVED_RUNNER_REF]);
+  assert.deepEqual(posture.memberRefs, [RESOLVED_RUNNER_REF]);
+  assert.equal(assertSurfaceAppFulfillmentIdentityPosture(posture).state, "ready");
+
+  const blocked = surfaceAppFulfillmentIdentityPosture(surfaceApp, {
+    serviceRef: "service:logging-route-only",
+    runnerRef: "member:unresolved",
+    issuedAt: 1234,
+  });
+  assert.equal(blocked.state, "blocked");
+  assert(blocked.blockedReasons.includes("serviceRefMismatch"));
+  assert(blocked.blockedReasons.includes("unresolvedRunnerRef"));
+  assert.equal(assertSurfaceAppFulfillmentIdentityPosture(blocked).state, "blocked");
 });
 
 test("surface app runner composes protected service manager bootstrap contracts", () => {
@@ -620,6 +667,8 @@ test("surface app instance posture composes runtime, runner, module, and bootstr
   assert.equal(instance.runnerPlanRef, runnerPlan.planId);
   assert.equal(instance.bootstrapContractRef, runnerPlan.bootstrapContract.bootstrapContractId);
   assert.equal(instance.moduleBindingPosture.state, "ready");
+  assert.equal(instance.fulfillmentIdentityPosture.state, "ready");
+  assert.equal(instance.fulfillmentIdentityPosture.appContractRef, "surface-app:logging-ui@0.1.0");
   assert.deepEqual(instance.blockedReasons, []);
   assert.equal(assertSurfaceAppRunnerPlan(runnerPlan), runnerPlan);
   assert.equal(assertSurfaceAppInstancePosture(instance), instance);
@@ -689,6 +738,8 @@ test("surface app selection read model composes selection, modules, runner, and 
   assert.equal(readModel.runtimeSelectionPosture.kind, "surface.app.runtime.selection.posture");
   assert.equal(readModel.moduleBindings.state, "ready");
   assert.equal(readModel.runnerPlan.kind, "surface.app.runner.plan");
+  assert.equal(readModel.fulfillmentIdentityPosture.kind, "surface.app.fulfillment.identity.posture");
+  assert.equal(readModel.attachContext.fulfillmentIdentityPosture, readModel.fulfillmentIdentityPosture);
   assert.equal(readModel.appInstancePosture.kind, "surface.app.instance.posture");
   assert.equal(readModel.attachContext.appInstancePosture, readModel.appInstancePosture);
   assert.equal(readModel.attachContext.runtimeSelectionPosture, readModel.runtimeSelectionPosture);
