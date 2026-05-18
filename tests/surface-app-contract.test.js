@@ -463,9 +463,21 @@ test("surface app manifest selection pins bundled app contracts by version", () 
         version: "0.1.0",
         state: "current",
         sourceMode: "bundled",
+        requiredModuleRoles: ["runtimeClient", "productView"],
+        compatibilityWindow: {
+          minVersion: "0.1.0",
+          maxVersion: "0.1.x",
+          protocolRef: "protocol:surface-app:v1",
+        },
+        bundledSourceRefs: ["bundle:logging-ui@0.1.0"],
+        grantRefs: ["grant:app:logging-ui:run"],
+        runnerRequirementRefs: ["runner:req:logging-ui"],
+        serviceManagerRequirementRefs: ["service-manager:req:logging-ui"],
         compatibilityRefs: ["protocol:surface-app:v1"],
       },
     ],
+    requiredModuleRoles: ["runtimeClient"],
+    bundledSourceRefs: ["bundle:logging-ui@0.1.0"],
     issuedAt: 1234,
   };
 
@@ -473,6 +485,9 @@ test("surface app manifest selection pins bundled app contracts by version", () 
   assert.equal(selection.kind, "surface.app.manifest.selection");
   assert.equal(selection.state, "ready");
   assert.equal(selection.contract.contractId, "surface-app:logging-ui@0.1.0");
+  assert.deepEqual(selection.requiredModuleRoles, ["runtimeClient", "productView"]);
+  assert.deepEqual(selection.bundledSourceRefs, ["bundle:logging-ui@0.1.0"]);
+  assert.deepEqual(selection.runnerRequirementRefs, ["runner:req:logging-ui"]);
   assert.deepEqual(selection.blockedReasons, []);
 
   const plan = surfaceAppRunnerPlanFromManifest(manifest, [contract], { issuedAt: 1234 });
@@ -505,6 +520,7 @@ test("surface app manifest selection blocks missing bundles and unproven remote 
   assert.equal(selection.state, "blocked");
   assert(selection.blockedReasons.includes("missingBundledContract"));
   assert(selection.blockedReasons.includes("missingReleaseContractRef"));
+  assert(selection.blockedReasons.includes("missingRemoteSourceRef"));
 
   const plan = surfaceAppRunnerPlanFromManifest(manifest, [makeContract()], { issuedAt: 1234 });
   assert.equal(plan.state, "blocked");

@@ -767,6 +767,36 @@ export function surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, op
   const claimState = String(claim?.state || "").trim();
   const manifestState = String(manifest.state || "").trim();
   const releaseContractRef = String(options.releaseContractRef || claim?.releaseContractRef || "").trim();
+  const bundledSourceRefs = uniqueStrings([
+    ...normalizeStringArray(manifest.bundledSourceRefs),
+    ...normalizeStringArray(claim?.bundledSourceRefs),
+    ...normalizeStringArray(options.bundledSourceRefs),
+  ]);
+  const remoteSourceRefs = uniqueStrings([
+    ...normalizeStringArray(manifest.remoteSourceRefs),
+    ...normalizeStringArray(claim?.remoteSourceRefs),
+    ...normalizeStringArray(options.remoteSourceRefs),
+  ]);
+  const requiredModuleRoles = uniqueStrings([
+    ...normalizeStringArray(manifest.requiredModuleRoles),
+    ...normalizeStringArray(claim?.requiredModuleRoles),
+    ...normalizeStringArray(options.requiredModuleRoles),
+  ]);
+  const grantRefs = uniqueStrings([
+    ...normalizeStringArray(manifest.grantRefs),
+    ...normalizeStringArray(claim?.grantRefs),
+    ...normalizeStringArray(options.grantRefs),
+  ]);
+  const runnerRequirementRefs = uniqueStrings([
+    ...normalizeStringArray(manifest.runnerRequirementRefs),
+    ...normalizeStringArray(claim?.runnerRequirementRefs),
+    ...normalizeStringArray(options.runnerRequirementRefs),
+  ]);
+  const serviceManagerRequirementRefs = uniqueStrings([
+    ...normalizeStringArray(manifest.serviceManagerRequirementRefs),
+    ...normalizeStringArray(claim?.serviceManagerRequirementRefs),
+    ...normalizeStringArray(options.serviceManagerRequirementRefs),
+  ]);
   const blockedReasons = uniqueStrings([
     ...(!appContractRef ? ["missingAppContractRef"] : []),
     ...(!version ? ["missingAppVersion"] : []),
@@ -777,6 +807,7 @@ export function surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, op
     ...(claimState === "blocked" ? postureBlockedReasons(claim, "manifestVersion") : []),
     ...(claimState === "superseded" ? ["manifestVersionSuperseded"] : []),
     ...(nonBundledSourceMode(sourceMode) && !releaseContractRef ? ["missingReleaseContractRef"] : []),
+    ...(nonBundledSourceMode(sourceMode) && remoteSourceRefs.length === 0 ? ["missingRemoteSourceRef"] : []),
     ...normalizeStringArray(options.blockedReasons),
   ]);
   return deepFreeze({
@@ -788,6 +819,13 @@ export function surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, op
     version,
     sourceMode,
     claimState,
+    requiredModuleRoles,
+    bundledSourceRefs,
+    remoteSourceRefs,
+    grantRefs,
+    runnerRequirementRefs,
+    serviceManagerRequirementRefs,
+    compatibilityWindow: options.compatibilityWindow || claim?.compatibilityWindow || manifest.compatibilityWindow || null,
     compatibilityRefs: uniqueStrings([
       ...normalizeStringArray(manifest.compatibilityRefs),
       ...normalizeStringArray(claim?.compatibilityRefs),

@@ -353,6 +353,13 @@ export type SurfaceAppManifestSelection = {
   version: string;
   sourceMode: string;
   claimState: string;
+  requiredModuleRoles: string[];
+  bundledSourceRefs: string[];
+  remoteSourceRefs: string[];
+  grantRefs: string[];
+  runnerRequirementRefs: string[];
+  serviceManagerRequirementRefs: string[];
+  compatibilityWindow: unknown;
   compatibilityRefs: string[];
   bootstrapContractRef: string;
   releaseContractRef: string;
