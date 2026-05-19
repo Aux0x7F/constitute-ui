@@ -961,6 +961,7 @@ export {
 } from "./projection-read-model.js";
 export {
   browserStorageShellContext,
+  deriveRuntimeMaterializationPosture,
   deriveRuntimeShellState,
   runtimeShellConnectionToneClass,
 } from "./runtime-shell-state.js";

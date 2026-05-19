@@ -1635,7 +1635,27 @@ export function surfaceAppServiceManagerActionability(surfaceAppOrContract, opti
   const managerId = String(options.managerId || serviceManagerPosture.managerId || serviceManagerPosture.serviceManagerRef || `manager:${contract.appId || contract.contractId || "surface-app"}`);
   const managerRef = String(options.managerRef || serviceManagerPosture.managerRef || serviceManagerPosture.managerId || serviceManagerPosture.serviceManagerRef || managerId);
   const subjectRef = surfaceSubjectRef(contract, options.subjectRef);
-  const defaultOperations = ["healthCheck", "secretReady", "install", "update", "start", "stop", "restart", "release", "rollback"];
+  const operationOptionsByName = isObject(options.operationOptionsByName) ? options.operationOptionsByName : {};
+  const releaseRef = String(
+    options.releaseRef
+      || operationOptionsByName.release?.releaseRef
+      || releaseContract?.releaseRef
+      || releaseContract?.releasePosture?.releaseRef
+      || contract.releasePosture?.releaseRef
+      || "",
+  ).trim();
+  const rollbackRef = String(
+    options.rollbackRef
+      || operationOptionsByName.rollback?.rollbackRef
+      || releaseContract?.rollbackRef
+      || releaseContract?.rollbackPosture?.rollbackRef
+      || contract.rollbackPosture?.rollbackRef
+      || contract.releasePosture?.rollbackRef
+      || "",
+  ).trim();
+  const defaultOperations = ["healthCheck", "secretReady", "install", "update", "start", "stop", "restart"];
+  if (releaseRef) defaultOperations.push("release");
+  if (rollbackRef) defaultOperations.push("rollback");
   const managerObserved = Object.keys(serviceManagerPosture).length > 0;
   const operationNames = uniqueStrings([
     ...normalizeStringArray(options.operationNames),
@@ -1646,13 +1666,14 @@ export function surfaceAppServiceManagerActionability(surfaceAppOrContract, opti
     ? options.operationPostures.filter(isObject)
     : [];
   const suppliedByOperation = new Map(suppliedOperationPostures.map((posture) => [String(posture.operation || ""), posture]));
-  const operationOptionsByName = isObject(options.operationOptionsByName) ? options.operationOptionsByName : {};
   const operationPostures = operationNames.map((operation) => {
     const supplied = suppliedByOperation.get(operation);
     if (supplied) return supplied;
     return surfaceServiceManagerOperationPosture(surfaceApp, {
       ...(isObject(operationOptionsByName[operation]) ? operationOptionsByName[operation] : {}),
       operation,
+      releaseRef: operation === "release" ? releaseRef : operationOptionsByName[operation]?.releaseRef,
+      rollbackRef: operation === "rollback" ? rollbackRef : operationOptionsByName[operation]?.rollbackRef,
       managerId,
       managerRef,
       subjectRef,

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   browserStorageShellContext,
+  deriveRuntimeMaterializationPosture,
   deriveRuntimeShellState,
   runtimeShellConnectionToneClass,
 } from "../src/runtime-shell-state.js";
@@ -37,6 +38,34 @@ test("runtime shell state derives authority and resource posture from snapshots"
   assert.equal(state.materialization.fanout, 2);
   assert.equal(state.materialization.projectionCount, 3);
   assert.equal(state.retention.releaseRequired, true);
+});
+
+test("runtime materialization posture folds budget and consumer floor into shell state", () => {
+  const posture = deriveRuntimeMaterializationPosture(
+    { projections: { "logging.events": {} }, runtimeEvents: [{}, {}] },
+    {
+      materializationBudget: {
+        kind: "materialization.budget",
+        budgetId: "runtime.surface.snapshot",
+        copyRole: "projection",
+        payloadClass: "projection",
+        privacyTier: "safeProjection",
+        limits: { replayLimit: 1, estimatedSnapshotBytes: 2048 },
+      },
+      consumerFloor: {
+        kind: "consumer.floor",
+        floorId: "floor:runtime.surface.snapshot",
+        lagState: "current",
+      },
+    },
+  );
+
+  assert.equal(posture.kind, "runtime.materialization.posture");
+  assert.equal(posture.state, "withinBudget");
+  assert.equal(posture.budgetId, "runtime.surface.snapshot");
+  assert.equal(posture.consumerFloorId, "floor:runtime.surface.snapshot");
+  assert.equal(posture.runtimeEventCount, 2);
+  assert.equal(posture.estimatedSnapshotBytes, 2048);
 });
 
 test("runtime shell state separates route acceptance from live adapter posture", () => {

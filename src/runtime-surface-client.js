@@ -1,3 +1,5 @@
+import { deriveRuntimeMaterializationPosture } from "./runtime-shell-state.js";
+
 export function createRuntimeSurfaceClient({
   clientId,
   surface,
@@ -17,6 +19,7 @@ export function createRuntimeSurfaceClient({
   onSnapshot = null,
   onMaterializationBudget = null,
   onConsumerFloor = null,
+  onMaterializationPosture = null,
   onAttachTimeout = null,
   onAttachError = null,
   onAttachPosture = null,
@@ -30,6 +33,7 @@ export function createRuntimeSurfaceClient({
   let snapshot = null;
   let materializationBudget = null;
   let consumerFloor = null;
+  let materializationPosture = deriveRuntimeMaterializationPosture(null, { clientId, surface });
   let attachWaiters = [];
   let attachInFlight = false;
   let attachPosture = {
@@ -79,6 +83,13 @@ export function createRuntimeSurfaceClient({
       : (nextBudget?.consumerFloor && typeof nextBudget.consumerFloor === "object" ? nextBudget.consumerFloor : null);
     consumerFloor = nextFloor;
     if (typeof onConsumerFloor === "function") onConsumerFloor(nextFloor, msg);
+    materializationPosture = deriveRuntimeMaterializationPosture(snapshot, {
+      clientId,
+      surface,
+      materializationBudget,
+      consumerFloor,
+    });
+    if (typeof onMaterializationPosture === "function") onMaterializationPosture(materializationPosture, msg);
   }
 
   function settleAttached(value) {
@@ -224,6 +235,7 @@ export function createRuntimeSurfaceClient({
     snapshot = null;
     materializationBudget = null;
     consumerFloor = null;
+    materializationPosture = deriveRuntimeMaterializationPosture(null, { clientId, surface });
     setAttachPosture({ state: "closed", severity: "info", reason: "runtime surface client closed" });
   }
 
@@ -265,6 +277,9 @@ export function createRuntimeSurfaceClient({
     },
     get consumerFloor() {
       return consumerFloor;
+    },
+    get materializationPosture() {
+      return materializationPosture;
     },
     get attachPosture() {
       return attachPosture;
