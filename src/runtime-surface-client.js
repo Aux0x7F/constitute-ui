@@ -1,3 +1,4 @@
+import { prepareRuntimeReadModel } from "./runtime-read-model.js";
 import { deriveRuntimeMaterializationPosture } from "./runtime-shell-state.js";
 
 export function createRuntimeSurfaceClient({
@@ -13,10 +14,12 @@ export function createRuntimeSurfaceClient({
   callTimeoutMs = 15_000,
   debug = false,
   debugInfo = null,
+  readModelOptions = {},
   logPrefix = surface || clientId || "runtime-surface",
   onPort = null,
   onMessage = null,
   onSnapshot = null,
+  onReadModel = null,
   onMaterializationBudget = null,
   onConsumerFloor = null,
   onMaterializationPosture = null,
@@ -34,6 +37,13 @@ export function createRuntimeSurfaceClient({
   let materializationBudget = null;
   let consumerFloor = null;
   let materializationPosture = deriveRuntimeMaterializationPosture(null, { clientId, surface });
+  let readModel = prepareRuntimeReadModel(null, {
+    ...readModelOptions,
+    clientId,
+    surface,
+    materializationBudget,
+    consumerFloor,
+  });
   let attachWaiters = [];
   let attachInFlight = false;
   let attachPosture = {
@@ -90,6 +100,14 @@ export function createRuntimeSurfaceClient({
       consumerFloor,
     });
     if (typeof onMaterializationPosture === "function") onMaterializationPosture(materializationPosture, msg);
+    readModel = prepareRuntimeReadModel(snapshot, {
+      ...readModelOptions,
+      clientId,
+      surface,
+      materializationBudget,
+      consumerFloor,
+    });
+    if (typeof onReadModel === "function") onReadModel(readModel, msg);
   }
 
   function settleAttached(value) {
@@ -236,6 +254,14 @@ export function createRuntimeSurfaceClient({
     materializationBudget = null;
     consumerFloor = null;
     materializationPosture = deriveRuntimeMaterializationPosture(null, { clientId, surface });
+    readModel = prepareRuntimeReadModel(null, {
+      ...readModelOptions,
+      clientId,
+      surface,
+      materializationBudget,
+      consumerFloor,
+    });
+    if (typeof onReadModel === "function") onReadModel(readModel, { type: "runtime.closed" });
     setAttachPosture({ state: "closed", severity: "info", reason: "runtime surface client closed" });
   }
 
@@ -280,6 +306,9 @@ export function createRuntimeSurfaceClient({
     },
     get materializationPosture() {
       return materializationPosture;
+    },
+    get readModel() {
+      return readModel;
     },
     get attachPosture() {
       return attachPosture;

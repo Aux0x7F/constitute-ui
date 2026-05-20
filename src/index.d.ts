@@ -1265,3 +1265,4 @@ export function preparedServiceRegistryServices(snapshot?: Record<string, unknow
 
 export * from "./projection-read-model.js";
 export * from "./runtime-shell-state.js";
+export * from "./runtime-read-model.js";

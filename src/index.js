@@ -452,6 +452,7 @@ export function renderStreamStatus(container, {
 }
 
 export { createRuntimeSurfaceClient } from "./runtime-surface-client.js";
+export { prepareRuntimeReadModel } from "./runtime-read-model.js";
 export {
   createServiceSurfaceAdapter,
   normalizeServiceSurfaceAdapterError,
@@ -966,3 +967,4 @@ export {
   deriveRuntimeShellState,
   runtimeShellConnectionToneClass,
 } from "./runtime-shell-state.js";
+export * from "./runtime-read-model.js";
