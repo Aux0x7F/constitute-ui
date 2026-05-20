@@ -43,7 +43,7 @@ function summarizeEdge(snapshot) {
     mode: text(edge.mode),
     connected: bool(edge.connected),
     reason: text(edge.reason || edge.error),
-    endpointRef: text(edge.endpointRef || edge.endpoint || edge.url),
+    endpointRef: text(edge.endpointRef || edge.endpoint),
     memberRef: text(edge.memberRef),
   });
 }

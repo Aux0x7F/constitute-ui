@@ -53,6 +53,22 @@ test("runtime read model folds snapshot posture into product-safe runtime truth"
   assert.equal(readModel.materialization.state, "withinBudget");
 });
 
+test("runtime read model keeps swarm edge endpoint references out of URL vocabulary", () => {
+  const readModel = prepareRuntimeReadModel({
+    buildId: "runtime-test",
+    broker: { available: true },
+    edge: {
+      state: "connected",
+      connected: true,
+      endpointRef: "edge-endpoint:lab-gateway",
+      url: "ws://legacy-edge-url",
+      memberRef: "member:gateway",
+    },
+  });
+
+  assert.equal(readModel.edge.endpointRef, "edge-endpoint:lab-gateway");
+});
+
 test("runtime surface client emits read-model posture alongside raw snapshots", async () => {
   const previousSharedWorker = globalThis.SharedWorker;
   globalThis.SharedWorker = FakeSharedWorker;
