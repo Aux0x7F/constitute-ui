@@ -270,6 +270,45 @@ export function applyRuntimeActivationPostureToStreamSession(session, activation
   return state;
 }
 
+export function applyRuntimeStreamLifecycleToStreamSession(session, lifecycle = {}) {
+  if (!session || typeof session !== "object") return "";
+  const phase = String(lifecycle.phase || "").trim();
+  const record = asObject(lifecycle.record);
+  if (phase === "admission") {
+    session.serviceAccepted = true;
+    session.serviceRejected = false;
+    session.serviceAdmissionTimedOut = false;
+    session.runtimeBlockedReason = "";
+    session.routePending = false;
+    session.routeState = "serviceAccepted";
+    return phase;
+  }
+  if (phase === "reject") {
+    const reason = String(record.reasonCode || record.reason || "service rejected").trim();
+    session.serviceRejected = true;
+    session.serviceAdmissionTimedOut = false;
+    session.runtimeBlockedReason = reason;
+    session.routePending = false;
+    session.routeState = "serviceRejected";
+    return phase;
+  }
+  if (phase === "answer") {
+    session.serviceAccepted = true;
+    session.serviceRejected = false;
+    session.serviceAdmissionTimedOut = false;
+    session.runtimeBlockedReason = "";
+    session.routePending = false;
+    session.routeState = "serviceAccepted";
+    session.answerReceived = true;
+    return phase;
+  }
+  if (phase === "health") {
+    session.healthStatus = String(record.status || "").trim();
+    return phase;
+  }
+  return phase;
+}
+
 export function applyRuntimeMediaFulfillmentPostureToStreamSession(session, posture = {}) {
   if (!session || typeof session !== "object") return "";
   const record = asObject(posture);

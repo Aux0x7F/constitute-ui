@@ -40,6 +40,7 @@ function summarizeEdge(snapshot) {
   const edge = record(snapshot.edge);
   return Object.freeze({
     state: text(edge.state || edge.status || (edge.connected === true ? "connected" : "")) || "unknown",
+    mode: text(edge.mode),
     connected: bool(edge.connected),
     reason: text(edge.reason || edge.error),
     endpointRef: text(edge.endpointRef || edge.endpoint || edge.url),
