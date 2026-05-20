@@ -124,6 +124,39 @@ export function projectionCoverage(projection, {
   };
 }
 
+function normalizedStrings(value) {
+  return Array.isArray(value)
+    ? value.map((entry) => String(entry || "").trim()).filter(Boolean)
+    : [];
+}
+
+export function projectionMaterializationPosture(projection, options = {}) {
+  const budget = normalizeObject(options.materializationBudget || projection?.payload?.materializationBudget || projection?.materializationBudget);
+  const consumerFloor = normalizeObject(options.consumerFloor || budget.consumerFloor || projection?.payload?.consumerFloor || projection?.consumerFloor);
+  const coverage = projectionCoverage(projection, options);
+  const blockedReasons = normalizedStrings(budget.blockedReasons || budget.limits?.blockedReasons);
+  const state = String(
+    options.state
+      || budget.state
+      || (blockedReasons.length ? "pressure" : projection ? "withinBudget" : "missing"),
+  ).trim();
+  return Object.freeze({
+    kind: "projection.materialization.posture",
+    state: state || "unknown",
+    budgetId: String(budget.budgetId || options.budgetId || "").trim(),
+    consumerFloorId: String(consumerFloor.floorId || "").trim(),
+    lagState: String(consumerFloor.lagState || "").trim(),
+    materializedCount: coverage.materializedCount,
+    targetCount: coverage.targetCount,
+    completionRatio: coverage.completionRatio,
+    copyRole: String(budget.copyRole || options.copyRole || "").trim(),
+    payloadClass: String(budget.payloadClass || options.payloadClass || "").trim(),
+    transferMode: String(budget.transferMode || options.transferMode || "").trim(),
+    privacyTier: String(budget.privacyTier || options.privacyTier || "").trim(),
+    blockedReasons: Object.freeze(blockedReasons),
+  });
+}
+
 export function projectionRepairFor(projection, {
   nodePath = "",
   channelMap = {},

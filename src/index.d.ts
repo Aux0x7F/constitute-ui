@@ -1249,11 +1249,19 @@ export type PreparedServiceRegistry = {
   participantCount: number;
   entryCount: number;
   blockedReasons: readonly string[];
+  materializationPosture: Readonly<Record<string, unknown>>;
   services: readonly PreparedServiceRegistryService[];
 };
 
-export function preparedServiceRegistry(snapshot?: Record<string, unknown>): PreparedServiceRegistry;
-export function preparedServiceRegistryServices(snapshot?: Record<string, unknown>): readonly PreparedServiceRegistryService[];
+export type PreparedServiceRegistryOptions = {
+  clientId?: string;
+  surface?: string;
+  materializationBudget?: Record<string, unknown>;
+  consumerFloor?: Record<string, unknown>;
+};
+
+export function preparedServiceRegistry(snapshot?: Record<string, unknown>, options?: PreparedServiceRegistryOptions): PreparedServiceRegistry;
+export function preparedServiceRegistryServices(snapshot?: Record<string, unknown>, options?: PreparedServiceRegistryOptions): readonly PreparedServiceRegistryService[];
 
 export * from "./projection-read-model.js";
 export * from "./runtime-shell-state.js";

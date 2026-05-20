@@ -951,6 +951,7 @@ export {
   projectionCoverage,
   projectionDeltaFor,
   projectionForNode,
+  projectionMaterializationPosture,
   projectionNodePath,
   projectionPostureSummary,
   projectionRecordPolicyId,

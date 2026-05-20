@@ -27,6 +27,22 @@ export type ProjectionPostureSummary = {
   stateLabel: string;
 };
 
+export type ProjectionMaterializationPosture = Readonly<{
+  kind: "projection.materialization.posture";
+  state: string;
+  budgetId: string;
+  consumerFloorId: string;
+  lagState: string;
+  materializedCount: number;
+  targetCount: number;
+  completionRatio: number;
+  copyRole: string;
+  payloadClass: string;
+  transferMode: string;
+  privacyTier: string;
+  blockedReasons: readonly string[];
+}>;
+
 export function projectionRuntimeKey(projection: Record<string, unknown> | null | undefined, fallback?: string): string;
 export function projectionNodePath(projection: Record<string, unknown> | null | undefined, options?: { channelMap?: Record<string, string> }): string;
 export function projectionRecordPolicyId(projection: Record<string, unknown> | null | undefined): string;
@@ -55,6 +71,19 @@ export function projectionCoverage(projection: Record<string, unknown> | null | 
   targetFallback?: number;
   syncStateFallback?: string;
 }): ProjectionCoverage;
+export function projectionMaterializationPosture(projection: Record<string, unknown> | null | undefined, options?: {
+  materializationBudget?: Record<string, unknown>;
+  consumerFloor?: Record<string, unknown>;
+  budgetId?: string;
+  state?: string;
+  copyRole?: string;
+  payloadClass?: string;
+  transferMode?: string;
+  privacyTier?: string;
+  materializedFallback?: number;
+  targetFallback?: number;
+  syncStateFallback?: string;
+}): ProjectionMaterializationPosture;
 export function projectionRepairFor(projection: Record<string, unknown> | null | undefined, options?: {
   nodePath?: string;
   channelMap?: Record<string, string>;

@@ -4,6 +4,7 @@ import {
   projectionCoverage,
   projectionDeltaFor,
   projectionForNode,
+  projectionMaterializationPosture,
   projectionNodePath,
   projectionPostureSummary,
   projectionRepairFor,
@@ -41,6 +42,35 @@ test("projection read model selects exact policy before latest fallback", () => 
     projectionForNode(projections, "events", { channelMap: { events: "logging.events" } })?.payload?.policy?.policyId,
     "latest",
   );
+});
+
+test("projection helper exposes materialization budget and floor posture", () => {
+  const posture = projectionMaterializationPosture({
+    projectionId: "logging.events",
+    coverage: { materializedCount: 8, targetCount: 10, syncState: "syncing" },
+    materializationBudget: {
+      kind: "materialization.budget",
+      budgetId: "budget:logging.events",
+      state: "pressure",
+      copyRole: "index",
+      payloadClass: "projection",
+      transferMode: "reference-only",
+      privacyTier: "safeProjection",
+      blockedReasons: ["consumerLag"],
+      consumerFloor: {
+        floorId: "floor:logging.events",
+        lagState: "lagging",
+      },
+    },
+  });
+
+  assert.equal(posture.kind, "projection.materialization.posture");
+  assert.equal(posture.state, "pressure");
+  assert.equal(posture.budgetId, "budget:logging.events");
+  assert.equal(posture.consumerFloorId, "floor:logging.events");
+  assert.equal(posture.materializedCount, 8);
+  assert.equal(posture.targetCount, 10);
+  assert.deepEqual(posture.blockedReasons, ["consumerLag"]);
 });
 
 test("projection helpers normalize node, key, delta, repair, coverage, and summary posture", () => {
