@@ -1,3 +1,5 @@
+import { deriveRuntimeMaterializationPosture } from "./runtime-shell-state.js";
+
 function normalizedArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -38,7 +40,7 @@ function normalizeServiceRecord(entry, source) {
   };
 }
 
-export function preparedServiceRegistry(snapshot = {}) {
+export function preparedServiceRegistry(snapshot = {}, options = {}) {
   const catalog = normalizeObject(snapshot.serviceCatalog);
   const registry = normalizeObject(catalog.registry);
   const registryServices = normalizedArray(registry.services);
@@ -54,6 +56,12 @@ export function preparedServiceRegistry(snapshot = {}) {
   const state = text(registry.state)
     || (blockedReasons.length ? "blocked" : services.length ? "ready" : "missing");
   const updatedAt = Number(registry.issuedAt || catalog.updatedAt || snapshot.updatedAt || 0) || 0;
+  const materializationPosture = deriveRuntimeMaterializationPosture(snapshot, {
+    clientId: text(options.clientId || "service-registry"),
+    surface: text(options.surface || "service-registry"),
+    materializationBudget: options.materializationBudget,
+    consumerFloor: options.consumerFloor,
+  });
   return Object.freeze({
     source,
     state,
@@ -64,10 +72,11 @@ export function preparedServiceRegistry(snapshot = {}) {
     participantCount: normalizedArray(registry.participantRefs).length,
     entryCount: normalizedArray(registry.entries).length,
     blockedReasons: Object.freeze(blockedReasons),
+    materializationPosture,
     services: Object.freeze(services.map((service) => Object.freeze(service))),
   });
 }
 
-export function preparedServiceRegistryServices(snapshot = {}) {
-  return preparedServiceRegistry(snapshot).services;
+export function preparedServiceRegistryServices(snapshot = {}, options = {}) {
+  return preparedServiceRegistry(snapshot, options).services;
 }

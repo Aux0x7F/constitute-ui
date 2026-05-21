@@ -452,6 +452,7 @@ export function renderStreamStatus(container, {
 }
 
 export { createRuntimeSurfaceClient } from "./runtime-surface-client.js";
+export { prepareRuntimeReadModel } from "./runtime-read-model.js";
 export {
   createServiceSurfaceAdapter,
   normalizeServiceSurfaceAdapterError,
@@ -496,9 +497,12 @@ export {
   surfaceAppAttachContext,
   surfaceAppAuthorityAccessPosture,
   surfaceAppBootstrapPosture,
+  surfaceAppContractResolution,
   surfaceAppContractPosture,
+  surfaceAppDistributionPosture,
   surfaceAppFulfillmentIdentityPosture,
   surfaceAppInstancePosture,
+  surfaceAppReleaseResolution,
   surfaceAppManifestSelection,
   surfaceAppRuntimeSelectionPosture,
   surfaceAppRunnerFulfillmentReadiness,
@@ -949,6 +953,7 @@ export {
   projectionCoverage,
   projectionDeltaFor,
   projectionForNode,
+  projectionMaterializationPosture,
   projectionNodePath,
   projectionPostureSummary,
   projectionRecordPolicyId,
@@ -959,6 +964,8 @@ export {
 } from "./projection-read-model.js";
 export {
   browserStorageShellContext,
+  deriveRuntimeMaterializationPosture,
   deriveRuntimeShellState,
   runtimeShellConnectionToneClass,
 } from "./runtime-shell-state.js";
+export * from "./runtime-read-model.js";

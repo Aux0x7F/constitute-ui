@@ -8,6 +8,7 @@ import {
   assertSurfaceAppInstancePosture,
   assertSurfaceAppManifestRunnerPlan,
   assertSurfaceAppManifestSelection,
+  assertSurfaceAppDistributionPosture,
   assertSurfaceAppSourceCandidatePosture,
   assertSurfaceAppRuntimeSelectionPosture,
   assertSurfaceAppServiceManagerActionability,
@@ -29,10 +30,13 @@ import {
   surfaceAppAttachContext,
   surfaceAppAuthorityAccessPosture,
   surfaceAppBootstrapPosture,
+  surfaceAppContractResolution,
   surfaceAppContractPosture,
+  surfaceAppDistributionPosture,
   surfaceAppFulfillmentIdentityPosture,
   surfaceAppInstancePosture,
   surfaceAppManifestSelection,
+  surfaceAppReleaseResolution,
   surfaceAppRuntimeSelectionPosture,
   surfaceAppRunnerFulfillmentLifecycle,
   surfaceAppRunnerFulfillmentReadiness,
@@ -201,6 +205,8 @@ test("surface app helper reduces service manager operation and proof digest post
       grantRefs: ["authority-grant:service-manager:logging"],
       resourceBudget: { maxMemoryMiB: 256, maxCpuPct: 25 },
       evidenceRefs: ["host:manual"],
+      witnessRefs: ["witness:logging-manager:observed"],
+      retentionRefs: ["retention:logging-ui:operations"],
     },
     releasePosture: {
       state: "releaseReady",
@@ -218,6 +224,7 @@ test("surface app helper reduces service manager operation and proof digest post
     requesterRef: "identity:operator",
     state: "succeeded",
     proofRefs: ["proof:logging-ui:browser"],
+    releaseWitnessRefs: ["witness:operator:release-ready"],
     requestedAt: 1234,
     completedAt: 1240,
   });
@@ -231,6 +238,9 @@ test("surface app helper reduces service manager operation and proof digest post
   assert.equal(operation.hostRef, "host:operator-lab");
   assert.deepEqual(operation.grantRefs, ["authority-grant:service-manager:logging"]);
   assert.deepEqual(operation.resourceBudget, { maxMemoryMiB: 256, maxCpuPct: 25 });
+  assert.deepEqual(operation.witnessRefs, ["witness:logging-manager:observed"]);
+  assert.deepEqual(operation.retentionRefs, ["retention:logging-ui:operations"]);
+  assert.deepEqual(operation.releaseWitnessRefs, ["witness:operator:release-ready"]);
   assert.deepEqual(operation.blockedReasons, []);
   assert.deepEqual(operation.evidenceRefs, ["host:manual", "build:logging-ui:local"]);
   assert.equal(assertServiceManagerOperationPosture(operation), operation);
@@ -262,6 +272,17 @@ test("surface app helper reduces service manager operation and proof digest post
   assert.deepEqual(actionability.proofDigestRefs, ["proof-digest:logging-ui:promote"]);
   assertSurfaceAppServiceManagerActionability(actionability);
 
+  const releaseOperation = surfaceServiceManagerOperationPosture(surfaceApp, {
+    operation: "release",
+    requesterRef: "identity:operator",
+    releaseRef: "release:logging-ui:local",
+    releaseWitnessRefs: ["witness:operator:released"],
+    requestedAt: 1234,
+  });
+  assert.equal(releaseOperation.state, "requested");
+  assert.equal(releaseOperation.releaseRef, "release:logging-ui:local");
+  assert.deepEqual(releaseOperation.releaseWitnessRefs, ["witness:operator:released"]);
+
   const blockedRollback = surfaceServiceManagerOperationPosture(surfaceApp, {
     operation: "rollback",
     requestedAt: 1234,
@@ -269,6 +290,14 @@ test("surface app helper reduces service manager operation and proof digest post
   });
   assert.equal(blockedRollback.state, "blocked");
   assert.deepEqual(blockedRollback.blockedReasons, ["missingRollbackRef"]);
+
+  const blockedRelease = surfaceServiceManagerOperationPosture(surfaceApp, {
+    operation: "release",
+    requestedAt: 1234,
+    releasePosture: { state: "releaseReady" },
+  });
+  assert.equal(blockedRelease.state, "blocked");
+  assert.deepEqual(blockedRelease.blockedReasons, ["missingReleaseRef"]);
 
   const blockedDigest = surfaceServiceManagerProofDigest(surfaceApp, {
     operationPosture: operation,
@@ -363,6 +392,9 @@ test("surface app helper separates app, service, host, runner, and route identit
     deviceRefs: ["device:aux-browser"],
     grantRefs: ["grant:app:logging-ui:run"],
     accessGroupRefs: ["access-group:logging-ui:events"],
+    accessEpochRefs: ["access-epoch:logging-ui:events:3"],
+    privateEnvelopeRefs: ["private-envelope:logging-ui:events:latest"],
+    syncRefs: ["witness:logging-ui:manifest:observed"],
     requiredContentClasses: ["uiProjection"],
     appRef: "surface-app:logging-ui",
     surfaceRef: "surface:logging-ui",
@@ -408,10 +440,14 @@ test("surface app helper separates app, service, host, runner, and route identit
   assert.equal(authorityAccess.state, "ready");
   assert.equal(authorityAccess.actionRequired, true);
   assert.equal(authorityAccess.accessRequired, true);
+  assert.equal(authorityAccess.syncRequired, true);
   assert.deepEqual(authorityAccess.rootRefs, ["root:aux"]);
   assert.deepEqual(authorityAccess.deviceRefs, ["device:aux-browser"]);
   assert.deepEqual(authorityAccess.grantRefs, ["grant:app:logging-ui:run", "authority-grant:service-manager:logging"]);
   assert.deepEqual(authorityAccess.accessGroupRefs, ["access-group:logging-ui:events"]);
+  assert.deepEqual(authorityAccess.accessEpochRefs, ["access-epoch:logging-ui:events:3"]);
+  assert.deepEqual(authorityAccess.privateEnvelopeRefs, ["private-envelope:logging-ui:events:latest"]);
+  assert.deepEqual(authorityAccess.syncRefs, ["witness:logging-ui:manifest:observed"]);
   assert.deepEqual(authorityAccess.requiredContentClasses, ["uiProjection"]);
   assert.equal(assertSurfaceAppAuthorityAccessPosture(authorityAccess).state, "ready");
 
@@ -431,6 +467,30 @@ test("surface app helper separates app, service, host, runner, and route identit
   }), { accessGroupRefs: [], issuedAt: 1234 });
   assert.equal(missingAccess.state, "blocked");
   assert(missingAccess.blockedReasons.includes("missingAccessGroup"));
+
+  const syncWithoutRead = surfaceAppAuthorityAccessPosture(makeContract(), {
+    syncRequired: true,
+    syncRefs: ["witness:surface:observed"],
+    accessRequired: false,
+    grantRefs: [],
+    fulfillmentIdentityPosture: { grantRefs: [] },
+    serviceManagerPosture: { grantRefs: [] },
+    issuedAt: 1234,
+  });
+  assert.equal(syncWithoutRead.state, "ready");
+  assert.equal(syncWithoutRead.accessRequired, false);
+  assert.equal(syncWithoutRead.actionRequired, false);
+  assert.deepEqual(syncWithoutRead.syncRefs, ["witness:surface:observed"]);
+
+  const missingSync = surfaceAppAuthorityAccessPosture(makeContract(), {
+    syncRequired: true,
+    syncRefs: [],
+    fulfillmentIdentityPosture: { grantRefs: [] },
+    serviceManagerPosture: { grantRefs: [] },
+    issuedAt: 1234,
+  });
+  assert.equal(missingSync.state, "blocked");
+  assert(missingSync.blockedReasons.includes("missingSyncWitness"));
 });
 
 test("surface app runner composes protected service manager bootstrap contracts", () => {
@@ -649,6 +709,14 @@ test("surface app manifest selection pins bundled app contracts by version", () 
 test("surface app runtime selection posture reduces manifest runner and module readiness", () => {
   const contract = makeContract({
     contractId: "surface-app:logging-ui@0.1.0",
+    requiredPrimitives: ["runtime.attach", "projection.materialization", "logging.events.observe"],
+    permissionRequirements: [{ requirementRef: "permission:logging-ui:events:read" }],
+    capabilityRequirements: [{ capabilityRef: "logging.events.observe" }],
+    projectionSubscriptions: [{ subscriptionRef: "projection-sub:logging-ui:events" }],
+    grantRefs: ["grant:logging-ui:run"],
+    accessGroupRefs: ["access-group:logging-ui:events"],
+    accessEpochRefs: ["access-epoch:logging-ui:events:3"],
+    privateEnvelopeRefs: ["private-envelope:logging-ui:events:latest"],
   });
   const manifest = {
     kind: "surface.app.manifest",
@@ -691,12 +759,29 @@ test("surface app runtime selection posture reduces manifest runner and module r
   assert.equal(posture.runnerReadiness.state, "ready");
   assert.equal(posture.serviceManagerReadiness.state, "unknown");
   assert.equal(posture.serviceManagerActionability.state, "unknown");
+  assert.equal(posture.appContractResolution.kind, "surface.app.contract.resolution");
+  assert.equal(posture.appContractResolution.state, "ready");
+  assert.deepEqual(posture.requiredPrimitiveRefs, ["runtime.attach", "projection.materialization", "logging.events.observe", "runtime.posture.render"]);
+  assert.deepEqual(posture.permissionRequirementRefs, ["permission:logging-ui:events:read"]);
+  assert.deepEqual(posture.capabilityRequirementRefs, ["logging.events.observe"]);
+  assert.deepEqual(posture.projectionSubscriptionRefs, ["projection-sub:logging-ui:events"]);
+  assert.deepEqual(posture.materializationBudgetRefs, ["logging-ui.event-table"]);
+  assert.deepEqual(posture.accessRequirementRefs, [
+    "access-group:logging-ui:events",
+    "access-epoch:logging-ui:events:3",
+    "private-envelope:logging-ui:events:latest",
+  ]);
+  assert.deepEqual(posture.appContractResolution.actionGrantRefs, ["grant:logging-ui:run"]);
   assert.deepEqual(posture.requiredModuleRoles, ["runtimeClient", "productView", "projectionModel"]);
   assert.equal(posture.modulePostures.every((entry) => entry.state === "ready"), true);
   assert.deepEqual(posture.blockedReasons, []);
   assert.equal(Object.prototype.propertyIsEnumerable.call(posture.manifestSelection, "surfaceApp"), false);
   assert.equal(Object.prototype.propertyIsEnumerable.call(posture.manifestSelection, "contract"), false);
   assert.equal(assertSurfaceAppRuntimeSelectionPosture(posture), posture);
+  assert.equal(surfaceAppContractResolution(contract, posture.manifestSelection, {
+    compatibilityResult: posture.compatibilityResult,
+    issuedAt: 1234,
+  }).state, "ready");
 });
 
 test("surface app instance posture composes runtime, runner, module, and bootstrap posture", () => {
@@ -803,6 +888,22 @@ test("surface app instance posture consumes app runner fulfillment proof", () =>
     },
     operationPosture: { state: "succeeded" },
     fulfillmentPosture: { state: "succeeded" },
+    hostFulfillmentPosture: {
+      kind: "runner.host.fulfillment.posture",
+      postureId: "runner-host:logging-ui:bootstrap",
+      runnerId: "runner:lab-gateway:logging-ui",
+      runnerRef: RESOLVED_RUNNER_REF,
+      hostRef: "host:lab-gateway",
+      operationId: "runner-operation:logging-ui:bootstrap",
+      operation: "execute",
+      state: "succeeded",
+      requesterRef: "identity:operator",
+      subjectRef: "surface-app:logging-ui@0.1.0",
+      contractRef: "surface-app:logging-ui@0.1.0",
+      grantRefs: ["grant:logging-ui:runner"],
+      resourceBudget: { maxMemoryMiB: 256 },
+      observedAt: 1234,
+    },
     blockedReasons: [],
     observedAt: 1234,
   };
@@ -811,6 +912,7 @@ test("surface app instance posture consumes app runner fulfillment proof", () =>
   });
   assert.equal(readiness.state, "ready");
   assert.equal(readiness.reportId, "app-runner:logging-ui:bootstrap");
+  assert.equal(readiness.hostFulfillmentPosture.hostRef, "host:lab-gateway");
   assert.deepEqual(readiness.proofRefs, ["proof:logging-ui:bootstrap"]);
   const lifecycle = surfaceAppRunnerFulfillmentLifecycle(runnerFulfillmentReport, {
     appContract: contract,
@@ -819,6 +921,7 @@ test("surface app instance posture consumes app runner fulfillment proof", () =>
   assert.equal(lifecycle.kind, "app.runner.fulfillment.lifecycle");
   assert.equal(lifecycle.state, "succeeded");
   assert.equal(lifecycle.reportId, runnerFulfillmentReport.reportId);
+  assert.equal(lifecycle.hostFulfillmentPosture.state, "succeeded");
   assert.deepEqual(lifecycle.witnessRefs, ["witness:logging-ui:operator"]);
   assertAppRunnerFulfillmentLifecycle(lifecycle);
 
@@ -1028,6 +1131,11 @@ test("surface app source candidate posture gates non-bundled sources explicitly"
     sourceMode: "storageObject",
     remoteSourceRefs: ["storage-object:logging-ui@0.2.0"],
     releaseContractRef: "release:logging-ui@0.2.0",
+    digestRefs: ["sha256:logging-ui@0.2.0"],
+    signatureRefs: ["sig:logging-ui@0.2.0"],
+    publisherRefs: ["identity:release-publisher"],
+    sourceAuthorityRefs: ["authority:logging-ui:release"],
+    releaseEvidenceRefs: ["evidence:logging-ui:release"],
     compatibilityRefs: ["protocol:surface-app:v1"],
     proofDigestRefs: ["proof-digest:logging-ui@0.2.0"],
     rollbackRefs: ["rollback:logging-ui@0.1.0"],
@@ -1038,7 +1146,59 @@ test("surface app source candidate posture gates non-bundled sources explicitly"
   assert.equal(storagePinned.state, "ready");
   assert.equal(storagePinned.sourceClass, "storagePinned");
   assert.deepEqual(storagePinned.storageObjectRefs, ["storage-object:logging-ui@0.2.0"]);
+  assert.deepEqual(storagePinned.digestRefs, ["sha256:logging-ui@0.2.0"]);
+  assert.deepEqual(storagePinned.signatureRefs, ["sig:logging-ui@0.2.0"]);
   assertSurfaceAppSourceCandidatePosture(storagePinned);
+
+  const retained = surfaceAppDistributionPosture(storagePinned, {
+    state: "retained",
+    pinIntentRefs: ["storage.pin.intent:logging-ui@0.2.0"],
+    retentionRefs: ["retention:logging-ui:release"],
+    releaseContractRefs: ["release:logging-ui@0.2.0"],
+    releasePosture: {
+      state: "releaseReady",
+      buildRef: "build:logging-ui@0.2.0",
+      releaseRef: "release:logging-ui@0.2.0",
+    },
+  });
+  assert.equal(retained.state, "retained");
+  assert.deepEqual(retained.storageRefs, ["storage-object:logging-ui@0.2.0"]);
+  assertSurfaceAppDistributionPosture(retained);
+
+  const releaseFetched = surfaceAppSourceCandidatePosture({
+    sourceMode: "storageObject",
+    sourceClass: "releaseFetched",
+    remoteSourceRefs: ["https-release:logging-ui@0.2.1"],
+    releaseContractRef: "release:logging-ui@0.2.1",
+    digestRefs: ["sha256:logging-ui@0.2.1"],
+    signatureRefs: ["sig:logging-ui@0.2.1"],
+    compatibilityRefs: ["protocol:surface-app:v1"],
+    proofDigestRefs: ["proof-digest:logging-ui@0.2.1"],
+    rollbackRefs: ["rollback:logging-ui@0.2.0"],
+    secretBoundaryRefs: ["secret-boundary:logging-ui"],
+    trustRefs: ["trust:logging-ui@0.2.1"],
+    issuedAt: 1234,
+  });
+  assert.equal(releaseFetched.state, "ready");
+  assert.equal(releaseFetched.sourceClass, "releaseFetched");
+  assert.deepEqual(releaseFetched.releaseSourceRefs, ["https-release:logging-ui@0.2.1"]);
+  assertSurfaceAppSourceCandidatePosture(releaseFetched);
+
+  const nativeInstalled = surfaceAppSourceCandidatePosture({
+    sourceMode: "nativeInstalled",
+    remoteSourceRefs: ["native:logging-ui@0.2.0"],
+    releaseContractRef: "release:logging-ui@0.2.0",
+    digestRefs: ["sha256:logging-ui-native@0.2.0"],
+    signatureRefs: ["sig:logging-ui-native@0.2.0"],
+    compatibilityRefs: ["protocol:surface-app:v1"],
+    proofDigestRefs: ["proof-digest:logging-ui-native@0.2.0"],
+    rollbackRefs: ["rollback:logging-ui-native@0.1.0"],
+    secretBoundaryRefs: ["secret-boundary:logging-ui"],
+    trustRefs: ["trust:logging-ui-native@0.2.0"],
+    issuedAt: 1234,
+  });
+  assert.equal(nativeInstalled.sourceClass, "nativeInstalled");
+  assertSurfaceAppSourceCandidatePosture(nativeInstalled);
 
   const incompleteRemote = surfaceAppSourceCandidatePosture({
     sourceMode: "storageObject",
@@ -1048,10 +1208,77 @@ test("surface app source candidate posture gates non-bundled sources explicitly"
     issuedAt: 1234,
   });
   assert.equal(incompleteRemote.state, "blocked");
+  assert(incompleteRemote.blockedReasons.includes("missingSourceDigestRef"));
+  assert(incompleteRemote.blockedReasons.includes("missingSourceSignatureRef"));
   assert(incompleteRemote.blockedReasons.includes("missingProofDigestRef"));
   assert(incompleteRemote.blockedReasons.includes("missingRollbackRef"));
   assert(incompleteRemote.blockedReasons.includes("missingSecretBoundaryRef"));
   assert(incompleteRemote.blockedReasons.includes("missingSourceTrustRef"));
+});
+
+test("surface app release resolution binds manifest modules to content addressed sources", () => {
+  const contract = makeContract({
+    contractId: "surface-app:logging-ui@0.2.0",
+    appRef: "surface-app:logging-ui@0.2.0",
+    version: "0.2.0",
+    compatibilityRefs: ["protocol:surface-app:v1"],
+    permissionRequirements: [{ permissionRef: "permission:logging-ui:run" }],
+    accessGroupRefs: ["access-group:logging-ui"],
+  });
+  const manifest = {
+    kind: "surface.app.manifest",
+    manifestId: "manifest:logging-ui",
+    appId: "constitute-logging-ui",
+    currentAppContractRef: "surface-app:logging-ui@0.2.0",
+    currentVersion: "0.2.0",
+    defaultSourceMode: "storageObject",
+    versions: [
+      {
+        appContractRef: "surface-app:logging-ui@0.2.0",
+        version: "0.2.0",
+        state: "current",
+        sourceMode: "storageObject",
+        remoteSourceRefs: ["storage:object:logging-ui@0.2.0"],
+        releaseContractRef: "app:release:logging-ui@0.2.0",
+        digestRefs: ["source:digest:logging-ui@0.2.0"],
+        signatureRefs: ["signature:logging-ui@0.2.0"],
+        compatibilityRefs: ["protocol:surface-app:v1"],
+        proofDigestRefs: ["build:proof:logging-ui@0.2.0"],
+        rollbackRefs: ["app:release:logging-ui@0.1.0"],
+        secretBoundaryRefs: ["secret-boundary:logging-ui"],
+        trustRefs: ["trust:logging-ui@0.2.0"],
+        requiredModuleRoles: ["runtimeClient", "projectionModel", "productView"],
+      },
+    ],
+    issuedAt: 1234,
+  };
+  const selection = surfaceAppManifestSelection(manifest, [contract], { issuedAt: 1234 });
+  const resolution = surfaceAppReleaseResolution(contract, selection, {
+    sourceSnapshotRef: "source:snapshot:logging-ui@0.2.0",
+    issuedAt: 1234,
+  });
+
+  assert.equal(selection.state, "ready");
+  assert.equal(resolution.state, "resolved");
+  assert.equal(resolution.kind, "surface.app.release.resolution");
+  assert.equal(resolution.selectedReleaseRef, "app:release:logging-ui@0.2.0");
+  assert.deepEqual(resolution.selectedStorageRefs, ["storage:object:logging-ui@0.2.0"]);
+  assert.deepEqual(resolution.sourceDigestRefs, ["source:digest:logging-ui@0.2.0"]);
+  assert.equal(resolution.selectedModuleRoleRefs.length, 3);
+  assert(resolution.selectedModuleRefs.includes("constitute-ui/runtime-surface-client@0.1.0"));
+  assert.deepEqual(resolution.permissionRefs, ["permission:logging-ui:run"]);
+  assert.deepEqual(resolution.accessGroupRefs, ["access-group:logging-ui"]);
+  assert.equal(resolution.safeFacts.storageRefCount, 1);
+
+  const blocked = surfaceAppReleaseResolution(contract, selection, {
+    sourceSnapshotRef: "",
+    sourceDigestRefs: [],
+    storageRefs: [],
+    blockedReasons: ["sourceDigestRevoked"],
+    issuedAt: 1234,
+  });
+  assert.equal(blocked.state, "blocked");
+  assert(blocked.blockedReasons.includes("sourceDigestRevoked"));
 });
 
 test("surface app helper gates bundled module roles by contract", () => {

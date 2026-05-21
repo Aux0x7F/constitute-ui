@@ -180,6 +180,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
     pinnedVersion: String(runtimeSelectionPosture.pinnedVersion || ""),
     sourceMode: String(runtimeSelectionPosture.sourceMode || ""),
     runtimeSelectionPosture,
+    releaseResolution: runtimeSelectionPosture.releaseResolution || null,
     moduleBindings: moduleBindings || null,
     runnerPlan,
     runnerFulfillmentLifecycle: appInstancePosture.runnerFulfillmentLifecycle || null,

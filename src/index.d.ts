@@ -190,17 +190,22 @@ export type SurfaceAppAuthorityAccessPosture = {
   appId: string;
   actionRequired: boolean;
   accessRequired: boolean;
+  syncRequired: boolean;
   rootRefs: string[];
   deviceRefs: string[];
   grantRefs: string[];
   authorityRefs: string[];
   accessGroupRefs: string[];
+  accessEpochRefs: string[];
+  privateEnvelopeRefs: string[];
+  syncRefs: string[];
   requiredContentClasses: string[];
   revocationRefs: string[];
   exerciseRefs: string[];
   evidenceRefs: string[];
   actionPosture: Readonly<Record<string, unknown>>;
   accessPosture: Readonly<Record<string, unknown>>;
+  syncPosture: Readonly<Record<string, unknown>>;
   revocationPosture: Readonly<Record<string, unknown>>;
   expiryPosture: Readonly<Record<string, unknown>>;
   revocationState?: string;
@@ -328,6 +333,7 @@ export type SurfaceAppRunnerFulfillmentReadiness = {
   releaseRefs: string[];
   evidenceRefs: string[];
   resourcePosture: Readonly<Record<string, unknown>> | null;
+  hostFulfillmentPosture: Readonly<Record<string, unknown>> | null;
   operationPosture: Readonly<Record<string, unknown>> | null;
   fulfillmentPosture: Readonly<Record<string, unknown>> | null;
   blockedReasons: string[];
@@ -368,6 +374,7 @@ export type SurfaceAppRunnerFulfillmentLifecycle = {
   secretBoundary?: Readonly<Record<string, unknown>>;
   releasePosture: Readonly<Record<string, unknown>> | null;
   rollbackPosture: Readonly<Record<string, unknown>> | null;
+  hostFulfillmentPosture: Readonly<Record<string, unknown>> | null;
   releaseRef?: string;
   rollbackRef?: string;
   operationPosture: Readonly<Record<string, unknown>> | null;
@@ -411,6 +418,9 @@ export type SurfaceServiceManagerOperationPosture = {
   resourcePosture?: Readonly<Record<string, unknown>>;
   evidenceRefs: string[];
   proofRefs: string[];
+  witnessRefs: string[];
+  retentionRefs: string[];
+  releaseWitnessRefs: string[];
   blockedReasons: string[];
   safeFacts?: Readonly<Record<string, unknown>>;
   requestedAt: number;
@@ -625,6 +635,14 @@ export type SurfaceAppManifestSelection = {
   requiredModuleRoles: string[];
   bundledSourceRefs: string[];
   remoteSourceRefs: string[];
+  storageObjectRefs: string[];
+  releaseSourceRefs: string[];
+  swarmSourceRefs: string[];
+  digestRefs: string[];
+  signatureRefs: string[];
+  publisherRefs: string[];
+  sourceAuthorityRefs: string[];
+  releaseEvidenceRefs: string[];
   grantRefs: string[];
   runnerRequirementRefs: string[];
   serviceManagerRequirementRefs: string[];
@@ -632,6 +650,7 @@ export type SurfaceAppManifestSelection = {
   compatibilityRefs: string[];
   bootstrapContractRef: string;
   releaseContractRef: string;
+  sourceCandidatePosture: SurfaceAppSourceCandidatePosture;
   evidenceRefs: string[];
   blockedReasons: string[];
   claim: Readonly<Record<string, unknown>> | null;
@@ -652,6 +671,85 @@ export type SurfaceAppManifestRunnerPlan = {
   expiresAt?: unknown;
 };
 
+export type SurfaceAppSourceClass =
+  | "bundled"
+  | "storagePinned"
+  | "releaseFetched"
+  | "swarmHosted"
+  | "nativeInstalled"
+  | "devOverlay"
+  | "unknown";
+
+export type SurfaceAppSourceCandidatePosture = {
+  kind: "surface.app.source.candidate.posture";
+  state: "ready" | "degraded" | "blocked";
+  sourceMode: string;
+  sourceClass: SurfaceAppSourceClass;
+  candidateRefs: string[];
+  bundledSourceRefs: string[];
+  remoteSourceRefs: string[];
+  storageObjectRefs: string[];
+  releaseSourceRefs: string[];
+  swarmSourceRefs: string[];
+  releaseContractRef: string;
+  digestRefs: string[];
+  signatureRefs: string[];
+  publisherRefs: string[];
+  sourceAuthorityRefs: string[];
+  releaseEvidenceRefs: string[];
+  compatibilityRefs: string[];
+  proofDigestRefs: string[];
+  rollbackRefs: string[];
+  secretBoundaryRefs: string[];
+  trustRefs: string[];
+  evidenceRefs: string[];
+  blockedReasons: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
+export type SurfaceAppDistributionPosture = {
+  state: "pending" | "retained" | "degraded" | "blocked" | "superseded" | "ignored";
+  sourceMode: string;
+  sourceRefs: string[];
+  storageRefs: string[];
+  pinIntentRefs: string[];
+  pinProjectionRefs: string[];
+  releaseContractRefs: string[];
+  retentionRefs: string[];
+  retentionClass: string;
+  schemaPosture?: Readonly<Record<string, unknown>>;
+  releasePosture: Readonly<Record<string, unknown>>;
+  evidenceRefs: string[];
+  blockedReasons: string[];
+  safeFacts: Readonly<Record<string, unknown>>;
+};
+
+export type SurfaceAppContractResolution = {
+  kind: "surface.app.contract.resolution";
+  state: "ready" | "blocked";
+  appId: string;
+  appContractRef: string;
+  version: string;
+  sourceMode: string;
+  requiredPrimitiveRefs: string[];
+  requiredModuleRoles: string[];
+  moduleRoleClaims: readonly Record<string, unknown>[];
+  permissionRequirementRefs: string[];
+  capabilityRequirementRefs: string[];
+  projectionSubscriptionRefs: string[];
+  materializationBudgetRefs: string[];
+  actionGrantRefs: string[];
+  accessRequirementRefs: string[];
+  requiredContentClasses: string[];
+  compatibilityRefs: string[];
+  compatibilityState: string;
+  blockedReasons: string[];
+  safeFacts: Readonly<Record<string, unknown>>;
+  issuedAt: number;
+  expiresAt?: unknown;
+};
+
 export type SurfaceAppRuntimeSelectionPosture = {
   kind: "surface.app.runtime.selection.posture";
   selectionId: string;
@@ -665,6 +763,13 @@ export type SurfaceAppRuntimeSelectionPosture = {
   sourceMode: string;
   requiredModuleRoles: string[];
   compatibilityResult: Readonly<Record<string, unknown>>;
+  appContractResolution: SurfaceAppContractResolution;
+  requiredPrimitiveRefs: string[];
+  permissionRequirementRefs: string[];
+  capabilityRequirementRefs: string[];
+  projectionSubscriptionRefs: string[];
+  materializationBudgetRefs: string[];
+  accessRequirementRefs: string[];
   sourceTrustResult: Readonly<Record<string, unknown>>;
   modulePostures: readonly SurfaceModuleRolePosture[];
   runnerReadiness: Readonly<Record<string, unknown>>;
@@ -770,6 +875,19 @@ export function surfaceAppManifestSelection(
   surfaceAppsOrContracts: readonly (DefinedSurfaceApp | SurfaceAppContractShape)[] | Record<string, DefinedSurfaceApp | SurfaceAppContractShape>,
   options?: Record<string, unknown>,
 ): SurfaceAppManifestSelection;
+export function surfaceAppContractResolution(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape | null | undefined,
+  selection?: Record<string, unknown>,
+  options?: Record<string, unknown>,
+): SurfaceAppContractResolution;
+export function surfaceAppSourceCandidatePosture(
+  selectionOrOptions: Record<string, unknown>,
+  options?: Record<string, unknown>,
+): SurfaceAppSourceCandidatePosture;
+export function surfaceAppDistributionPosture(
+  selectionOrOptions: Record<string, unknown>,
+  options?: Record<string, unknown>,
+): SurfaceAppDistributionPosture;
 export function surfaceAppRunnerPlanFromManifest(
   manifest: Record<string, unknown>,
   surfaceAppsOrContracts: readonly (DefinedSurfaceApp | SurfaceAppContractShape)[] | Record<string, DefinedSurfaceApp | SurfaceAppContractShape>,
@@ -1131,11 +1249,20 @@ export type PreparedServiceRegistry = {
   participantCount: number;
   entryCount: number;
   blockedReasons: readonly string[];
+  materializationPosture: Readonly<Record<string, unknown>>;
   services: readonly PreparedServiceRegistryService[];
 };
 
-export function preparedServiceRegistry(snapshot?: Record<string, unknown>): PreparedServiceRegistry;
-export function preparedServiceRegistryServices(snapshot?: Record<string, unknown>): readonly PreparedServiceRegistryService[];
+export type PreparedServiceRegistryOptions = {
+  clientId?: string;
+  surface?: string;
+  materializationBudget?: Record<string, unknown>;
+  consumerFloor?: Record<string, unknown>;
+};
+
+export function preparedServiceRegistry(snapshot?: Record<string, unknown>, options?: PreparedServiceRegistryOptions): PreparedServiceRegistry;
+export function preparedServiceRegistryServices(snapshot?: Record<string, unknown>, options?: PreparedServiceRegistryOptions): readonly PreparedServiceRegistryService[];
 
 export * from "./projection-read-model.js";
 export * from "./runtime-shell-state.js";
+export * from "./runtime-read-model.js";

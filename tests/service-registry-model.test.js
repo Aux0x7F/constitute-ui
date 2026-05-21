@@ -52,3 +52,34 @@ test("service registry helper falls back to plain catalog services", () => {
   assert.equal(registry.serviceCount, 1);
   assert.equal(registry.services[0].service, "logging");
 });
+
+test("service registry helper carries materialization posture", () => {
+  const registry = preparedServiceRegistry({
+    serviceCatalog: {
+      services: [{ service: "gateway", servicePk: "gateway-pk" }],
+    },
+    runtimeEvents: [{ eventId: "runtime-event-a" }],
+  }, {
+    clientId: "gateway-ui",
+    surface: "constitute-gateway-ui",
+    materializationBudget: {
+      kind: "materialization.budget",
+      budgetId: "budget:gateway-ui:runtime-snapshot",
+      state: "withinBudget",
+      payloadClass: "projection",
+      copyRole: "projection",
+      privacyTier: "safeProjection",
+      limits: { replayLimit: 1, estimatedSnapshotBytes: 1024 },
+      consumerFloor: {
+        kind: "consumer.floor",
+        floorId: "floor:gateway-ui:runtime-snapshot",
+        lagState: "current",
+      },
+    },
+  });
+
+  assert.equal(registry.materializationPosture.kind, "runtime.materialization.posture");
+  assert.equal(registry.materializationPosture.state, "withinBudget");
+  assert.equal(registry.materializationPosture.budgetId, "budget:gateway-ui:runtime-snapshot");
+  assert.equal(registry.materializationPosture.consumerFloorId, "floor:gateway-ui:runtime-snapshot");
+});

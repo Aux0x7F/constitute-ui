@@ -4,6 +4,7 @@ import {
   applyRuntimeActivationPostureToStreamSession,
   applyRuntimeMediaFulfillmentPostureToStreamSession,
   applyRuntimeRouteObservationToStreamSession,
+  applyRuntimeStreamLifecycleToStreamSession,
   collectRuntimeActivationKeys,
   collectRuntimeIntentResultKeys,
   collectRuntimeMediaFulfillmentKeys,
@@ -125,6 +126,44 @@ test("runtime activation posture applies service admission lifecycle to stream s
     mediaReleasedCount: 0,
     expiresAt: session.expiresAt,
   });
+});
+
+test("runtime stream lifecycle frames apply service posture to stream session", () => {
+  const session = {
+    routePending: true,
+    serviceAccepted: false,
+    serviceRejected: false,
+    answerReceived: false,
+    serviceAdmissionTimedOut: false,
+    routeState: "",
+    runtimeBlockedReason: "",
+    healthStatus: "",
+  };
+
+  assert.equal(applyRuntimeStreamLifecycleToStreamSession(session, { phase: "admission" }), "admission");
+  assert.equal(session.routePending, false);
+  assert.equal(session.serviceAccepted, true);
+  assert.equal(session.routeState, "serviceAccepted");
+
+  assert.equal(applyRuntimeStreamLifecycleToStreamSession(session, { phase: "answer" }), "answer");
+  assert.equal(session.answerReceived, true);
+  assert.equal(session.serviceRejected, false);
+  assert.equal(session.runtimeBlockedReason, "");
+
+  assert.equal(applyRuntimeStreamLifecycleToStreamSession(session, {
+    phase: "reject",
+    record: { reasonCode: "unsupportedSource" },
+  }), "reject");
+  assert.equal(session.serviceRejected, true);
+  assert.equal(session.serviceAdmissionTimedOut, false);
+  assert.equal(session.runtimeBlockedReason, "unsupportedSource");
+  assert.equal(session.routeState, "serviceRejected");
+
+  assert.equal(applyRuntimeStreamLifecycleToStreamSession(session, {
+    phase: "health",
+    record: { status: "closed" },
+  }), "health");
+  assert.equal(session.healthStatus, "closed");
 });
 
 test("runtime route observations remain route posture rather than service admission", () => {

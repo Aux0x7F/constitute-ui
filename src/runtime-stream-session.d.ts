@@ -24,5 +24,6 @@ export declare function runtimeIntentWaitingAuthority(result: unknown): boolean;
 export declare function runtimeIntentState(result: unknown): string;
 export declare function runtimeIntentPendingRoute(result: unknown): boolean;
 export declare function applyRuntimeActivationPostureToStreamSession(session: Record<string, unknown>, activation?: Record<string, unknown>): string;
+export declare function applyRuntimeStreamLifecycleToStreamSession(session: Record<string, unknown>, lifecycle?: Record<string, unknown>): string;
 export declare function applyRuntimeMediaFulfillmentPostureToStreamSession(session: Record<string, unknown>, posture?: Record<string, unknown>): string;
 export declare function runtimeStreamSessionPosture(sessions?: Array<Record<string, unknown>>): RuntimeStreamPosture;
