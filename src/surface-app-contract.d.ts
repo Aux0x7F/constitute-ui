@@ -32,6 +32,27 @@ export type SurfaceAppActivity = {
   [key: string]: unknown;
 };
 
+export type SurfaceAppActivityDependency = {
+  dependencyRef: string;
+  appContractRef?: string;
+  activityRef?: string;
+  activityId?: string;
+  activityRefs?: string[];
+  dependencyType?: string;
+  required?: boolean;
+  state?: string;
+  contractRefs?: string[];
+  primitiveRefs?: string[];
+  permissionRefs?: string[];
+  accessGroupRefs?: string[];
+  materializationRefs?: string[];
+  evidenceRefs?: string[];
+  blockedReasons?: string[];
+  issuedAt?: number;
+  expiresAt?: unknown;
+  [key: string]: unknown;
+};
+
 export type SurfaceAppContractShape = {
   contractId: string;
   appId: string;
@@ -55,6 +76,9 @@ export type SurfaceAppContractShape = {
   requiredModuleRoles?: string[];
   modules?: SurfaceAppModuleClaim[];
   activities?: SurfaceAppActivity[];
+  activityDependencies?: SurfaceAppActivityDependency[];
+  dependencies?: SurfaceAppActivityDependency[];
+  activityDependencyRefs?: string[];
   activityRefs?: string[];
   projectionSubscriptions?: unknown[];
   permissionRequirements?: unknown[];
@@ -90,6 +114,12 @@ export type SurfaceAppActivityPosture = {
   permissionRefs: string[];
   accessGroupRefs: string[];
   materializationRefs: string[];
+  dependencyRefs: string[];
+  dependencyContractRefs: string[];
+  dependencyPrimitiveRefs: string[];
+  dependencyPermissionRefs: string[];
+  dependencyAccessGroupRefs: string[];
+  dependencyMaterializationRefs: string[];
   evidenceRefs: string[];
   blockedReasons: string[];
   issuedAt: number;
@@ -735,6 +765,8 @@ export type SurfaceAppContractResolution = {
   sourceMode: string;
   requiredPrimitiveRefs: string[];
   activityRefs: string[];
+  activityDependencyRefs: string[];
+  activityDependencyContractRefs: string[];
   requiredModuleRoles: string[];
   moduleRoleClaims: readonly Record<string, unknown>[];
   permissionRequirementRefs: string[];
@@ -858,6 +890,8 @@ export type DefinedSurfaceApp = {
   modulesByRole: Readonly<Record<string, readonly SurfaceAppModuleClaim[]>>;
   activities: readonly SurfaceAppActivity[];
   activitiesByRef: ReadonlyMap<string, SurfaceAppActivity>;
+  activityDependencies: readonly SurfaceAppActivityDependency[];
+  activityDependenciesByRef: ReadonlyMap<string, readonly SurfaceAppActivityDependency[]>;
   requiredRoles: readonly string[];
   missingRoles: readonly string[];
   posture: SurfaceAppPosture;
@@ -866,6 +900,7 @@ export type DefinedSurfaceApp = {
   modulesForRole(role: string): readonly SurfaceAppModuleClaim[];
   activityFor(refOrId: string): SurfaceAppActivity | null;
   activitiesForLaunchMode(launchMode: string): readonly SurfaceAppActivity[];
+  activityDependenciesFor(refOrId: string): readonly SurfaceAppActivityDependency[];
   attachContext(extra?: Record<string, unknown>): SurfaceAppAttachContext;
 };
 

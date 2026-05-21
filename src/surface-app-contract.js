@@ -76,9 +76,11 @@ export function defineSurfaceAppContract(contract, { validate } = {}) {
 
   const modules = normalizeModules(validated.modules);
   const activities = normalizeActivities(validated.activities);
+  const activityDependencies = normalizeActivityDependencies(validated.activityDependencies || validated.dependencies);
   const requiredRoles = normalizeStringArray(validated.requiredModuleRoles);
   const modulesByRole = indexModulesByRole(modules);
   const activitiesByRef = indexActivities(activities);
+  const activityDependenciesByRef = indexActivityDependencies(activityDependencies);
   const missingRoles = requiredRoles.filter((role) => !modulesByRole[role]?.length);
   const posture = Object.freeze({
     state: missingRoles.length ? "blocked" : "ready",
@@ -88,11 +90,13 @@ export function defineSurfaceAppContract(contract, { validate } = {}) {
   });
 
   const surfaceApp = {
-    contract: freezeContract(validated, modules, requiredRoles, activities),
+    contract: freezeContract(validated, modules, requiredRoles, activities, activityDependencies),
     modules,
     modulesByRole,
     activities,
     activitiesByRef,
+    activityDependencies,
+    activityDependenciesByRef,
     requiredRoles: Object.freeze([...requiredRoles]),
     missingRoles: Object.freeze([...missingRoles]),
     posture,
@@ -111,6 +115,12 @@ export function defineSurfaceAppContract(contract, { validate } = {}) {
     activitiesForLaunchMode(launchMode) {
       const mode = String(launchMode || "");
       return Object.freeze(activities.filter((activity) => !mode || activity.launchMode === mode));
+    },
+    activityDependenciesFor(refOrId) {
+      const ref = String(refOrId || "").trim();
+      const activity = surfaceApp.activityFor(ref);
+      const keys = uniqueStrings([ref, activity?.activityRef, activity?.activityId]);
+      return Object.freeze(keys.flatMap((key) => activityDependenciesByRef.get(key) || []));
     },
     attachContext(extra = {}) {
       return surfaceAppAttachContext(surfaceApp, extra);
@@ -1251,6 +1261,7 @@ export function surfaceAppContractResolution(surfaceAppOrContract, selection = {
   const requiredPrimitiveRefs = uniqueStrings([
     ...normalizeStringArray(contract.requiredPrimitives),
     ...(contract.activities || []).flatMap((activity) => normalizeStringArray(activity.primitiveRefs)),
+    ...(contract.activityDependencies || []).flatMap((dependency) => normalizeStringArray(dependency.primitiveRefs)),
     ...((surfaceApp?.modules || []).flatMap((module) => normalizeStringArray(module.primitiveRefs))),
     ...normalizeStringArray(options.requiredPrimitiveRefs),
   ]);
@@ -1259,6 +1270,13 @@ export function surfaceAppContractResolution(surfaceAppOrContract, selection = {
     ...(contract.activities || []).map((activity) => activity?.activityRef),
     ...normalizeStringArray(options.activityRefs),
   ]);
+  const activityDependencyRefs = uniqueStrings([
+    ...normalizeStringArray(contract.activityDependencyRefs),
+    ...(contract.activityDependencies || []).map((dependency) => dependency?.dependencyRef),
+    ...normalizeStringArray(options.activityDependencyRefs),
+  ]);
+  const activityDependencyContractRefs = uniqueStrings((contract.activityDependencies || [])
+    .flatMap((dependency) => normalizeStringArray(dependency.contractRefs)));
   const moduleRoleClaims = deepFreeze((surfaceApp?.modules || []).map((module) => ({
     role: String(module.role || ""),
     moduleRef: String(module.moduleRef || ""),
@@ -1275,6 +1293,8 @@ export function surfaceAppContractResolution(surfaceAppOrContract, selection = {
   ]);
   const activityPermissionRefs = uniqueStrings((contract.activities || [])
     .flatMap((activity) => normalizeStringArray(activity.permissionRefs)));
+  const dependencyPermissionRefs = uniqueStrings((contract.activityDependencies || [])
+    .flatMap((dependency) => normalizeStringArray(dependency.permissionRefs)));
   const capabilityRequirementRefs = requirementRefs(contract.capabilityRequirements, [
     "requirementRef",
     "capabilityRef",
@@ -1288,11 +1308,13 @@ export function surfaceAppContractResolution(surfaceAppOrContract, selection = {
   const materializationBudgetRefs = uniqueStrings([
     ...(contract.materializationBudgets || []).map((budget) => budget?.budgetId),
     ...(contract.activities || []).flatMap((activity) => normalizeStringArray(activity.materializationRefs)),
+    ...(contract.activityDependencies || []).flatMap((dependency) => normalizeStringArray(dependency.materializationRefs)),
     ...normalizeStringArray(options.materializationBudgetRefs),
   ]);
   const accessRequirementRefs = uniqueStrings([
     ...contractAccessRefs(contract, secretBoundary),
     ...(contract.activities || []).flatMap((activity) => normalizeStringArray(activity.accessGroupRefs)),
+    ...(contract.activityDependencies || []).flatMap((dependency) => normalizeStringArray(dependency.accessGroupRefs)),
   ]);
   const blockedReasons = uniqueStrings([
     ...(!surfaceApp ? ["missingAppContract"] : []),
@@ -1308,6 +1330,8 @@ export function surfaceAppContractResolution(surfaceAppOrContract, selection = {
     version: String(selection.version || contract.version || ""),
     sourceMode: String(selection.sourceMode || dominantFulfillmentMode(surfaceApp?.modules || []) || "bundled"),
     activityRefs,
+    activityDependencyRefs,
+    activityDependencyContractRefs,
     requiredPrimitiveRefs,
     requiredModuleRoles: uniqueStrings([
       ...normalizeStringArray(selection.requiredModuleRoles),
@@ -1317,6 +1341,7 @@ export function surfaceAppContractResolution(surfaceAppOrContract, selection = {
     permissionRequirementRefs: uniqueStrings([
       ...permissionRequirementRefs,
       ...activityPermissionRefs,
+      ...dependencyPermissionRefs,
     ]),
     capabilityRequirementRefs,
     projectionSubscriptionRefs,
@@ -1336,8 +1361,9 @@ export function surfaceAppContractResolution(surfaceAppOrContract, selection = {
     safeFacts: {
       primitiveRefCount: requiredPrimitiveRefs.length,
       activityRefCount: activityRefs.length,
+      activityDependencyRefCount: activityDependencyRefs.length,
       moduleClaimCount: moduleRoleClaims.length,
-      permissionRequirementCount: uniqueStrings([...permissionRequirementRefs, ...activityPermissionRefs]).length,
+      permissionRequirementCount: uniqueStrings([...permissionRequirementRefs, ...activityPermissionRefs, ...dependencyPermissionRefs]).length,
       capabilityRequirementCount: capabilityRequirementRefs.length,
       projectionSubscriptionCount: projectionSubscriptionRefs.length,
       materializationBudgetCount: materializationBudgetRefs.length,
@@ -1384,6 +1410,16 @@ export function surfaceAppActivityPosture(surfaceAppOrContract, activityRefOrId 
     ...normalizeStringArray(activity?.materializationRefs),
     ...normalizeStringArray(options.materializationRefs),
   ]);
+  const activityDependencies = uniqueByRef([
+    ...surfaceApp.activityDependenciesFor(selectedActivityRef || requested),
+    ...normalizeActivityDependencies(options.activityDependencies),
+  ], "dependencyRef");
+  const dependencyRefs = uniqueStrings(activityDependencies.map((dependency) => dependency.dependencyRef));
+  const dependencyContractRefs = uniqueStrings(activityDependencies.flatMap((dependency) => normalizeStringArray(dependency.contractRefs)));
+  const dependencyPrimitiveRefs = uniqueStrings(activityDependencies.flatMap((dependency) => normalizeStringArray(dependency.primitiveRefs)));
+  const dependencyPermissionRefs = uniqueStrings(activityDependencies.flatMap((dependency) => normalizeStringArray(dependency.permissionRefs)));
+  const dependencyAccessGroupRefs = uniqueStrings(activityDependencies.flatMap((dependency) => normalizeStringArray(dependency.accessGroupRefs)));
+  const dependencyMaterializationRefs = uniqueStrings(activityDependencies.flatMap((dependency) => normalizeStringArray(dependency.materializationRefs)));
   const missingRoleRefs = moduleRoleRefs.filter((roleRef) => {
     if (surfaceApp.hasRole(roleRef)) return false;
     return !surfaceApp.modules.some((module) => (
@@ -1399,6 +1435,7 @@ export function surfaceAppActivityPosture(surfaceAppOrContract, activityRefOrId 
     ...(activity && !primitiveRefs.length ? ["missingActivityPrimitiveRefs"] : []),
     ...(activity && !moduleRoleRefs.length ? ["missingActivityModuleRoleRefs"] : []),
     ...missingRoleRefs.map((ref) => `missingActivityModuleRole:${ref}`),
+    ...activityDependencies.flatMap((dependency) => dependencyBlockedReasons(dependency)),
     ...normalizeStringArray(options.blockedReasons),
   ]);
   return deepFreeze({
@@ -1415,8 +1452,15 @@ export function surfaceAppActivityPosture(surfaceAppOrContract, activityRefOrId 
     permissionRefs,
     accessGroupRefs,
     materializationRefs,
+    dependencyRefs,
+    dependencyContractRefs,
+    dependencyPrimitiveRefs,
+    dependencyPermissionRefs,
+    dependencyAccessGroupRefs,
+    dependencyMaterializationRefs,
     evidenceRefs: uniqueStrings([
       ...normalizeStringArray(activity?.evidenceRefs),
+      ...activityDependencies.flatMap((dependency) => normalizeStringArray(dependency.evidenceRefs)),
       ...normalizeStringArray(options.evidenceRefs),
     ]),
     blockedReasons,
@@ -3811,6 +3855,22 @@ function normalizeActivities(value) {
     })));
 }
 
+function normalizeActivityDependencies(value) {
+  if (!Array.isArray(value)) return Object.freeze([]);
+  return Object.freeze(value
+    .filter(isObject)
+    .map((dependency) => Object.freeze({
+      ...dependency,
+      contractRefs: Object.freeze(normalizeStringArray(dependency.contractRefs)),
+      primitiveRefs: Object.freeze(normalizeStringArray(dependency.primitiveRefs)),
+      permissionRefs: Object.freeze(normalizeStringArray(dependency.permissionRefs)),
+      accessGroupRefs: Object.freeze(normalizeStringArray(dependency.accessGroupRefs)),
+      materializationRefs: Object.freeze(normalizeStringArray(dependency.materializationRefs)),
+      evidenceRefs: Object.freeze(normalizeStringArray(dependency.evidenceRefs)),
+      blockedReasons: Object.freeze(normalizeStringArray(dependency.blockedReasons)),
+    })));
+}
+
 function indexModulesByRole(modules) {
   const index = {};
   for (const role of SURFACE_CONTRACT_ROLE_ORDER) index[role] = [];
@@ -3837,17 +3897,61 @@ function indexActivities(activities) {
   return index;
 }
 
-function freezeContract(contract, modules, requiredRoles, activities = Object.freeze([])) {
+function indexActivityDependencies(activityDependencies) {
+  const index = new Map();
+  for (const dependency of activityDependencies) {
+    for (const key of uniqueStrings([
+      dependency.activityRef,
+      dependency.activityId,
+      ...(Array.isArray(dependency.activityRefs) ? dependency.activityRefs : []),
+    ])) {
+      if (!index.has(key)) index.set(key, []);
+      index.get(key).push(dependency);
+    }
+  }
+  for (const [key, dependencies] of index) index.set(key, Object.freeze([...dependencies]));
+  return index;
+}
+
+function dependencyBlockedReasons(dependency) {
+  const dependencyRef = String(dependency?.dependencyRef || dependency?.dependencyType || "unknown").trim();
+  const state = String(dependency?.state || "pending").trim();
+  const required = dependency?.required !== false;
+  const reasons = [];
+  if (state === "blocked") {
+    const dependencyReasons = normalizeStringArray(dependency.blockedReasons);
+    reasons.push(...(dependencyReasons.length
+      ? dependencyReasons.map((reason) => `dependency:${dependencyRef}:${reason}`)
+      : [`dependencyBlocked:${dependencyRef}`]));
+  } else if (required && state !== "ready") {
+    reasons.push(`requiredDependencyNotReady:${dependencyRef}`);
+  }
+  if (required && normalizeStringArray(dependency.contractRefs).length === 0) {
+    reasons.push(`missingDependencyContract:${dependencyRef}`);
+  }
+  if (required && normalizeStringArray(dependency.primitiveRefs).length === 0) {
+    reasons.push(`missingDependencyPrimitive:${dependencyRef}`);
+  }
+  return reasons;
+}
+
+function freezeContract(contract, modules, requiredRoles, activities = Object.freeze([]), activityDependencies = Object.freeze([])) {
   const activityRefs = uniqueStrings([
     ...normalizeStringArray(contract.activityRefs),
     ...activities.map((activity) => activity.activityRef),
+  ]);
+  const activityDependencyRefs = uniqueStrings([
+    ...normalizeStringArray(contract.activityDependencyRefs),
+    ...activityDependencies.map((dependency) => dependency.dependencyRef),
   ]);
   return Object.freeze({
     ...contract,
     requiredPrimitives: Object.freeze(normalizeStringArray(contract.requiredPrimitives)),
     requiredModuleRoles: Object.freeze([...requiredRoles]),
     activityRefs: Object.freeze(activityRefs),
+    activityDependencyRefs: Object.freeze(activityDependencyRefs),
     activities,
+    activityDependencies,
     modules,
     projectionSubscriptions: Object.freeze(normalizeArray(contract.projectionSubscriptions)),
     permissionRequirements: Object.freeze(normalizeArray(contract.permissionRequirements)),
@@ -4049,6 +4153,19 @@ function uniqueStrings(value) {
     out.push(normalized);
   }
   return out;
+}
+
+function uniqueByRef(values, key) {
+  const seen = new Set();
+  const out = [];
+  for (const value of values) {
+    if (!isObject(value)) continue;
+    const id = String(value[key] || "").trim() || JSON.stringify(value);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(value);
+  }
+  return Object.freeze(out);
 }
 
 function materializationUpstreamPosture(upstreamPosture, upstreamBudget) {
