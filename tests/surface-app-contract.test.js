@@ -36,6 +36,7 @@ import {
   surfaceAppFulfillmentIdentityPosture,
   surfaceAppInstancePosture,
   surfaceAppManifestSelection,
+  surfaceAppReleaseResolution,
   surfaceAppRuntimeSelectionPosture,
   surfaceAppRunnerFulfillmentLifecycle,
   surfaceAppRunnerFulfillmentReadiness,
@@ -1213,6 +1214,71 @@ test("surface app source candidate posture gates non-bundled sources explicitly"
   assert(incompleteRemote.blockedReasons.includes("missingRollbackRef"));
   assert(incompleteRemote.blockedReasons.includes("missingSecretBoundaryRef"));
   assert(incompleteRemote.blockedReasons.includes("missingSourceTrustRef"));
+});
+
+test("surface app release resolution binds manifest modules to content addressed sources", () => {
+  const contract = makeContract({
+    contractId: "surface-app:logging-ui@0.2.0",
+    appRef: "surface-app:logging-ui@0.2.0",
+    version: "0.2.0",
+    compatibilityRefs: ["protocol:surface-app:v1"],
+    permissionRequirements: [{ permissionRef: "permission:logging-ui:run" }],
+    accessGroupRefs: ["access-group:logging-ui"],
+  });
+  const manifest = {
+    kind: "surface.app.manifest",
+    manifestId: "manifest:logging-ui",
+    appId: "constitute-logging-ui",
+    currentAppContractRef: "surface-app:logging-ui@0.2.0",
+    currentVersion: "0.2.0",
+    defaultSourceMode: "storageObject",
+    versions: [
+      {
+        appContractRef: "surface-app:logging-ui@0.2.0",
+        version: "0.2.0",
+        state: "current",
+        sourceMode: "storageObject",
+        remoteSourceRefs: ["storage:object:logging-ui@0.2.0"],
+        releaseContractRef: "app:release:logging-ui@0.2.0",
+        digestRefs: ["source:digest:logging-ui@0.2.0"],
+        signatureRefs: ["signature:logging-ui@0.2.0"],
+        compatibilityRefs: ["protocol:surface-app:v1"],
+        proofDigestRefs: ["build:proof:logging-ui@0.2.0"],
+        rollbackRefs: ["app:release:logging-ui@0.1.0"],
+        secretBoundaryRefs: ["secret-boundary:logging-ui"],
+        trustRefs: ["trust:logging-ui@0.2.0"],
+        requiredModuleRoles: ["runtimeClient", "projectionModel", "productView"],
+      },
+    ],
+    issuedAt: 1234,
+  };
+  const selection = surfaceAppManifestSelection(manifest, [contract], { issuedAt: 1234 });
+  const resolution = surfaceAppReleaseResolution(contract, selection, {
+    sourceSnapshotRef: "source:snapshot:logging-ui@0.2.0",
+    issuedAt: 1234,
+  });
+
+  assert.equal(selection.state, "ready");
+  assert.equal(resolution.state, "resolved");
+  assert.equal(resolution.kind, "surface.app.release.resolution");
+  assert.equal(resolution.selectedReleaseRef, "app:release:logging-ui@0.2.0");
+  assert.deepEqual(resolution.selectedStorageRefs, ["storage:object:logging-ui@0.2.0"]);
+  assert.deepEqual(resolution.sourceDigestRefs, ["source:digest:logging-ui@0.2.0"]);
+  assert.equal(resolution.selectedModuleRoleRefs.length, 3);
+  assert(resolution.selectedModuleRefs.includes("constitute-ui/runtime-surface-client@0.1.0"));
+  assert.deepEqual(resolution.permissionRefs, ["permission:logging-ui:run"]);
+  assert.deepEqual(resolution.accessGroupRefs, ["access-group:logging-ui"]);
+  assert.equal(resolution.safeFacts.storageRefCount, 1);
+
+  const blocked = surfaceAppReleaseResolution(contract, selection, {
+    sourceSnapshotRef: "",
+    sourceDigestRefs: [],
+    storageRefs: [],
+    blockedReasons: ["sourceDigestRevoked"],
+    issuedAt: 1234,
+  });
+  assert.equal(blocked.state, "blocked");
+  assert(blocked.blockedReasons.includes("sourceDigestRevoked"));
 });
 
 test("surface app helper gates bundled module roles by contract", () => {

@@ -995,6 +995,7 @@ export function surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, op
   const claimState = String(claim?.state || "").trim();
   const manifestState = String(manifest.state || "").trim();
   const releaseContractRef = String(options.releaseContractRef || claim?.releaseContractRef || "").trim();
+  const sourceSnapshotRef = String(options.sourceSnapshotRef || claim?.sourceSnapshotRef || manifest.sourceSnapshotRef || "").trim();
   const bundledSourceRefs = uniqueStrings([
     ...normalizeStringArray(manifest.bundledSourceRefs),
     ...normalizeStringArray(claim?.bundledSourceRefs),
@@ -1174,6 +1175,7 @@ export function surfaceAppManifestSelection(manifest, surfaceAppsOrContracts, op
     ]),
     bootstrapContractRef: String(options.bootstrapContractRef || claim?.bootstrapContractRef || ""),
     releaseContractRef,
+    sourceSnapshotRef,
     digestRefs,
     signatureRefs,
     publisherRefs,
@@ -1314,6 +1316,195 @@ export function surfaceAppContractResolution(surfaceAppOrContract, selection = {
       accessRequirementCount: accessRequirementRefs.length,
     },
     issuedAt: Number(options.issuedAt || selection.issuedAt || contract.issuedAt || Date.now()),
+    expiresAt: options.expiresAt || selection.expiresAt || contract.expiresAt,
+  });
+}
+
+export function surfaceAppReleaseResolution(surfaceAppOrContract, selection = {}, options = {}) {
+  const issuedAt = Number(options.issuedAt || selection.issuedAt || Date.now());
+  const surfaceApp = surfaceAppOrContract
+    ? (isDefinedSurfaceApp(surfaceAppOrContract)
+      ? surfaceAppOrContract
+      : defineSurfaceAppContract(surfaceAppOrContract))
+    : null;
+  const contract = surfaceApp?.contract || {};
+  const appContractRef = String(
+    options.appContractRef
+      || selection.appContractRef
+      || surfaceAppContractRef(contract)
+      || "",
+  ).trim();
+  const version = String(options.version || selection.version || contract.version || "").trim();
+  const sourceCandidatePosture = isObject(options.sourceCandidatePosture)
+    ? options.sourceCandidatePosture
+    : (isObject(selection.sourceCandidatePosture)
+      ? selection.sourceCandidatePosture
+      : surfaceAppSourceCandidatePosture(selection, options));
+  const releaseContract = isObject(options.releaseContract)
+    ? options.releaseContract
+    : (isObject(selection.releaseContract) ? selection.releaseContract : null);
+  const releasePosture = isObject(options.releasePosture)
+    ? options.releasePosture
+    : (isObject(releaseContract?.releasePosture)
+      ? releaseContract.releasePosture
+      : (isObject(contract.releasePosture) ? contract.releasePosture : {}));
+  const distributionPosture = isObject(options.distributionPosture)
+    ? options.distributionPosture
+    : surfaceAppDistributionPosture(selection, {
+      sourceCandidatePosture,
+      releaseContract,
+      releasePosture,
+      state: options.distributionState,
+      storageRefs: options.storageRefs,
+      sourceRefs: options.sourceRefs,
+      pinIntentRefs: options.pinIntentRefs,
+      pinProjectionRefs: options.pinProjectionRefs,
+      retentionRefs: options.retentionRefs,
+      evidenceRefs: options.distributionEvidenceRefs,
+    });
+  const contractResolution = isObject(options.contractResolution)
+    ? options.contractResolution
+    : surfaceAppContractResolution(surfaceApp, selection, {
+      compatibilityResult: options.compatibilityResult,
+      requiredPrimitiveRefs: options.requiredPrimitiveRefs,
+      materializationBudgetRefs: options.materializationBudgetRefs,
+      blockedReasons: options.contractBlockedReasons,
+      issuedAt,
+      expiresAt: options.expiresAt || selection.expiresAt,
+    });
+  const moduleBindings = isObject(options.moduleBindings) ? options.moduleBindings : null;
+  const moduleRoleClaims = Array.isArray(contractResolution.moduleRoleClaims)
+    ? contractResolution.moduleRoleClaims
+    : [];
+  const selectedModuleRoleRefs = uniqueStrings([
+    ...normalizeStringArray(options.selectedModuleRoleRefs || options.moduleRoleRefs),
+    ...moduleRoleClaims.map((claim) => claim.moduleRoleRef || moduleRoleRefForClaim(appContractRef, claim)),
+  ]);
+  const selectedModuleRefs = uniqueStrings([
+    ...normalizeStringArray(options.selectedModuleRefs || options.moduleRefs),
+    ...moduleRoleClaims.map((claim) => claim.moduleRef),
+    ...normalizeStringArray(moduleBindings?.moduleRefs),
+    ...normalizeStringArray(moduleBindings?.bindings?.map?.((binding) => binding?.moduleRef)),
+    ...normalizeStringArray(moduleBindings?.bindings?.map?.((binding) => binding?.implementationRef)),
+  ]);
+  const selectedStorageRefs = uniqueStrings([
+    ...normalizeStringArray(options.selectedStorageRefs || options.storageRefs),
+    ...normalizeStringArray(sourceCandidatePosture.storageObjectRefs),
+    ...normalizeStringArray(sourceCandidatePosture.swarmSourceRefs),
+    ...normalizeStringArray(distributionPosture.storageRefs),
+    ...normalizeStringArray(releaseContract?.storageRefs),
+    ...normalizeStringArray(releasePosture.storageRefs),
+  ]);
+  const sourceDigestRefs = uniqueStrings([
+    ...normalizeStringArray(options.sourceDigestRefs || options.digestRefs),
+    ...normalizeStringArray(sourceCandidatePosture.digestRefs),
+    ...normalizeStringArray(releaseContract?.digestRefs),
+    ...normalizeStringArray(releasePosture.digestRefs),
+  ]);
+  const sourceSnapshotRef = String(
+    options.sourceSnapshotRef
+      || selection.sourceSnapshotRef
+      || releaseContract?.sourceSnapshotRef
+      || releasePosture.sourceSnapshotRef
+      || "",
+  ).trim();
+  const selectedSourceRefs = uniqueStrings([
+    ...normalizeStringArray(options.selectedSourceRefs || options.sourceRefs),
+    ...normalizeStringArray(sourceCandidatePosture.candidateRefs),
+    ...normalizeStringArray(distributionPosture.sourceRefs),
+  ]);
+  const selectedArtifactRefs = uniqueStrings([
+    ...normalizeStringArray(options.selectedArtifactRefs || options.artifactRefs),
+    ...normalizeStringArray(releaseContract?.artifactRefs),
+    ...normalizeStringArray(releasePosture.artifactRefs),
+    ...selectedSourceRefs,
+  ]);
+  const buildProofRefs = uniqueStrings([
+    ...normalizeStringArray(options.buildProofRefs || options.proofRefs),
+    ...normalizeStringArray(sourceCandidatePosture.proofDigestRefs),
+    ...normalizeStringArray(releaseContract?.proofRefs),
+    ...normalizeStringArray(releaseContract?.proofDigestRefs),
+    ...normalizeStringArray(releasePosture.proofRefs),
+    ...normalizeStringArray(releasePosture.proofDigestRefs),
+  ]);
+  const selectedReleaseRef = String(
+    options.selectedReleaseRef
+      || options.releaseRef
+      || releaseContract?.releaseRef
+      || releasePosture.releaseRef
+      || selection.releaseContractRef
+      || (appContractRef && version ? `${appContractRef}:release:${version}` : ""),
+  ).trim();
+  const selectedActivityRef = String(
+    options.selectedActivityRef
+      || options.activityRef
+      || normalizeStringArray(contract.activityRefs)[0]
+      || normalizeStringArray(selection.activityRefs)[0]
+      || (appContractRef ? `${appContractRef}:activity:default` : ""),
+  ).trim();
+  const nonBundled = nonBundledSourceMode(sourceCandidatePosture.sourceMode || selection.sourceMode);
+  const blockedReasons = uniqueStrings([
+    ...prefixedBlockedReasons(contractResolution, "contract"),
+    ...prefixedBlockedReasons(sourceCandidatePosture, "source"),
+    ...prefixedBlockedReasons(distributionPosture, "distribution"),
+    ...prefixedBlockedReasons(moduleBindings, "moduleBinding"),
+    ...(!selectedReleaseRef ? ["missingSelectedReleaseRef"] : []),
+    ...(!selectedActivityRef ? ["missingSelectedActivityRef"] : []),
+    ...(!selectedArtifactRefs.length ? ["missingSelectedArtifactRefs"] : []),
+    ...(!selectedModuleRoleRefs.length ? ["missingSelectedModuleRoleRefs"] : []),
+    ...(nonBundled && !selectedStorageRefs.length ? ["missingSelectedStorageRefs"] : []),
+    ...(nonBundled && !sourceDigestRefs.length ? ["missingSourceDigestRefs"] : []),
+    ...(nonBundled && !sourceSnapshotRef ? ["missingSourceSnapshotRef"] : []),
+    ...(nonBundled && !buildProofRefs.length ? ["missingBuildProofRefs"] : []),
+    ...(!contractResolution.compatibilityRefs?.length ? ["missingCompatibilityRefs"] : []),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  const state = blockedReasons.length
+    ? "blocked"
+    : (String(distributionPosture.state || "") === "degraded" ? "degraded" : "resolved");
+  return deepFreeze({
+    kind: "surface.app.release.resolution",
+    resolutionRef: String(options.resolutionRef || (appContractRef ? `${appContractRef}:resolution:${version || "current"}` : "")),
+    appIntentRef: String(options.appIntentRef || selection.appIntentRef || (appContractRef ? `${appContractRef}:intent:launch` : "")),
+    appContractRef,
+    requestedVersion: version,
+    state,
+    selectedReleaseRef,
+    selectedActivityRef,
+    selectedArtifactRefs,
+    selectedModuleRoleRefs,
+    selectedModuleRefs,
+    selectedStorageRefs,
+    sourceSnapshotRef,
+    selectedSourceRefs,
+    sourceDigestRefs,
+    buildProofRefs,
+    compatibilityRefs: contractResolution.compatibilityRefs,
+    permissionRefs: contractResolution.permissionRequirementRefs,
+    accessGroupRefs: contractResolution.accessRequirementRefs,
+    evidenceRefs: uniqueStrings([
+      ...normalizeStringArray(options.evidenceRefs),
+      ...normalizeStringArray(sourceCandidatePosture.evidenceRefs),
+      ...normalizeStringArray(sourceCandidatePosture.releaseEvidenceRefs),
+      ...normalizeStringArray(distributionPosture.evidenceRefs),
+      ...normalizeStringArray(releaseContract?.evidenceRefs),
+      ...normalizeStringArray(releasePosture.evidenceRefs),
+    ]),
+    contractResolution,
+    sourceCandidatePosture,
+    distributionPosture,
+    moduleBindings,
+    blockedReasons,
+    safeFacts: {
+      sourceMode: String(sourceCandidatePosture.sourceMode || ""),
+      moduleRoleRefCount: selectedModuleRoleRefs.length,
+      moduleRefCount: selectedModuleRefs.length,
+      artifactRefCount: selectedArtifactRefs.length,
+      storageRefCount: selectedStorageRefs.length,
+      sourceDigestRefCount: sourceDigestRefs.length,
+      buildProofRefCount: buildProofRefs.length,
+    },
+    resolvedAt: issuedAt,
     expiresAt: options.expiresAt || selection.expiresAt || contract.expiresAt,
   });
 }
@@ -2215,11 +2406,20 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
     issuedAt,
     expiresAt: options.expiresAt || selection.expiresAt,
   });
+  const releaseResolution = surfaceAppReleaseResolution(surfaceApp, selection, {
+    ...(isObject(options.releaseResolutionOptions) ? options.releaseResolutionOptions : {}),
+    contractResolution: appContractResolution,
+    sourceCandidatePosture,
+    compatibilityResult,
+    issuedAt,
+    expiresAt: options.expiresAt || selection.expiresAt,
+  });
   const blockedReasons = uniqueStrings([
     ...selection.blockedReasons.map((reason) => `manifest:${reason}`),
     ...compatibilityResult.blockedReasons.map((reason) => `compatibility:${reason}`),
     ...sourceTrustResult.blockedReasons.map((reason) => `source:${reason}`),
     ...prefixedBlockedReasons(appContractResolution, "contractResolution"),
+    ...prefixedBlockedReasons(releaseResolution, "releaseResolution"),
     ...modulePostures
       .filter((posture) => posture.state === "blocked")
       .map((posture) => `module:${posture.role}:${posture.blockedReason}`),
@@ -2253,6 +2453,7 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
     requiredModuleRoles,
     compatibilityResult,
     appContractResolution,
+    releaseResolution,
     requiredPrimitiveRefs: appContractResolution.requiredPrimitiveRefs,
     permissionRequirementRefs: appContractResolution.permissionRequirementRefs,
     capabilityRequirementRefs: appContractResolution.capabilityRequirementRefs,
@@ -3200,6 +3401,14 @@ function assignObjectIfPresent(target, key, value) {
 
 function surfaceAppContractRef(contract, override) {
   return String(override || contract.appRef || contract.contractId || `surface-app:${contract.appId || "unknown"}`);
+}
+
+function moduleRoleRefForClaim(appContractRef, claim = {}) {
+  const role = String(claim.role || claim.moduleRole || "").trim();
+  const moduleRef = String(claim.moduleRef || "").trim();
+  const base = String(appContractRef || "surface-app:unknown").trim();
+  if (!role) return moduleRef || "";
+  return `${base}:moduleRole:${role}`;
 }
 
 function surfaceAppCompatibilityResult(selection, options = {}) {

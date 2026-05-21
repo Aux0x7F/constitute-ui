@@ -502,6 +502,7 @@ export {
   surfaceAppDistributionPosture,
   surfaceAppFulfillmentIdentityPosture,
   surfaceAppInstancePosture,
+  surfaceAppReleaseResolution,
   surfaceAppManifestSelection,
   surfaceAppRuntimeSelectionPosture,
   surfaceAppRunnerFulfillmentReadiness,

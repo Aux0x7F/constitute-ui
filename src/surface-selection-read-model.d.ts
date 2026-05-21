@@ -6,6 +6,7 @@ import type {
   SurfaceAppContractShape,
   SurfaceAppFulfillmentIdentityPosture,
   SurfaceAppInstancePosture,
+  SurfaceAppReleaseResolution,
   SurfaceAppRuntimeSelectionPosture,
   SurfaceAppRunnerFulfillmentLifecycle,
   SurfaceAppRunnerFulfillmentReadiness,
@@ -30,6 +31,7 @@ export type SurfaceAppSelectionReadModel = {
   pinnedVersion: string;
   sourceMode: string;
   runtimeSelectionPosture: SurfaceAppRuntimeSelectionPosture;
+  releaseResolution: SurfaceAppReleaseResolution | null;
   moduleBindings: Readonly<Record<string, unknown>> | null;
   runnerPlan: SurfaceAppRunnerPlan;
   runnerFulfillmentLifecycle: SurfaceAppRunnerFulfillmentLifecycle | null;

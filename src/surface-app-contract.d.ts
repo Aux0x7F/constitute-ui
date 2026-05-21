@@ -648,6 +648,7 @@ export type SurfaceAppManifestSelection = {
   compatibilityRefs: string[];
   bootstrapContractRef: string;
   releaseContractRef: string;
+  sourceSnapshotRef: string;
   sourceCandidatePosture: SurfaceAppSourceCandidatePosture;
   evidenceRefs: string[];
   blockedReasons: string[];
@@ -711,6 +712,37 @@ export type SurfaceAppContractResolution = {
   expiresAt?: unknown;
 };
 
+export type SurfaceAppReleaseResolution = {
+  kind: "surface.app.release.resolution";
+  resolutionRef: string;
+  appIntentRef: string;
+  appContractRef: string;
+  requestedVersion: string;
+  state: "resolved" | "degraded" | "blocked";
+  selectedReleaseRef: string;
+  selectedActivityRef: string;
+  selectedArtifactRefs: string[];
+  selectedModuleRoleRefs: string[];
+  selectedModuleRefs: string[];
+  selectedStorageRefs: string[];
+  sourceSnapshotRef: string;
+  selectedSourceRefs: string[];
+  sourceDigestRefs: string[];
+  buildProofRefs: string[];
+  compatibilityRefs: string[];
+  permissionRefs: string[];
+  accessGroupRefs: string[];
+  evidenceRefs: string[];
+  contractResolution: SurfaceAppContractResolution;
+  sourceCandidatePosture: SurfaceAppSourceCandidatePosture;
+  distributionPosture: SurfaceAppDistributionPosture;
+  moduleBindings: Readonly<Record<string, unknown>> | null;
+  blockedReasons: string[];
+  safeFacts: Readonly<Record<string, unknown>>;
+  resolvedAt: number;
+  expiresAt?: unknown;
+};
+
 export type SurfaceAppRuntimeSelectionPosture = {
   kind: "surface.app.runtime.selection.posture";
   selectionId: string;
@@ -725,6 +757,7 @@ export type SurfaceAppRuntimeSelectionPosture = {
   requiredModuleRoles: string[];
   compatibilityResult: Readonly<Record<string, unknown>>;
   appContractResolution: SurfaceAppContractResolution;
+  releaseResolution: SurfaceAppReleaseResolution;
   requiredPrimitiveRefs: string[];
   permissionRequirementRefs: string[];
   capabilityRequirementRefs: string[];
@@ -875,6 +908,11 @@ export function surfaceAppContractResolution(
   selection?: Record<string, unknown>,
   options?: Record<string, unknown>,
 ): SurfaceAppContractResolution;
+export function surfaceAppReleaseResolution(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape | null | undefined,
+  selection?: Record<string, unknown>,
+  options?: Record<string, unknown>,
+): SurfaceAppReleaseResolution;
 export function surfaceAppSourceCandidatePosture(
   selectionOrOptions: Record<string, unknown>,
   options?: Record<string, unknown>,
