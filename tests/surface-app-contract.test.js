@@ -29,6 +29,7 @@ import {
   surfaceAppBootstrapContract,
   surfaceAppAttachContext,
   surfaceAppAuthorityAccessPosture,
+  surfaceAppActivityPosture,
   surfaceAppBootstrapPosture,
   surfaceAppContractResolution,
   surfaceAppContractPosture,
@@ -60,6 +61,43 @@ import { surfaceAppSelectionReadModel } from "../src/surface-selection-read-mode
 import { createSurfaceModuleRegistry } from "../src/surface-module-registry.js";
 
 const RESOLVED_RUNNER_REF = "4a29ff60c5c3837e9e20555bfeb2a046be3eb140818144628691fcf7efb1d2f1";
+
+function makeActivity(overrides = {}) {
+  return {
+    activityRef: "app-activity:logging-ui:events",
+    activityId: "events",
+    state: "ready",
+    launchMode: "embedded",
+    embedPolicy: "restricted",
+    primitiveRefs: ["logging.events.observe"],
+    moduleRoleRefs: ["runtimeClient", "productView"],
+    permissionRefs: ["permission:logging-ui:events:read"],
+    accessGroupRefs: ["access-group:logging-ui:events"],
+    materializationRefs: ["logging-ui.event-table"],
+    evidenceRefs: ["activity-proof:logging-ui:events"],
+    issuedAt: 1700000000,
+    ...overrides,
+  };
+}
+
+function makeActivityDependency(overrides = {}) {
+  return {
+    dependencyRef: "app:dependency:logging-ui:messaging",
+    appContractRef: "app:contract:logging-ui@0.1.0",
+    activityRef: "app-activity:logging-ui:events",
+    dependencyType: "messaging",
+    required: true,
+    state: "ready",
+    contractRefs: ["messaging:contract:logging-ui.events"],
+    primitiveRefs: ["primitive:messaging.thread"],
+    permissionRefs: ["permission:logging-ui:messages:read"],
+    accessGroupRefs: ["access-group:logging-ui:events"],
+    materializationRefs: ["materialization:logging-ui:messages"],
+    evidenceRefs: ["evidence:dependency:messaging"],
+    issuedAt: 1700000000,
+    ...overrides,
+  };
+}
 
 function makeContract(overrides = {}) {
   return {
@@ -131,6 +169,59 @@ test("surface app helper indexes modules and emits attach context", () => {
   assert.deepEqual(attachContext.requiredModuleRoles, ["runtimeClient", "projectionModel", "productView"]);
   assert.equal(attachContext.moduleRefs.length, 3);
   assert.deepEqual(attachContext.materializationBudgetRefs, ["logging-ui.event-table"]);
+});
+
+test("surface app activity posture materializes contract-defined activities", () => {
+  const contract = defineSurfaceAppContract(makeContract({
+    contractId: "surface-app:logging-ui@0.1.0",
+    appRef: "surface-app:logging-ui@0.1.0",
+    activities: [makeActivity()],
+    activityDependencies: [makeActivityDependency()],
+  }));
+
+  assert.equal(contract.activityFor("events").activityRef, "app-activity:logging-ui:events");
+  assert.equal(contract.activityFor("app-activity:logging-ui:events").activityId, "events");
+  assert.equal(contract.activitiesForLaunchMode("embedded").length, 1);
+  assert.equal(contract.activityDependenciesFor("events").length, 1);
+
+  const posture = surfaceAppActivityPosture(contract, "events", { issuedAt: 1234 });
+  assert.equal(posture.kind, "surface.app.activity.posture");
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.selectedActivityRef, "app-activity:logging-ui:events");
+  assert.equal(posture.launchMode, "embedded");
+  assert.equal(posture.embedPolicy, "restricted");
+  assert.deepEqual(posture.primitiveRefs, ["logging.events.observe"]);
+  assert.deepEqual(posture.moduleRoleRefs, ["runtimeClient", "productView"]);
+  assert.deepEqual(posture.permissionRefs, ["permission:logging-ui:events:read"]);
+  assert.deepEqual(posture.accessGroupRefs, ["access-group:logging-ui:events"]);
+  assert.deepEqual(posture.materializationRefs, ["logging-ui.event-table"]);
+  assert.deepEqual(posture.dependencyRefs, ["app:dependency:logging-ui:messaging"]);
+  assert.deepEqual(posture.dependencyContractRefs, ["messaging:contract:logging-ui.events"]);
+  assert.deepEqual(posture.dependencyPrimitiveRefs, ["primitive:messaging.thread"]);
+  assert.deepEqual(posture.dependencyPermissionRefs, ["permission:logging-ui:messages:read"]);
+  assert.deepEqual(posture.dependencyMaterializationRefs, ["materialization:logging-ui:messages"]);
+  assert.deepEqual(posture.blockedReasons, []);
+
+  const missing = surfaceAppActivityPosture(contract, "timeline", { issuedAt: 1234 });
+  assert.equal(missing.state, "blocked");
+  assert.deepEqual(missing.blockedReasons, ["missingActivity"]);
+
+  const blockedDependency = defineSurfaceAppContract(makeContract({
+    activities: [makeActivity()],
+    activityDependencies: [makeActivityDependency({
+      state: "pending",
+      dependencyRef: "app:dependency:logging-ui:moderation",
+      dependencyType: "communicationsModeration",
+      contractRefs: [],
+      primitiveRefs: ["primitive:communications.moderation"],
+    })],
+  }));
+  const blockedPosture = surfaceAppActivityPosture(blockedDependency, "events", { issuedAt: 1234 });
+  assert.equal(blockedPosture.state, "blocked");
+  assert.deepEqual(blockedPosture.blockedReasons, [
+    "requiredDependencyNotReady:app:dependency:logging-ui:moderation",
+    "missingDependencyContract:app:dependency:logging-ui:moderation",
+  ]);
 });
 
 test("surface app helper reports missing required module roles", () => {
@@ -782,6 +873,73 @@ test("surface app runtime selection posture reduces manifest runner and module r
     compatibilityResult: posture.compatibilityResult,
     issuedAt: 1234,
   }).state, "ready");
+});
+
+test("surface runtime selection includes contract-defined activity posture", () => {
+  const contract = defineSurfaceAppContract(makeContract({
+    contractId: "surface-app:logging-ui@0.1.0",
+    appRef: "surface-app:logging-ui@0.1.0",
+    activities: [makeActivity()],
+    activityDependencies: [makeActivityDependency()],
+  }));
+  const manifest = {
+    kind: "surface.app.manifest",
+    manifestId: "manifest:logging-ui",
+    appId: "constitute-logging-ui",
+    currentAppContractRef: "surface-app:logging-ui@0.1.0",
+    currentVersion: "0.1.0",
+    defaultSourceMode: "bundled",
+    versions: [
+      {
+        appContractRef: "surface-app:logging-ui@0.1.0",
+        version: "0.1.0",
+        state: "current",
+        sourceMode: "bundled",
+        requiredModuleRoles: ["runtimeClient", "productView"],
+        compatibilityWindow: {
+          minVersion: "0.1.0",
+          maxVersion: "0.1.x",
+          protocolRef: "protocol:surface-app:v1",
+        },
+        bundledSourceRefs: ["bundle:logging-ui@0.1.0"],
+      },
+    ],
+    issuedAt: 1234,
+  };
+
+  const posture = surfaceAppRuntimeSelectionPosture(manifest, [contract], {
+    activityId: "events",
+    runtimeVersion: "0.1.0",
+    issuedAt: 1234,
+  });
+
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.selectedActivityRef, "app-activity:logging-ui:events");
+  assert.equal(posture.activityPosture.state, "ready");
+  assert.deepEqual(posture.activityRefs, ["app-activity:logging-ui:events"]);
+  assert.equal(posture.releaseResolution.selectedActivityRef, "app-activity:logging-ui:events");
+  assert.deepEqual(posture.requiredPrimitiveRefs, [
+    "logging.events.observe",
+    "primitive:messaging.thread",
+    "runtime.attach",
+    "projection.materialization",
+    "runtime.posture.render",
+  ]);
+  assert.deepEqual(posture.activityPosture.dependencyRefs, ["app:dependency:logging-ui:messaging"]);
+  assert.deepEqual(posture.activityPosture.dependencyContractRefs, ["messaging:contract:logging-ui.events"]);
+  assert.deepEqual(posture.appContractResolution.activityDependencyRefs, ["app:dependency:logging-ui:messaging"]);
+  assert.deepEqual(posture.appContractResolution.activityDependencyContractRefs, ["messaging:contract:logging-ui.events"]);
+  assert.deepEqual(posture.permissionRequirementRefs, [
+    "permission:logging-ui:events:read",
+    "permission:logging-ui:messages:read",
+  ]);
+  assert.deepEqual(posture.accessRequirementRefs, ["access-group:logging-ui:events"]);
+  assert.deepEqual(posture.materializationBudgetRefs, [
+    "logging-ui.event-table",
+    "materialization:logging-ui:messages",
+  ]);
+  assert.deepEqual(posture.blockedReasons, []);
+  assert.equal(assertSurfaceAppRuntimeSelectionPosture(posture), posture);
 });
 
 test("surface app instance posture composes runtime, runner, module, and bootstrap posture", () => {
