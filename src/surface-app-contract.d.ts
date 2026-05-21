@@ -15,6 +15,23 @@ export type SurfaceAppModuleClaim = {
   [key: string]: unknown;
 };
 
+export type SurfaceAppActivity = {
+  activityRef: string;
+  activityId?: string;
+  state?: string;
+  launchMode?: string;
+  embedPolicy?: string;
+  primitiveRefs?: string[];
+  moduleRoleRefs?: string[];
+  permissionRefs?: string[];
+  accessGroupRefs?: string[];
+  materializationRefs?: string[];
+  evidenceRefs?: string[];
+  issuedAt?: number;
+  expiresAt?: unknown;
+  [key: string]: unknown;
+};
+
 export type SurfaceAppContractShape = {
   contractId: string;
   appId: string;
@@ -37,6 +54,8 @@ export type SurfaceAppContractShape = {
   requiredPrimitives?: string[];
   requiredModuleRoles?: string[];
   modules?: SurfaceAppModuleClaim[];
+  activities?: SurfaceAppActivity[];
+  activityRefs?: string[];
   projectionSubscriptions?: unknown[];
   permissionRequirements?: unknown[];
   capabilityRequirements?: unknown[];
@@ -55,6 +74,26 @@ export type SurfaceAppPosture = {
   blockedReason: string;
   missingRoles: string[];
   moduleCount: number;
+};
+
+export type SurfaceAppActivityPosture = {
+  kind: "surface.app.activity.posture";
+  state: "ready" | "blocked" | "notRequired";
+  appContractRef: string;
+  appId: string;
+  selectedActivityRef: string;
+  activityId: string;
+  launchMode: string;
+  embedPolicy: string;
+  primitiveRefs: string[];
+  moduleRoleRefs: string[];
+  permissionRefs: string[];
+  accessGroupRefs: string[];
+  materializationRefs: string[];
+  evidenceRefs: string[];
+  blockedReasons: string[];
+  issuedAt: number;
+  expiresAt?: unknown;
 };
 
 export type SurfaceModuleRolePosture = {
@@ -695,6 +734,7 @@ export type SurfaceAppContractResolution = {
   version: string;
   sourceMode: string;
   requiredPrimitiveRefs: string[];
+  activityRefs: string[];
   requiredModuleRoles: string[];
   moduleRoleClaims: readonly Record<string, unknown>[];
   permissionRequirementRefs: string[];
@@ -757,8 +797,11 @@ export type SurfaceAppRuntimeSelectionPosture = {
   requiredModuleRoles: string[];
   compatibilityResult: Readonly<Record<string, unknown>>;
   appContractResolution: SurfaceAppContractResolution;
+  activityPosture: SurfaceAppActivityPosture | null;
   releaseResolution: SurfaceAppReleaseResolution;
   requiredPrimitiveRefs: string[];
+  activityRefs: string[];
+  selectedActivityRef: string;
   permissionRequirementRefs: string[];
   capabilityRequirementRefs: string[];
   projectionSubscriptionRefs: string[];
@@ -813,12 +856,16 @@ export type DefinedSurfaceApp = {
   contract: SurfaceAppContractShape;
   modules: readonly SurfaceAppModuleClaim[];
   modulesByRole: Readonly<Record<string, readonly SurfaceAppModuleClaim[]>>;
+  activities: readonly SurfaceAppActivity[];
+  activitiesByRef: ReadonlyMap<string, SurfaceAppActivity>;
   requiredRoles: readonly string[];
   missingRoles: readonly string[];
   posture: SurfaceAppPosture;
   hasRole(role: string): boolean;
   moduleForRole(role: string): SurfaceAppModuleClaim | null;
   modulesForRole(role: string): readonly SurfaceAppModuleClaim[];
+  activityFor(refOrId: string): SurfaceAppActivity | null;
+  activitiesForLaunchMode(launchMode: string): readonly SurfaceAppActivity[];
   attachContext(extra?: Record<string, unknown>): SurfaceAppAttachContext;
 };
 
@@ -908,6 +955,11 @@ export function surfaceAppContractResolution(
   selection?: Record<string, unknown>,
   options?: Record<string, unknown>,
 ): SurfaceAppContractResolution;
+export function surfaceAppActivityPosture(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  activityRefOrId?: string,
+  options?: Record<string, unknown>,
+): SurfaceAppActivityPosture;
 export function surfaceAppReleaseResolution(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape | null | undefined,
   selection?: Record<string, unknown>,
