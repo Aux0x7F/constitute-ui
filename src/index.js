@@ -272,6 +272,8 @@ export function renderDataTable(container, {
 }
 
 export {
+  prepareServiceHostFabricPosture,
+  prepareServiceLaunchPosture,
   preparedServiceRegistry,
   preparedServiceRegistryServices,
 } from "./service-registry-model.js";
@@ -452,7 +454,11 @@ export function renderStreamStatus(container, {
 }
 
 export { createRuntimeSurfaceClient } from "./runtime-surface-client.js";
-export { prepareRuntimeReadModel } from "./runtime-read-model.js";
+export {
+  prepareRuntimeHostFabricPosture,
+  prepareRuntimeReadModel,
+  prepareRuntimeTargetPosture,
+} from "./runtime-read-model.js";
 export {
   createServiceSurfaceAdapter,
   normalizeServiceSurfaceAdapterError,

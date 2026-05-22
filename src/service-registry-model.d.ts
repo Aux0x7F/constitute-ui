@@ -32,5 +32,31 @@ export type PreparedServiceRegistryOptions = {
   consumerFloor?: Record<string, unknown>;
 };
 
+export type ServiceHostFabricReadModel = Readonly<{
+  kind: "service.host-fabric.read-model";
+  state: string;
+  ready: boolean;
+  blocked: boolean;
+  degraded: boolean;
+  blockedReasons: readonly string[];
+  handoffRef: string;
+  label: string;
+}>;
+
+export type ServiceLaunchReadModel = Readonly<{
+  kind: "service.launch.read-model";
+  state: string;
+  ready: boolean;
+  blocked: boolean;
+  reason: string;
+  label: string;
+}>;
+
+export type ServiceLaunchPostureOptions = {
+  requiredSource?: string;
+};
+
 export function preparedServiceRegistry(snapshot?: Record<string, unknown>, options?: PreparedServiceRegistryOptions): PreparedServiceRegistry;
 export function preparedServiceRegistryServices(snapshot?: Record<string, unknown>, options?: PreparedServiceRegistryOptions): readonly PreparedServiceRegistryService[];
+export function prepareServiceHostFabricPosture(value?: Record<string, unknown>): ServiceHostFabricReadModel;
+export function prepareServiceLaunchPosture(record?: Record<string, unknown>, options?: ServiceLaunchPostureOptions): ServiceLaunchReadModel;
