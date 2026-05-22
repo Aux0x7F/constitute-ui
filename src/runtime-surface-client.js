@@ -1,4 +1,8 @@
-import { prepareRuntimeReadModel } from "./runtime-read-model.js";
+import {
+  prepareRuntimeHostFabricPosture,
+  prepareRuntimeReadModel,
+  prepareRuntimeTargetPosture,
+} from "./runtime-read-model.js";
 import { deriveRuntimeMaterializationPosture } from "./runtime-shell-state.js";
 
 export function createRuntimeSurfaceClient({
@@ -23,6 +27,8 @@ export function createRuntimeSurfaceClient({
   onMaterializationBudget = null,
   onConsumerFloor = null,
   onMaterializationPosture = null,
+  onTargetPosture = null,
+  onHostFabricPosture = null,
   onAttachTimeout = null,
   onAttachError = null,
   onAttachPosture = null,
@@ -37,6 +43,8 @@ export function createRuntimeSurfaceClient({
   let materializationBudget = null;
   let consumerFloor = null;
   let materializationPosture = deriveRuntimeMaterializationPosture(null, { clientId, surface });
+  let targetPosture = prepareRuntimeTargetPosture(null, { clientId, surface });
+  let hostFabricPosture = prepareRuntimeHostFabricPosture(null, { clientId, surface });
   let readModel = prepareRuntimeReadModel(null, {
     ...readModelOptions,
     clientId,
@@ -100,6 +108,16 @@ export function createRuntimeSurfaceClient({
       consumerFloor,
     });
     if (typeof onMaterializationPosture === "function") onMaterializationPosture(materializationPosture, msg);
+    targetPosture = prepareRuntimeTargetPosture(snapshot, {
+      clientId,
+      surface,
+    });
+    if (typeof onTargetPosture === "function") onTargetPosture(targetPosture, msg);
+    hostFabricPosture = prepareRuntimeHostFabricPosture(snapshot, {
+      clientId,
+      surface,
+    });
+    if (typeof onHostFabricPosture === "function") onHostFabricPosture(hostFabricPosture, msg);
     readModel = prepareRuntimeReadModel(snapshot, {
       ...readModelOptions,
       clientId,
@@ -254,6 +272,8 @@ export function createRuntimeSurfaceClient({
     materializationBudget = null;
     consumerFloor = null;
     materializationPosture = deriveRuntimeMaterializationPosture(null, { clientId, surface });
+    targetPosture = prepareRuntimeTargetPosture(null, { clientId, surface });
+    hostFabricPosture = prepareRuntimeHostFabricPosture(null, { clientId, surface });
     readModel = prepareRuntimeReadModel(null, {
       ...readModelOptions,
       clientId,
@@ -306,6 +326,12 @@ export function createRuntimeSurfaceClient({
     },
     get materializationPosture() {
       return materializationPosture;
+    },
+    get targetPosture() {
+      return targetPosture;
+    },
+    get hostFabricPosture() {
+      return hostFabricPosture;
     },
     get readModel() {
       return readModel;

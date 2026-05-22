@@ -24,12 +24,164 @@ export type RuntimeSurfaceReadModel = Readonly<{
   edge: Readonly<Record<string, unknown>>;
   serviceRegistry: Readonly<Record<string, unknown>>;
   projection: Readonly<Record<string, unknown>>;
+  target: RuntimeTargetReadModel;
+  fabric: RuntimeHostFabricReadModel;
   materialization: Readonly<Record<string, unknown>>;
   resource: Readonly<Record<string, unknown>>;
   retention: Readonly<Record<string, unknown>>;
+}>;
+
+export type RuntimeTargetSlotReadModel = Readonly<{
+  slotRef: string;
+  state: string;
+  platformFitState: string;
+  candidateFulfillmentRefs: readonly string[];
+  selectedFulfillmentRef: string;
+  sourceRefs: readonly string[];
+  buildRefs: readonly string[];
+  platformRefs: readonly string[];
+  adapterRefs: readonly string[];
+  proofRequirementRefs: readonly string[];
+  proofRefs: readonly string[];
+  evidenceRefs: readonly string[];
+  blockedReasons: readonly string[];
+}>;
+
+export type RuntimeTargetRegistryReadModel = Readonly<{
+  state: string;
+  registryRef: string;
+  slotCount: number;
+  availableSlotCount: number;
+  degradedSlotCount: number;
+  missingSlotCount: number;
+  blockedSlotCount: number;
+  notRequiredSlotCount: number;
+  candidateFulfillmentRefs: readonly string[];
+  selectedFulfillmentRefs: readonly string[];
+  sourceRefs: readonly string[];
+  buildRefs: readonly string[];
+  adapterRefs: readonly string[];
+  proofRequirementRefs: readonly string[];
+  proofRefs: readonly string[];
+  evidenceRefs: readonly string[];
+  blockedReasons: readonly string[];
+  slots: readonly RuntimeTargetSlotReadModel[];
+}>;
+
+export type RuntimeTargetReadModel = Readonly<{
+  kind: "runtime.contract-target.read-model";
+  state: "ready" | "degraded" | "blocked" | "pending";
+  ready: boolean;
+  degraded: boolean;
+  blocked: boolean;
+  targetRef: string;
+  contractRef: string;
+  profileRef: string;
+  platformRef: string;
+  targetAudience: string;
+  hostRef: string;
+  substrateRef: string;
+  compatibilityState: string;
+  targetState: string;
+  modifierRefs: readonly string[];
+  branchRefs: readonly string[];
+  subbranchRefs: readonly string[];
+  capabilitySlotRefs: readonly string[];
+  adapterPackRef: string;
+  adapterRefs: readonly string[];
+  negativeSlotRefs: readonly string[];
+  missingSlotRefs: readonly string[];
+  degradedSlotRefs: readonly string[];
+  proofProfileRefs: readonly string[];
+  proofRefs: readonly string[];
+  compatibilityRefs: readonly string[];
+  evidenceRefs: readonly string[];
+  blockedReasons: readonly string[];
+  validationErrors: readonly string[];
+  targetCount: number;
+  registryCount: number;
+  registry: RuntimeTargetRegistryReadModel;
+  clientId: string;
+  surface: string;
+}>;
+
+export type RuntimeHostFabricContributionReadModel = Readonly<{
+  contributionId: string;
+  fabricRef: string;
+  hostRef: string;
+  memberRef: string;
+  role: string;
+  state: string;
+  contractRef: string;
+  subjectRef: string;
+  capabilityRefs: readonly string[];
+  grantRefs: readonly string[];
+  inputRefs: readonly string[];
+  outputRefs: readonly string[];
+  evidenceRefs: readonly string[];
+  lifecyclePlanRefs: readonly string[];
+  releaseRefs: readonly string[];
+  blockedReasons: readonly string[];
+}>;
+
+export type RuntimeLifecyclePlanReadModel = Readonly<{
+  lifecyclePlanId: string;
+  subjectRef: string;
+  contractRef: string;
+  state: string;
+  lifecycleContractRefs: readonly string[];
+  memberContributionRefs: readonly string[];
+  evidenceRefs: readonly string[];
+  releaseRefs: readonly string[];
+  blockedReasons: readonly string[];
+  phaseCount: number;
+  phases: readonly Readonly<{
+    phase: string;
+    state: string;
+    blockedReasons: readonly string[];
+    evidenceRefs: readonly string[];
+  }>[];
+}>;
+
+export type RuntimeHostFabricReadModel = Readonly<{
+  kind: "runtime.host-fabric.read-model";
+  state: "ready" | "degraded" | "blocked" | "pending";
+  ready: boolean;
+  degraded: boolean;
+  blocked: boolean;
+  planId: string;
+  fabricRef: string;
+  hostRef: string;
+  contractRef: string;
+  requiredRoleRefs: readonly string[];
+  memberContributionRefs: readonly string[];
+  missingRoleRefs: readonly string[];
+  lifecyclePlanRefs: readonly string[];
+  materializationBudgetRefs: readonly string[];
+  evidenceRefs: readonly string[];
+  associationHandoffRef: string;
+  blockedReasons: readonly string[];
+  validationErrors: readonly string[];
+  planCount: number;
+  contributionCount: number;
+  lifecyclePlanCount: number;
+  contributions: readonly RuntimeHostFabricContributionReadModel[];
+  lifecyclePlans: readonly RuntimeLifecyclePlanReadModel[];
+  clientId: string;
+  surface: string;
 }>;
 
 export function prepareRuntimeReadModel(
   snapshot?: Record<string, unknown>,
   options?: RuntimeReadModelOptions,
 ): RuntimeSurfaceReadModel;
+
+export function prepareRuntimeTargetPosture(
+  snapshot?: Record<string, unknown>,
+  options?: RuntimeReadModelOptions,
+): RuntimeTargetReadModel;
+
+export function prepareRuntimeHostFabricPosture(
+  snapshot?: Record<string, unknown>,
+  options?: RuntimeReadModelOptions,
+): RuntimeHostFabricReadModel;

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { prepareRuntimeReadModel } from "../src/runtime-read-model.js";
+import { FABRIC, SWARM } from "../../constitute-protocol/src/index.js";
+import {
+  prepareRuntimeHostFabricPosture,
+  prepareRuntimeReadModel,
+  prepareRuntimeTargetPosture,
+} from "../src/runtime-read-model.js";
 import { createRuntimeSurfaceClient } from "../src/runtime-surface-client.js";
 
 class FakePort {
@@ -69,17 +74,156 @@ test("runtime read model keeps swarm edge endpoint references out of URL vocabul
   assert.equal(readModel.edge.endpointRef, "edge-endpoint:lab-gateway");
 });
 
+test("runtime target posture prepares protocol target and registry records for product-safe reads", () => {
+  const target = {
+    kind: SWARM.RECORD_KIND.CONTRACT_TARGET,
+    targetRef: "contract-target:desktop-dev:msa-transition",
+    contractRef: "app:constitute-nvr@0.1.0",
+    profileRef: "target-profile:desktop-dev",
+    platformRef: "platform:windows-desktop",
+    state: FABRIC.CONTRACT_TARGET_STATE.READY,
+    compatibilityState: FABRIC.CONTRACT_TARGET_COMPATIBILITY_STATE.COMPATIBLE,
+    branchRefs: ["branch:0x/msa-transition"],
+    subbranchRefs: ["subbranch:target-contract"],
+    capabilitySlotRefs: ["slot:gateway", "slot:nvr-service"],
+    adapterRefs: ["adapter:webrtc"],
+    proofProfileRefs: ["proof:nvr-smoke-5s"],
+    proofRefs: ["proof:local:nvr-smoke-5s"],
+    evidenceRefs: ["evidence:contract-target:local"],
+    targetAudience: "operator",
+    issuedAt: 1778720000000,
+  };
+  const registry = {
+    kind: SWARM.RECORD_KIND.CONTRACT_TARGET_REGISTRY_POSTURE,
+    registryRef: "contract-target-registry:desktop-dev:msa-transition",
+    targetRef: target.targetRef,
+    contractRef: target.contractRef,
+    state: FABRIC.CONTRACT_TARGET_REGISTRY_STATE.READY,
+    candidateFulfillmentRefs: ["fulfillment:gateway:local"],
+    proofRefs: ["proof:local:nvr-smoke-5s"],
+    evidenceRefs: ["evidence:target-registry:local"],
+    slotPostures: [
+      {
+        slotRef: "slot:gateway",
+        state: FABRIC.CONTRACT_TARGET_SLOT_STATE.AVAILABLE,
+        platformFitState: FABRIC.CONTRACT_TARGET_PLATFORM_FIT_STATE.COMPATIBLE,
+        candidateFulfillmentRefs: ["fulfillment:gateway:local"],
+        selectedFulfillmentRef: "fulfillment:gateway:local",
+      },
+      {
+        slotRef: "slot:remote-native-client",
+        state: FABRIC.CONTRACT_TARGET_SLOT_STATE.NOT_REQUIRED,
+        platformFitState: FABRIC.CONTRACT_TARGET_PLATFORM_FIT_STATE.UNKNOWN,
+      },
+    ],
+    observedAt: 1778720000100,
+  };
+
+  const posture = prepareRuntimeTargetPosture({
+    contractTargets: [target],
+    targetRegistryPostures: [registry],
+  }, {
+    clientId: "nvr-ui",
+    surface: "constitute-nvr-ui",
+  });
+
+  assert.equal(posture.kind, "runtime.contract-target.read-model");
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.ready, true);
+  assert.equal(posture.targetRef, target.targetRef);
+  assert.deepEqual(posture.branchRefs, ["branch:0x/msa-transition"]);
+  assert.equal(posture.registry.state, "ready");
+  assert.equal(posture.registry.availableSlotCount, 1);
+  assert.equal(posture.registry.notRequiredSlotCount, 1);
+  assert.deepEqual(posture.registry.selectedFulfillmentRefs, ["fulfillment:gateway:local"]);
+});
+
+test("runtime host fabric posture prepares fulfillment plan and lifecycle records", () => {
+  const memberRef = "a".repeat(64);
+  const plan = {
+    kind: SWARM.RECORD_KIND.HOST_FABRIC_FULFILLMENT_PLAN,
+    planId: "host-fabric-plan:local:nvr",
+    fabricRef: "fabric:local-workstation",
+    hostRef: "host:local-windows",
+    contractRef: "app:constitute-nvr@0.1.0",
+    state: FABRIC.FULFILLMENT_PLAN_STATE.READY,
+    requiredRoleRefs: ["role:gatewayAssociation", "role:serviceEdgeAdapter"],
+    memberContributionRefs: ["contribution:gateway:local"],
+    lifecyclePlanRefs: ["lifecycle:service-edge:nvr"],
+    materializationBudgetRefs: ["budget:runtime-snapshot"],
+    evidenceRefs: ["evidence:fabric:local"],
+    associationHandoffRef: "handoff:substrate:local",
+    observedAt: 1778720000200,
+  };
+  const contribution = {
+    kind: SWARM.RECORD_KIND.HOST_FABRIC_MEMBER_CONTRIBUTION,
+    contributionId: "contribution:gateway:local",
+    fabricRef: "fabric:local-workstation",
+    hostRef: "host:local-windows",
+    memberRef,
+    role: FABRIC.MEMBER_ROLE.GATEWAY_ASSOCIATION,
+    state: FABRIC.MEMBER_CONTRIBUTION_STATE.ACCEPTED,
+    contractRef: "contract:gateway-association@0.1.0",
+    subjectRef: "gateway:local",
+    capabilityRefs: ["cap:route.associate"],
+    evidenceRefs: ["evidence:gateway:local"],
+    lifecyclePlanRefs: ["lifecycle:service-edge:nvr"],
+    observedAt: 1778720000300,
+  };
+  const lifecyclePlan = {
+    kind: SWARM.RECORD_KIND.LIFECYCLE_PLAN_POSTURE,
+    lifecyclePlanId: "lifecycle:service-edge:nvr",
+    subjectRef: "service:nvr",
+    contractRef: "contract:lifecycle.host-service-adapter@0.1.0",
+    state: FABRIC.LIFECYCLE_PLAN_STATE.READY,
+    lifecycleContractRefs: ["contract:lifecycle.host-service-adapter@0.1.0"],
+    memberContributionRefs: ["contribution:gateway:local"],
+    evidenceRefs: ["evidence:lifecycle:nvr"],
+    phasePostures: [
+      {
+        phase: FABRIC.LIFECYCLE_PHASE.RUN,
+        state: FABRIC.LIFECYCLE_PHASE_STATE.READY,
+        evidenceRefs: ["evidence:lifecycle:nvr:run"],
+      },
+    ],
+    observedAt: 1778720000400,
+  };
+
+  const posture = prepareRuntimeHostFabricPosture({
+    hostFabricFulfillmentPlans: [plan],
+    hostFabricContributions: [contribution],
+    lifecyclePlans: [lifecyclePlan],
+  }, {
+    clientId: "nvr-ui",
+    surface: "constitute-nvr-ui",
+  });
+
+  assert.equal(posture.kind, "runtime.host-fabric.read-model");
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.ready, true);
+  assert.equal(posture.planId, "host-fabric-plan:local:nvr");
+  assert.deepEqual(posture.memberContributionRefs, ["contribution:gateway:local"]);
+  assert.equal(posture.contributions.length, 1);
+  assert.equal(posture.contributions[0].role, FABRIC.MEMBER_ROLE.GATEWAY_ASSOCIATION);
+  assert.equal(posture.lifecyclePlans.length, 1);
+  assert.equal(posture.lifecyclePlans[0].phaseCount, 1);
+});
+
 test("runtime surface client emits read-model posture alongside raw snapshots", async () => {
   const previousSharedWorker = globalThis.SharedWorker;
   globalThis.SharedWorker = FakeSharedWorker;
   try {
     const readModels = [];
+    const targetPostures = [];
+    const hostFabricPostures = [];
     const client = createRuntimeSurfaceClient({
       clientId: "gateway-ui",
       surface: "constitute-gateway-ui",
       workerUrl: "/runtime.worker.js",
       workerName: "runtime-test",
       onReadModel: (readModel) => readModels.push(readModel),
+      onTargetPosture: (posture) => targetPostures.push(posture),
+      onHostFabricPosture: (posture) => hostFabricPostures.push(posture),
     });
     const port = client.attach();
     const ready = client.waitUntilAttached(1_000);
@@ -92,6 +236,43 @@ test("runtime surface client emits read-model posture alongside raw snapshots", 
           serviceCatalog: {
             services: [{ service: "gateway", servicePk: "gateway-pk" }],
           },
+          contractTargets: [{
+            kind: SWARM.RECORD_KIND.CONTRACT_TARGET,
+            targetRef: "contract-target:gateway-ui",
+            contractRef: "app:gateway-ui@0.1.0",
+            profileRef: "target-profile:desktop-dev",
+            platformRef: "platform:windows-desktop",
+            state: FABRIC.CONTRACT_TARGET_STATE.READY,
+            compatibilityState: FABRIC.CONTRACT_TARGET_COMPATIBILITY_STATE.COMPATIBLE,
+            capabilitySlotRefs: ["slot:gateway"],
+            targetAudience: "operator",
+            issuedAt: 1778720000000,
+          }],
+          targetRegistryPostures: [{
+            kind: SWARM.RECORD_KIND.CONTRACT_TARGET_REGISTRY_POSTURE,
+            registryRef: "contract-target-registry:gateway-ui",
+            targetRef: "contract-target:gateway-ui",
+            contractRef: "app:gateway-ui@0.1.0",
+            state: FABRIC.CONTRACT_TARGET_REGISTRY_STATE.READY,
+            slotPostures: [{
+              slotRef: "slot:gateway",
+              state: FABRIC.CONTRACT_TARGET_SLOT_STATE.AVAILABLE,
+              platformFitState: FABRIC.CONTRACT_TARGET_PLATFORM_FIT_STATE.COMPATIBLE,
+              candidateFulfillmentRefs: ["fulfillment:gateway:local"],
+            }],
+            observedAt: 1778720000100,
+          }],
+          hostFabricFulfillmentPlans: [{
+            kind: SWARM.RECORD_KIND.HOST_FABRIC_FULFILLMENT_PLAN,
+            planId: "host-fabric-plan:gateway-ui",
+            fabricRef: "fabric:local-workstation",
+            hostRef: "host:local-windows",
+            contractRef: "app:gateway-ui@0.1.0",
+            state: FABRIC.FULFILLMENT_PLAN_STATE.READY,
+            requiredRoleRefs: ["role:gatewayAssociation"],
+            memberContributionRefs: ["contribution:gateway:local"],
+            observedAt: 1778720000200,
+          }],
         },
         materializationBudget: {
           kind: "materialization.budget",
@@ -106,6 +287,12 @@ test("runtime surface client emits read-model posture alongside raw snapshots", 
     assert.equal(client.readModel.kind, "runtime.surface.read-model");
     assert.equal(client.readModel.ready, true);
     assert.equal(client.readModel.materialization.budgetId, "budget:gateway-ui");
+    assert.equal(client.readModel.target.state, "ready");
+    assert.equal(client.readModel.fabric.state, "ready");
+    assert.equal(client.targetPosture.targetRef, "contract-target:gateway-ui");
+    assert.equal(client.hostFabricPosture.planId, "host-fabric-plan:gateway-ui");
+    assert.equal(targetPostures.length, 1);
+    assert.equal(hostFabricPostures.length, 1);
   } finally {
     globalThis.SharedWorker = previousSharedWorker;
   }
