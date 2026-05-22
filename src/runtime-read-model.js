@@ -104,6 +104,7 @@ function collectRuntimeTargetRecords(snapshot) {
     record(snapshot.serviceManagerState),
     record(snapshot.manager),
     record(snapshot.fabric),
+    record(snapshot.targetSource),
     record(snapshot.targetPosture),
   ];
   const targets = [];
@@ -132,6 +133,7 @@ function collectRuntimeFabricRecords(snapshot) {
     record(snapshot.serviceManagerState),
     record(snapshot.manager),
     record(snapshot.fabric),
+    record(snapshot.targetSource),
     record(snapshot.targetPosture),
   ];
   const plans = [];

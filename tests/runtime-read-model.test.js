@@ -209,6 +209,70 @@ test("runtime host fabric posture prepares fulfillment plan and lifecycle record
   assert.equal(posture.lifecyclePlans[0].phaseCount, 1);
 });
 
+test("runtime read model accepts target source envelope from account runtime", () => {
+  const target = {
+    kind: SWARM.RECORD_KIND.CONTRACT_TARGET,
+    targetRef: "contract-target:desktop-windows-dev:msa-transition",
+    contractRef: "app:constitution-runtime-target@msa-transition",
+    profileRef: "target-profile:desktop-dev",
+    platformRef: "platform:windows-desktop",
+    state: FABRIC.CONTRACT_TARGET_STATE.DEGRADED,
+    compatibilityState: FABRIC.CONTRACT_TARGET_COMPATIBILITY_STATE.DEGRADED,
+    modifierRefs: ["modifier:dev"],
+    branchRefs: ["branch:0x/msa-transition"],
+    capabilitySlotRefs: ["slot:runtime", "slot:native-client"],
+    adapterRefs: ["adapter:runtime-shared-worker"],
+    missingSlotRefs: ["slot:native-client"],
+    proofProfileRefs: ["proof-profile:surface-landscape"],
+    evidenceRefs: ["evidence:runtime:target-source"],
+    blockedReasons: ["nativeClientNotPresentOnDesktopDevTarget"],
+    targetAudience: "operator",
+    issuedAt: 1778720000000,
+    expiresAt: 1778720060000,
+  };
+  const registry = {
+    kind: SWARM.RECORD_KIND.CONTRACT_TARGET_REGISTRY_POSTURE,
+    registryRef: "contract-target-registry:desktop-windows-dev:msa-transition",
+    targetRef: target.targetRef,
+    contractRef: target.contractRef,
+    state: FABRIC.CONTRACT_TARGET_REGISTRY_STATE.DEGRADED,
+    slotPostures: [
+      {
+        slotRef: "slot:runtime",
+        state: FABRIC.CONTRACT_TARGET_SLOT_STATE.AVAILABLE,
+        platformFitState: FABRIC.CONTRACT_TARGET_PLATFORM_FIT_STATE.COMPATIBLE,
+        candidateFulfillmentRefs: ["runtime:runtime-2.57"],
+        selectedFulfillmentRef: "runtime:runtime-2.57",
+      },
+      {
+        slotRef: "slot:native-client",
+        state: FABRIC.CONTRACT_TARGET_SLOT_STATE.MISSING,
+        platformFitState: FABRIC.CONTRACT_TARGET_PLATFORM_FIT_STATE.UNKNOWN,
+        blockedReasons: ["nativeClientNotPresentOnDesktopDevTarget"],
+      },
+    ],
+    candidateFulfillmentRefs: ["runtime:runtime-2.57"],
+    proofRequirementRefs: ["proof-requirement:surface-landscape"],
+    evidenceRefs: ["evidence:runtime:target-registry"],
+    blockedReasons: ["nativeClientNotPresentOnDesktopDevTarget"],
+    observedAt: 1778720000100,
+    expiresAt: 1778720060000,
+  };
+
+  const posture = prepareRuntimeTargetPosture({
+    targetSource: {
+      kind: "runtime.contract-target.source",
+      contractTargets: [target],
+      targetRegistryPostures: [registry],
+    },
+  });
+
+  assert.equal(posture.state, "degraded");
+  assert.equal(posture.targetRef, target.targetRef);
+  assert.equal(posture.registry.missingSlotCount, 1);
+  assert.deepEqual(posture.missingSlotRefs, ["slot:native-client"]);
+});
+
 test("runtime surface client emits read-model posture alongside raw snapshots", async () => {
   const previousSharedWorker = globalThis.SharedWorker;
   globalThis.SharedWorker = FakeSharedWorker;
