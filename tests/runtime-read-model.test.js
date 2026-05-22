@@ -216,16 +216,15 @@ test("runtime read model accepts target source envelope from account runtime", (
     contractRef: "app:constitution-runtime-target@msa-transition",
     profileRef: "target-profile:desktop-dev",
     platformRef: "platform:windows-desktop",
-    state: FABRIC.CONTRACT_TARGET_STATE.DEGRADED,
-    compatibilityState: FABRIC.CONTRACT_TARGET_COMPATIBILITY_STATE.DEGRADED,
+    state: FABRIC.CONTRACT_TARGET_STATE.READY,
+    compatibilityState: FABRIC.CONTRACT_TARGET_COMPATIBILITY_STATE.COMPATIBLE,
     modifierRefs: ["modifier:dev"],
     branchRefs: ["branch:0x/msa-transition"],
-    capabilitySlotRefs: ["slot:runtime", "slot:native-client"],
-    adapterRefs: ["adapter:runtime-shared-worker"],
-    missingSlotRefs: ["slot:native-client"],
+    capabilitySlotRefs: ["slot:runtime", "slot:browser-webrtc", "slot:native-client"],
+    adapterRefs: ["adapter:runtime-shared-worker", "adapter:browser-webrtc"],
+    negativeSlotRefs: ["slot:native-client"],
     proofProfileRefs: ["proof-profile:surface-landscape"],
     evidenceRefs: ["evidence:runtime:target-source"],
-    blockedReasons: ["nativeClientNotPresentOnDesktopDevTarget"],
     targetAudience: "operator",
     issuedAt: 1778720000000,
     expiresAt: 1778720060000,
@@ -235,7 +234,7 @@ test("runtime read model accepts target source envelope from account runtime", (
     registryRef: "contract-target-registry:desktop-windows-dev:msa-transition",
     targetRef: target.targetRef,
     contractRef: target.contractRef,
-    state: FABRIC.CONTRACT_TARGET_REGISTRY_STATE.DEGRADED,
+    state: FABRIC.CONTRACT_TARGET_REGISTRY_STATE.READY,
     slotPostures: [
       {
         slotRef: "slot:runtime",
@@ -245,16 +244,22 @@ test("runtime read model accepts target source envelope from account runtime", (
         selectedFulfillmentRef: "runtime:runtime-2.57",
       },
       {
+        slotRef: "slot:browser-webrtc",
+        state: FABRIC.CONTRACT_TARGET_SLOT_STATE.AVAILABLE,
+        platformFitState: FABRIC.CONTRACT_TARGET_PLATFORM_FIT_STATE.COMPATIBLE,
+        candidateFulfillmentRefs: ["fulfillment:browser-webrtc:authenticated-desktop-browser"],
+        selectedFulfillmentRef: "fulfillment:browser-webrtc:authenticated-desktop-browser",
+        adapterRefs: ["adapter:browser-webrtc"],
+      },
+      {
         slotRef: "slot:native-client",
-        state: FABRIC.CONTRACT_TARGET_SLOT_STATE.MISSING,
+        state: FABRIC.CONTRACT_TARGET_SLOT_STATE.NOT_REQUIRED,
         platformFitState: FABRIC.CONTRACT_TARGET_PLATFORM_FIT_STATE.UNKNOWN,
-        blockedReasons: ["nativeClientNotPresentOnDesktopDevTarget"],
       },
     ],
-    candidateFulfillmentRefs: ["runtime:runtime-2.57"],
+    candidateFulfillmentRefs: ["runtime:runtime-2.57", "fulfillment:browser-webrtc:authenticated-desktop-browser"],
     proofRequirementRefs: ["proof-requirement:surface-landscape"],
     evidenceRefs: ["evidence:runtime:target-registry"],
-    blockedReasons: ["nativeClientNotPresentOnDesktopDevTarget"],
     observedAt: 1778720000100,
     expiresAt: 1778720060000,
   };
@@ -267,10 +272,12 @@ test("runtime read model accepts target source envelope from account runtime", (
     },
   });
 
-  assert.equal(posture.state, "degraded");
+  assert.equal(posture.state, "ready");
   assert.equal(posture.targetRef, target.targetRef);
-  assert.equal(posture.registry.missingSlotCount, 1);
-  assert.deepEqual(posture.missingSlotRefs, ["slot:native-client"]);
+  assert.equal(posture.registry.notRequiredSlotCount, 1);
+  assert.equal(posture.registry.availableSlotCount, 2);
+  assert.deepEqual(posture.negativeSlotRefs, ["slot:native-client"]);
+  assert.deepEqual(posture.missingSlotRefs, []);
 });
 
 test("runtime surface client emits read-model posture alongside raw snapshots", async () => {
