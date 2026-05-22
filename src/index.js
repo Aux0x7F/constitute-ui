@@ -272,6 +272,8 @@ export function renderDataTable(container, {
 }
 
 export {
+  prepareServiceHostFabricPosture,
+  prepareServiceLaunchPosture,
   preparedServiceRegistry,
   preparedServiceRegistryServices,
 } from "./service-registry-model.js";

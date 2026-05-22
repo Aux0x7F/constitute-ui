@@ -80,3 +80,100 @@ export function preparedServiceRegistry(snapshot = {}, options = {}) {
 export function preparedServiceRegistryServices(snapshot = {}, options = {}) {
   return preparedServiceRegistry(snapshot, options).services;
 }
+
+export function prepareServiceHostFabricPosture(value = {}) {
+  const fabric = normalizeObject(value);
+  if (!Object.keys(fabric).length) {
+    return Object.freeze({
+      kind: "service.host-fabric.read-model",
+      state: "missing",
+      ready: false,
+      blocked: false,
+      degraded: true,
+      blockedReasons: Object.freeze([]),
+      handoffRef: "",
+      label: "missing",
+    });
+  }
+  const state = text(fabric.state || fabric.fulfillmentPlan?.state || fabric.fulfillmentState || fabric.lifecyclePlan?.state || fabric.lifecycleState || "unknown") || "unknown";
+  const blockedReasons = normalizedArray(fabric.blockedReasons).map(text).filter(Boolean);
+  const handoffRef = text(fabric.associationHandoffRef || fabric.handoffRef || fabric.fulfillmentPlan?.associationHandoffRef);
+  const blocked = blockedReasons.length > 0 || state === "blocked";
+  const ready = !blocked && ["ready", "available", "live"].includes(state);
+  const degraded = !ready && !blocked;
+  return Object.freeze({
+    kind: "service.host-fabric.read-model",
+    state,
+    ready,
+    blocked,
+    degraded,
+    blockedReasons: Object.freeze(blockedReasons),
+    handoffRef,
+    label: [
+      state,
+      blockedReasons.length ? `blocked ${blockedReasons.slice(0, 2).join(", ")}` : "",
+      handoffRef ? `handoff ${shortRef(handoffRef)}` : "",
+    ].filter(Boolean).join(" / "),
+  });
+}
+
+function serviceSource(record) {
+  return text(record?.__source || record?.__registrySource);
+}
+
+export function prepareServiceLaunchPosture(record = {}, options = {}) {
+  const source = serviceSource(record);
+  const requiredSource = text(options.requiredSource || "serviceRegistry");
+  const legacyFallback = normalizeObject(record?.legacyPathFallback || record?.legacy_path_fallback);
+  if (Object.keys(legacyFallback).length > 0) {
+    const reason = text(legacyFallback.reason || "legacy path fallback is quarantined");
+    return Object.freeze({
+      kind: "service.launch.read-model",
+      state: "blocked",
+      ready: false,
+      blocked: true,
+      reason,
+      label: `blocked / ${reason}`,
+    });
+  }
+  if (source !== requiredSource) {
+    const reason = source
+      ? `service is projected from ${source}, not service registry`
+      : "service registry posture is missing";
+    return Object.freeze({
+      kind: "service.launch.read-model",
+      state: "blocked",
+      ready: false,
+      blocked: true,
+      reason,
+      label: `blocked / ${reason}`,
+    });
+  }
+  const fabric = prepareServiceHostFabricPosture(record?.hostFabric);
+  if (!fabric.ready) {
+    const reason = fabric.blockedReasons[0] || "host fabric is not ready";
+    return Object.freeze({
+      kind: "service.launch.read-model",
+      state: "blocked",
+      ready: false,
+      blocked: true,
+      reason,
+      label: `blocked / ${reason}`,
+    });
+  }
+  return Object.freeze({
+    kind: "service.launch.read-model",
+    state: "ready",
+    ready: true,
+    blocked: false,
+    reason: "",
+    label: "ready",
+  });
+}
+
+function shortRef(value) {
+  const raw = text(value);
+  if (!raw) return "";
+  if (raw.length <= 18) return raw;
+  return `${raw.slice(0, 10)}...${raw.slice(-5)}`;
+}
