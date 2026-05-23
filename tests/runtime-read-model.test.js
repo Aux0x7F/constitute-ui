@@ -161,10 +161,14 @@ test("runtime host fabric posture prepares fulfillment plan and lifecycle record
     fabricRef: "fabric:local-workstation",
     hostRef: "host:local-windows",
     memberRef,
+    participantRef: "participant:gateway-association:local",
     role: FABRIC.MEMBER_ROLE.GATEWAY_ASSOCIATION,
+    roleRef: "role:gatewayAssociation",
     state: FABRIC.MEMBER_CONTRIBUTION_STATE.ACCEPTED,
     contractRef: "contract:gateway-association@0.1.0",
     subjectRef: "gateway:local",
+    moduleRefs: ["module:gateway-association"],
+    sourceRefs: ["content-index:source:constitute-gateway"],
     capabilityRefs: ["cap:route.associate"],
     evidenceRefs: ["evidence:gateway:local"],
     lifecyclePlanRefs: ["lifecycle:service-edge:nvr"],
@@ -183,9 +187,11 @@ test("runtime host fabric posture prepares fulfillment plan and lifecycle record
       {
         phase: FABRIC.LIFECYCLE_PHASE.RUN,
         state: FABRIC.LIFECYCLE_PHASE_STATE.READY,
+        dependencyRefs: [],
         evidenceRefs: ["evidence:lifecycle:nvr:run"],
       },
     ],
+    dependencyEdges: [],
     observedAt: 1778720000400,
   };
 
