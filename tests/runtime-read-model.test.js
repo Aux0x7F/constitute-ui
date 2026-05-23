@@ -74,6 +74,39 @@ test("runtime read model keeps swarm edge endpoint references out of URL vocabul
   assert.equal(readModel.edge.endpointRef, "edge-endpoint:lab-gateway");
 });
 
+test("runtime read model consumes carrier edge session evidence as connection posture", () => {
+  const now = 1778721000000;
+  const readModel = prepareRuntimeReadModel({
+    buildId: "runtime-test",
+    broker: { available: true },
+    edge: {
+      mode: "live",
+      connected: false,
+      carrierEdge: {
+        kind: SWARM.RECORD_KIND.CARRIER_EDGE_SESSION_EVIDENCE,
+        evidenceId: "carrier-edge-evidence:runtime:test",
+        selectionRef: "carrier-edge-selection:runtime:swarm-edge",
+        edgeSessionRef: "carrier-edge-session:test",
+        adapterRef: "adapter:runtime-worker:websocket",
+        adapterKind: SWARM.CARRIER_EDGE_ADAPTER_KIND.WEB_SOCKET,
+        participantRef: "member:runtime",
+        state: SWARM.CARRIER_EDGE_SESSION_STATE.OPEN,
+        connectionState: "connected",
+        backpressureState: SWARM.CARRIER_EDGE_BACKPRESSURE_STATE.CLEAR,
+        observedAt: now,
+        expiresAt: now + 30_000,
+      },
+    },
+  }, { now });
+
+  assert.equal(readModel.edge.state, SWARM.CARRIER_EDGE_SESSION_STATE.OPEN);
+  assert.equal(readModel.edge.connected, true);
+  assert.equal(readModel.edge.memberRef, "member:runtime");
+  assert.equal(readModel.edge.carrierEdge.present, true);
+  assert.equal(readModel.edge.carrierEdge.adapterKind, SWARM.CARRIER_EDGE_ADAPTER_KIND.WEB_SOCKET);
+  assert.deepEqual(readModel.edge.carrierEdge.validationErrors, []);
+});
+
 test("runtime target posture prepares protocol target and registry records for product-safe reads", () => {
   const target = {
     kind: SWARM.RECORD_KIND.CONTRACT_TARGET,

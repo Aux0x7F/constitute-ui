@@ -1203,6 +1203,10 @@ export function renderSwarmEdgeStatus<TPayload = unknown>(container: HTMLElement
   lastRejectReason?: string;
   connected?: boolean;
   mode?: string;
+  carrierState?: string;
+  connectionState?: string;
+  backpressureState?: string;
+  blockedReasons?: string[];
   actions?: Array<PreparedAction<TPayload>>;
   onAction?: (payload: TPayload | PreparedActionPayload) => void;
 }): { wrap: HTMLElement } | null;

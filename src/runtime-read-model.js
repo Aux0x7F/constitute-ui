@@ -7,6 +7,7 @@ import {
 import {
   FABRIC,
   SWARM,
+  assertCarrierEdgeSessionEvidence,
   assertContractTarget,
   assertContractTargetRegistryPosture,
   assertHostFabricFulfillmentPlan,
@@ -45,15 +46,73 @@ function summarizeBroker(snapshot) {
   });
 }
 
+function summarizeCarrierEdge(snapshot) {
+  const edge = record(snapshot.edge);
+  const carrierEdge = record(
+    edge.carrierEdge
+      || edge.carrierEdgeSessionEvidence
+      || snapshot.carrierEdge
+      || snapshot.carrierEdgeSessionEvidence,
+  );
+  if (countObject(carrierEdge) === 0) {
+    return Object.freeze({
+      present: false,
+      state: "unknown",
+      connectionState: "unknown",
+      adapterRef: "",
+      adapterKind: "",
+      participantRef: "",
+      edgeSessionRef: "",
+      backpressureState: "unknown",
+      blockedReasons: Object.freeze([]),
+      validationErrors: Object.freeze([]),
+      observedAt: 0,
+      expiresAt: 0,
+    });
+  }
+  const validationErrors = [];
+  if (carrierEdge.kind || carrierEdge.evidenceId) {
+    try {
+      assertCarrierEdgeSessionEvidence(carrierEdge);
+    } catch (error) {
+      validationErrors.push(String(error?.message || error || "invalid carrier edge evidence"));
+    }
+  }
+  return Object.freeze({
+    present: true,
+    state: text(carrierEdge.state) || "unknown",
+    connectionState: text(carrierEdge.connectionState) || "unknown",
+    adapterRef: text(carrierEdge.adapterRef),
+    adapterKind: text(carrierEdge.adapterKind),
+    participantRef: text(carrierEdge.participantRef),
+    edgeSessionRef: text(carrierEdge.edgeSessionRef),
+    backpressureState: text(carrierEdge.backpressureState) || "unknown",
+    blockedReasons: Object.freeze(textArray(carrierEdge.blockedReasons)),
+    validationErrors: Object.freeze(validationErrors),
+    observedAt: number(carrierEdge.observedAt),
+    expiresAt: number(carrierEdge.expiresAt),
+  });
+}
+
 function summarizeEdge(snapshot) {
   const edge = record(snapshot.edge);
+  const carrierEdge = summarizeCarrierEdge(snapshot);
+  const connected = bool(edge.connected)
+    || carrierEdge.state === SWARM.CARRIER_EDGE_SESSION_STATE.OPEN
+    || carrierEdge.connectionState === "connected";
+  const state = carrierEdge.present && carrierEdge.state !== "unknown"
+    ? carrierEdge.state
+    : text(edge.state || edge.status || (connected ? "connected" : "")) || "unknown";
+  const endpointRef = text(edge.endpointRef)
+    || (text(edge.endpoint) ? "edge-endpoint:runtime-swarm-edge" : "");
   return Object.freeze({
-    state: text(edge.state || edge.status || (edge.connected === true ? "connected" : "")) || "unknown",
-    mode: text(edge.mode),
-    connected: bool(edge.connected),
-    reason: text(edge.reason || edge.error),
-    endpointRef: text(edge.endpointRef || edge.endpoint),
-    memberRef: text(edge.memberRef),
+    state,
+    mode: text(edge.mode || record(edge.carrierEdge)?.safeFacts?.mode || record(edge.carrierEdgeSessionEvidence)?.safeFacts?.mode),
+    connected,
+    reason: text(edge.reason || edge.error || carrierEdge.blockedReasons[0]),
+    endpointRef,
+    memberRef: text(edge.memberRef || carrierEdge.participantRef),
+    carrierEdge,
   });
 }
 

@@ -375,6 +375,10 @@ export function renderSwarmEdgeStatus(container, {
   lastRejectReason = "",
   connected = false,
   mode = "",
+  carrierState = "",
+  connectionState = "",
+  backpressureState = "",
+  blockedReasons = [],
   actions = [],
   onAction,
 } = {}) {
@@ -384,9 +388,17 @@ export function renderSwarmEdgeStatus(container, {
   const wrap = document.createElement("section");
   wrap.className = "cuStatusPanel cuSwarmEdgeStatus";
   wrap.setAttribute("aria-label", "Swarm edge status");
+  const blocked = Array.isArray(blockedReasons) ? blockedReasons.filter(Boolean) : [];
+  const status = blocked.length
+    ? "Blocked"
+    : backpressureState && backpressureState !== "clear"
+      ? backpressureState
+      : carrierState
+        ? carrierState
+        : Number(rejected) > 0 ? "Rejects" : Number(queued) > 0 ? "Queued" : connected ? "Connected" : "Clear";
   wrap.appendChild(createStatusHeader({
     title: "Swarm edge",
-    status: Number(rejected) > 0 ? "Rejects" : Number(queued) > 0 ? "Queued" : connected ? "Connected" : "Clear",
+    status,
   }));
   wrap.appendChild(createCountStrip([
     ["Queued", queued, "warn"],
@@ -395,6 +407,10 @@ export function renderSwarmEdgeStatus(container, {
   ]));
   wrap.appendChild(createKeyValueGrid([
     ["Mode", mode],
+    ["Carrier", carrierState],
+    ["Connection", connectionState],
+    ["Backpressure", backpressureState],
+    ["Blocked", blocked.join(", ")],
     ["Last reject", lastRejectReason],
   ]));
 
@@ -402,7 +418,7 @@ export function renderSwarmEdgeStatus(container, {
     actions,
     kind: "swarmEdge",
     recordId: "swarm-edge",
-    record: { queued, sent, rejected, lastRejectReason, connected, mode },
+    record: { queued, sent, rejected, lastRejectReason, connected, mode, carrierState, connectionState, backpressureState, blockedReasons: blocked },
     onAction,
   });
 
