@@ -143,6 +143,39 @@ export type RuntimeLifecyclePlanReadModel = Readonly<{
   }>[];
 }>;
 
+export type RuntimeHostOperationReadModel = Readonly<{
+  kind: "runtime.host-operation.read-model";
+  state: "ready" | "degraded" | "blocked" | "pending";
+  ready: boolean;
+  degraded: boolean;
+  blocked: boolean;
+  operationRef: string;
+  subjectRef: string;
+  decisionId: string;
+  decisionState: string;
+  planState: string;
+  sourcePlanRef: string;
+  sourcePlanObservedAt: number;
+  sourcePlanExpiresAt: number;
+  delegatedRoleRef: string;
+  legacyBridgeId: string;
+  legacyBridgeState: string;
+  legacyDirect: boolean;
+  fallbackAvailable: boolean;
+  quarantined: boolean;
+  adapterEvidenceId: string;
+  adapterExecutionState: string;
+  adapterRef: string;
+  outputRefs: readonly string[];
+  cleanupRefs: readonly string[];
+  fallbackRefs: readonly string[];
+  quarantineRefs: readonly string[];
+  blockedReasons: readonly string[];
+  validationErrors: readonly string[];
+  observedAt: number;
+  expiresAt: number;
+}>;
+
 export type RuntimeHostFabricReadModel = Readonly<{
   kind: "runtime.host-fabric.read-model";
   state: "ready" | "degraded" | "blocked" | "pending";
@@ -165,6 +198,11 @@ export type RuntimeHostFabricReadModel = Readonly<{
   planCount: number;
   contributionCount: number;
   lifecyclePlanCount: number;
+  controlDecisionCount: number;
+  legacyBridgeCount: number;
+  adapterExecutionCount: number;
+  operationValidationErrors: readonly string[];
+  operation: RuntimeHostOperationReadModel;
   contributions: readonly RuntimeHostFabricContributionReadModel[];
   lifecyclePlans: readonly RuntimeLifecyclePlanReadModel[];
   clientId: string;

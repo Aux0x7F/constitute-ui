@@ -248,6 +248,105 @@ test("runtime host fabric posture prepares fulfillment plan and lifecycle record
   assert.equal(posture.lifecyclePlans[0].phaseCount, 1);
 });
 
+test("runtime host fabric posture prepares operation state from control, bridge, and adapter records", () => {
+  const now = 1778720000500;
+  const plan = {
+    kind: SWARM.RECORD_KIND.HOST_FABRIC_FULFILLMENT_PLAN,
+    planId: "host-fabric-plan:service-manager:gateway",
+    fabricRef: "fabric:local-workstation",
+    hostRef: "host:local-windows",
+    contractRef: "contract:host-fabric@0.1.0",
+    state: FABRIC.FULFILLMENT_PLAN_STATE.READY,
+    requiredRoleRefs: ["role:hostServiceAdapter"],
+    memberContributionRefs: ["contribution:service-manager:local"],
+    lifecyclePlanRefs: ["lifecycle:service-manager:gateway"],
+    evidenceRefs: ["evidence:fabric-plan:gateway"],
+    observedAt: now,
+    expiresAt: now + 60_000,
+  };
+  const decision = {
+    kind: SWARM.RECORD_KIND.HOST_FABRIC_CONTROL_DECISION,
+    decisionId: "hostFabric:controlDecision:gateway:healthCheck:1778720000500",
+    fabricRef: plan.fabricRef,
+    hostRef: plan.hostRef,
+    operationRef: "service-manager:operation:gateway:healthCheck:1778720000500",
+    subjectRef: "service:gateway",
+    controlOwnerRef: "fabric:local-workstation",
+    delegatedRoleRef: "role:hostServiceAdapter",
+    sourcePlanRef: plan.planId,
+    sourcePlanObservedAt: now,
+    sourcePlanExpiresAt: now + 60_000,
+    planState: FABRIC.FULFILLMENT_PLAN_STATE.READY,
+    state: FABRIC.CONTROL_DECISION_STATE.READY,
+    authorizationRefs: ["authority:service-manager:local"],
+    fallbackRefs: ["fallback:service-manager:legacy-control"],
+    quarantineRefs: ["quarantine:service-manager:legacy-control:role:hostServiceAdapter"],
+    evidenceRefs: ["evidence:fabric-plan:gateway", "evidence:fabric-control:gateway"],
+    observedAt: now + 100,
+    expiresAt: now + 60_000,
+  };
+  const bridge = {
+    kind: SWARM.RECORD_KIND.HOST_FABRIC_LEGACY_CONTROL_BRIDGE,
+    bridgeId: "hostFabric:legacyControlBridge:gateway:healthCheck:1778720000500",
+    fabricRef: plan.fabricRef,
+    hostRef: plan.hostRef,
+    legacyOwnerRef: "service-manager:local",
+    subjectRef: decision.subjectRef,
+    operationRef: decision.operationRef,
+    state: FABRIC.LEGACY_CONTROL_STATE.FALLBACK_AVAILABLE,
+    sourceDecisionRef: decision.decisionId,
+    delegatedRoleRef: "role:hostServiceAdapter",
+    fallbackRefs: ["fallback:service-manager:legacy-control"],
+    quarantineRefs: ["quarantine:service-manager:legacy-control:role:hostServiceAdapter"],
+    evidenceRefs: ["evidence:legacy-control:gateway"],
+    observedAt: now + 200,
+    expiresAt: now + 60_000,
+  };
+  const adapter = {
+    kind: SWARM.RECORD_KIND.HOST_FABRIC_ADAPTER_EXECUTION_EVIDENCE,
+    evidenceId: "hostFabric:adapterExecution:gateway:healthCheck:1778720000500",
+    fabricRef: plan.fabricRef,
+    hostRef: plan.hostRef,
+    adapterRef: "adapter:service-manager:host-service",
+    subjectRef: decision.subjectRef,
+    operationRef: decision.operationRef,
+    state: FABRIC.ADAPTER_EXECUTION_STATE.SUCCEEDED,
+    sourceDecisionRef: decision.decisionId,
+    sourcePlanRef: plan.planId,
+    sourcePlanObservedAt: now,
+    sourcePlanExpiresAt: now + 60_000,
+    sourceBridgeRef: bridge.bridgeId,
+    delegatedRoleRef: "role:hostServiceAdapter",
+    authorizationRefs: ["authority:service-manager:local"],
+    actionAuthorityRefs: ["authority:service-manager:local"],
+    inputRefs: [decision.operationRef, bridge.bridgeId, plan.planId],
+    outputRefs: ["evidence:host-adapter:gateway:healthCheck:dry-run-ok"],
+    fallbackRefs: ["fallback:service-manager:legacy-control"],
+    cleanupRefs: ["cleanup:service-manager:gateway:healthCheck"],
+    evidenceRefs: ["evidence:host-adapter:gateway:healthCheck:dry-run-ok"],
+    observedAt: now + 300,
+    expiresAt: now + 60_000,
+  };
+
+  const posture = prepareRuntimeHostFabricPosture({
+    hostFabricFulfillmentPlans: [plan],
+    hostFabricControlDecisions: [decision],
+    hostFabricLegacyControlBridges: [bridge],
+    hostFabricAdapterExecutionEvidence: [adapter],
+  });
+
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.operation.state, "ready");
+  assert.equal(posture.operation.decisionState, FABRIC.CONTROL_DECISION_STATE.READY);
+  assert.equal(posture.operation.legacyBridgeState, FABRIC.LEGACY_CONTROL_STATE.FALLBACK_AVAILABLE);
+  assert.equal(posture.operation.adapterExecutionState, FABRIC.ADAPTER_EXECUTION_STATE.SUCCEEDED);
+  assert.equal(posture.operation.sourcePlanRef, plan.planId);
+  assert.equal(posture.operation.sourcePlanObservedAt, now);
+  assert.equal(posture.operation.fallbackAvailable, true);
+  assert.deepEqual(posture.operation.outputRefs, ["evidence:host-adapter:gateway:healthCheck:dry-run-ok"]);
+  assert.deepEqual(posture.operation.validationErrors, []);
+});
+
 test("runtime read model accepts target source envelope from account runtime", () => {
   const target = {
     kind: SWARM.RECORD_KIND.CONTRACT_TARGET,
