@@ -116,6 +116,7 @@ test("runtime activation posture applies service admission lifecycle to stream s
   assert.deepEqual(runtimeStreamSessionPosture([session]), {
     sessionCount: 1,
     waitingRouteCount: 0,
+    waitingServiceAdmissionCount: 0,
     waitingServiceAcceptanceCount: 0,
     serviceAdmissionTimedOutCount: 0,
     waitingAnswerCount: 0,
@@ -215,6 +216,7 @@ test("runtime media fulfillment posture applies recovery state to stream session
   assert.deepEqual(runtimeStreamSessionPosture([session]), {
     sessionCount: 1,
     waitingRouteCount: 0,
+    waitingServiceAdmissionCount: 0,
     waitingServiceAcceptanceCount: 0,
     serviceAdmissionTimedOutCount: 0,
     waitingAnswerCount: 0,

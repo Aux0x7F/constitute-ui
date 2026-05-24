@@ -107,6 +107,71 @@ test("runtime read model consumes carrier edge session evidence as connection po
   assert.deepEqual(readModel.edge.carrierEdge.validationErrors, []);
 });
 
+test("runtime read model exposes carrier actionability posture without socket inference", () => {
+  const now = 1778721000000;
+  const blocked = prepareRuntimeReadModel({
+    buildId: "runtime-test",
+    broker: { available: true },
+    edge: {
+      connected: false,
+      carrierEdge: {
+        kind: SWARM.RECORD_KIND.CARRIER_EDGE_SESSION_EVIDENCE,
+        evidenceId: "carrier-edge-evidence:runtime:blocked",
+        selectionRef: "carrier-edge-selection:runtime:swarm-edge",
+        edgeSessionRef: "carrier-edge-session:blocked",
+        adapterRef: "adapter:runtime-worker:websocket",
+        adapterKind: SWARM.CARRIER_EDGE_ADAPTER_KIND.WEB_SOCKET,
+        participantRef: "member:runtime",
+        sessionBindingRef: "binding:gateway-edge:blocked",
+        networkSensitivity: SWARM.CARRIER_EDGE_NETWORK_SENSITIVITY.LOCAL_NETWORK,
+        state: SWARM.CARRIER_EDGE_SESSION_STATE.BLOCKED,
+        connectionState: "closed",
+        backpressureState: SWARM.CARRIER_EDGE_BACKPRESSURE_STATE.BLOCKED,
+        blockedReasons: ["carrierEdgeBackoff"],
+        observedAt: now,
+        expiresAt: now + 30_000,
+      },
+    },
+  }, { now });
+
+  assert.equal(blocked.edge.actionabilityState, "carrierBlocked");
+  assert.equal(blocked.edge.blocked, true);
+  assert.equal(blocked.edge.reason, "carrierEdgeBackoff");
+  assert.deepEqual(blocked.edge.blockedReasons, ["carrierEdgeBackoff"]);
+  assert.equal(blocked.edge.carrierEdge.sessionBindingRef, "binding:gateway-edge:blocked");
+  assert.equal(blocked.edge.carrierEdge.networkSensitivity, SWARM.CARRIER_EDGE_NETWORK_SENSITIVITY.LOCAL_NETWORK);
+
+  const degraded = prepareRuntimeReadModel({
+    buildId: "runtime-test",
+    broker: { available: true },
+    edge: {
+      connected: false,
+      carrierEdge: {
+        kind: SWARM.RECORD_KIND.CARRIER_EDGE_SESSION_EVIDENCE,
+        evidenceId: "carrier-edge-evidence:runtime:degraded",
+        selectionRef: "carrier-edge-selection:runtime:swarm-edge",
+        edgeSessionRef: "carrier-edge-session:degraded",
+        adapterRef: "adapter:runtime-worker:websocket",
+        adapterKind: SWARM.CARRIER_EDGE_ADAPTER_KIND.WEB_SOCKET,
+        participantRef: "member:runtime",
+        state: SWARM.CARRIER_EDGE_SESSION_STATE.OPEN,
+        connectionState: "connecting",
+        backpressureState: SWARM.CARRIER_EDGE_BACKPRESSURE_STATE.CLEAR,
+        observedAt: now,
+        expiresAt: now + 30_000,
+      },
+    },
+  }, { now });
+
+  assert.equal(degraded.edge.actionabilityState, "carrierDegraded");
+  assert.equal(degraded.edge.degraded, true);
+  assert.equal(degraded.edge.ready, false);
+
+  const waiting = prepareRuntimeReadModel({ buildId: "runtime-test", broker: { available: true } }, { now });
+  assert.equal(waiting.edge.actionabilityState, "waitingCarrier");
+  assert.equal(waiting.edge.waiting, true);
+});
+
 test("runtime target posture prepares protocol target and registry records for product-safe reads", () => {
   const target = {
     kind: SWARM.RECORD_KIND.CONTRACT_TARGET,

@@ -1,6 +1,7 @@
 export type RuntimeStreamPosture = {
   sessionCount: number;
   waitingRouteCount: number;
+  waitingServiceAdmissionCount: number;
   waitingServiceAcceptanceCount: number;
   serviceAdmissionTimedOutCount: number;
   waitingAnswerCount: number;

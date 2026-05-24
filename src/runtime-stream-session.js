@@ -362,10 +362,14 @@ export function runtimeStreamSessionPosture(sessions = []) {
     .map((session) => Number(session.expiresAt || 0))
     .filter((value) => value > 0)
     .reduce((min, value) => Math.min(min, value), Number.POSITIVE_INFINITY);
+  const waitingServiceAdmissionCount = uniqueSessions
+    .filter((session) => !session.routePending && !session.serviceAccepted && !session.serviceRejected && !session.serviceAdmissionTimedOut)
+    .length;
   return {
     sessionCount: uniqueSessions.length,
     waitingRouteCount: uniqueSessions.filter((session) => session.routePending).length,
-    waitingServiceAcceptanceCount: uniqueSessions.filter((session) => !session.routePending && !session.serviceAccepted && !session.serviceRejected && !session.serviceAdmissionTimedOut).length,
+    waitingServiceAdmissionCount,
+    waitingServiceAcceptanceCount: waitingServiceAdmissionCount,
     serviceAdmissionTimedOutCount: uniqueSessions.filter((session) => session.serviceAdmissionTimedOut).length,
     waitingAnswerCount: uniqueSessions.filter((session) => session.serviceAccepted && !session.answerReceived).length,
     rejectedCount: uniqueSessions.filter((session) => session.serviceRejected).length,

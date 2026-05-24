@@ -65,10 +65,25 @@ function summarizeCarrierEdge(snapshot) {
       adapterRef: "",
       adapterKind: "",
       participantRef: "",
+      peerRef: "",
       edgeSessionRef: "",
+      sessionBindingRef: "",
+      networkSensitivity: "",
       backpressureState: "unknown",
       blockedReasons: Object.freeze([]),
+      blockedReason: "",
+      actionabilityState: "waitingCarrier",
+      ready: false,
+      waiting: true,
+      degraded: false,
+      blocked: false,
       validationErrors: Object.freeze([]),
+      proofSubstrateRefs: Object.freeze([]),
+      resourcePostureRefs: Object.freeze([]),
+      retryPosture: Object.freeze({}),
+      reconnectPosture: Object.freeze({}),
+      closePosture: Object.freeze({}),
+      releasePosture: Object.freeze({}),
       observedAt: 0,
       expiresAt: 0,
     });
@@ -81,17 +96,66 @@ function summarizeCarrierEdge(snapshot) {
       validationErrors.push(String(error?.message || error || "invalid carrier edge evidence"));
     }
   }
+  const state = text(carrierEdge.state) || "unknown";
+  const connectionState = text(carrierEdge.connectionState) || "unknown";
+  const backpressureState = text(carrierEdge.backpressureState) || "unknown";
+  const blockedReasons = Object.freeze(textArray(carrierEdge.blockedReasons));
+  const blocked = validationErrors.length > 0
+    || blockedReasons.length > 0
+    || state === SWARM.CARRIER_EDGE_SESSION_STATE.BLOCKED
+    || state === SWARM.CARRIER_EDGE_SESSION_STATE.EXPIRED
+    || backpressureState === SWARM.CARRIER_EDGE_BACKPRESSURE_STATE.BLOCKED;
+  const waiting = !blocked && [
+    SWARM.CARRIER_EDGE_SESSION_STATE.OPENING,
+    SWARM.CARRIER_EDGE_SESSION_STATE.CLOSING,
+    SWARM.CARRIER_EDGE_SESSION_STATE.CLOSED,
+    SWARM.CARRIER_EDGE_SESSION_STATE.RECONNECTING,
+    "unknown",
+  ].includes(state);
+  const degraded = !blocked && (
+    state === SWARM.CARRIER_EDGE_SESSION_STATE.DEGRADED
+    || state === SWARM.CARRIER_EDGE_SESSION_STATE.BACKPRESSURE
+    || backpressureState === SWARM.CARRIER_EDGE_BACKPRESSURE_STATE.DEGRADED
+    || backpressureState === SWARM.CARRIER_EDGE_BACKPRESSURE_STATE.SATURATED
+    || (state === SWARM.CARRIER_EDGE_SESSION_STATE.OPEN && connectionState && connectionState !== "connected")
+  );
+  const ready = !blocked && !waiting && !degraded && state === SWARM.CARRIER_EDGE_SESSION_STATE.OPEN;
+  const actionabilityState = blocked
+    ? "carrierBlocked"
+    : degraded
+      ? "carrierDegraded"
+      : waiting || !ready
+        ? "waitingCarrier"
+        : "carrierReady";
+  const blockedReason = validationErrors[0]
+    ? `invalidCarrierEdgeEvidence:${validationErrors[0]}`
+    : blockedReasons[0] || "";
   return Object.freeze({
     present: true,
-    state: text(carrierEdge.state) || "unknown",
-    connectionState: text(carrierEdge.connectionState) || "unknown",
+    state,
+    connectionState,
     adapterRef: text(carrierEdge.adapterRef),
     adapterKind: text(carrierEdge.adapterKind),
     participantRef: text(carrierEdge.participantRef),
+    peerRef: text(carrierEdge.peerRef),
     edgeSessionRef: text(carrierEdge.edgeSessionRef),
-    backpressureState: text(carrierEdge.backpressureState) || "unknown",
-    blockedReasons: Object.freeze(textArray(carrierEdge.blockedReasons)),
+    sessionBindingRef: text(carrierEdge.sessionBindingRef),
+    networkSensitivity: text(carrierEdge.networkSensitivity),
+    backpressureState,
+    blockedReasons,
+    blockedReason,
+    actionabilityState,
+    ready,
+    waiting,
+    degraded,
+    blocked,
     validationErrors: Object.freeze(validationErrors),
+    proofSubstrateRefs: Object.freeze(textArray(carrierEdge.proofSubstrateRefs)),
+    resourcePostureRefs: Object.freeze(textArray(carrierEdge.resourcePostureRefs)),
+    retryPosture: Object.freeze(record(carrierEdge.retryPosture)),
+    reconnectPosture: Object.freeze(record(carrierEdge.reconnectPosture)),
+    closePosture: Object.freeze(record(carrierEdge.closePosture)),
+    releasePosture: Object.freeze(record(carrierEdge.releasePosture)),
     observedAt: number(carrierEdge.observedAt),
     expiresAt: number(carrierEdge.expiresAt),
   });
@@ -100,9 +164,9 @@ function summarizeCarrierEdge(snapshot) {
 function summarizeEdge(snapshot) {
   const edge = record(snapshot.edge);
   const carrierEdge = summarizeCarrierEdge(snapshot);
-  const connected = bool(edge.connected)
-    || carrierEdge.state === SWARM.CARRIER_EDGE_SESSION_STATE.OPEN
-    || carrierEdge.connectionState === "connected";
+  const connected = carrierEdge.present
+    ? carrierEdge.ready
+    : bool(edge.connected);
   const state = carrierEdge.present && carrierEdge.state !== "unknown"
     ? carrierEdge.state
     : text(edge.state || edge.status || (connected ? "connected" : "")) || "unknown";
@@ -112,7 +176,13 @@ function summarizeEdge(snapshot) {
     state,
     mode: text(edge.mode || record(edge.carrierEdge)?.safeFacts?.mode || record(edge.carrierEdgeSessionEvidence)?.safeFacts?.mode),
     connected,
-    reason: text(edge.reason || edge.error || carrierEdge.blockedReasons[0]),
+    reason: text(edge.reason || edge.error || carrierEdge.blockedReason || carrierEdge.blockedReasons[0]),
+    actionabilityState: carrierEdge.actionabilityState,
+    ready: carrierEdge.ready || connected,
+    waiting: carrierEdge.waiting,
+    degraded: carrierEdge.degraded,
+    blocked: carrierEdge.blocked,
+    blockedReasons: carrierEdge.blockedReasons,
     endpointRef,
     memberRef: text(edge.memberRef || carrierEdge.participantRef),
     carrierEdge,
