@@ -21,7 +21,7 @@ export type RuntimeSurfaceReadModel = Readonly<{
   shell: Readonly<Record<string, unknown>>;
   authority: Readonly<Record<string, unknown>>;
   broker: Readonly<Record<string, unknown>>;
-  edge: RuntimeEdgeReadModel;
+  edge: RuntimeCarrierPostureReadModel;
   serviceRegistry: Readonly<Record<string, unknown>>;
   projection: Readonly<Record<string, unknown>>;
   target: RuntimeTargetReadModel;
@@ -61,7 +61,7 @@ export type RuntimeCarrierEdgeReadModel = Readonly<{
   expiresAt: number;
 }>;
 
-export type RuntimeEdgeReadModel = Readonly<{
+export type RuntimeCarrierPostureReadModel = Readonly<{
   state: string;
   mode: string;
   connected: boolean;
