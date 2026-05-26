@@ -297,6 +297,29 @@ export function createRuntimeSurfaceClient({
     return call(type, evidence, timeoutMs);
   }
 
+  function submitRunnerOperation(runnerOperation, timeoutMs = callTimeoutMs) {
+    return call("runtime.runner.operation.submit", { runnerOperation }, timeoutMs);
+  }
+
+  function putRunnerHostFulfillmentPosture(
+    hostFulfillmentPosture,
+    runtimeReportMessageOrTimeoutMs = null,
+    sourceDispatch = null,
+    timeoutMs = callTimeoutMs,
+  ) {
+    const runtimeReportMessage = runtimeReportMessageOrTimeoutMs
+      && typeof runtimeReportMessageOrTimeoutMs === "object"
+      && !Array.isArray(runtimeReportMessageOrTimeoutMs)
+      ? runtimeReportMessageOrTimeoutMs
+      : null;
+    const finalTimeoutMs = runtimeReportMessage ? timeoutMs : (runtimeReportMessageOrTimeoutMs || callTimeoutMs);
+    return call("runtime.runner.host.fulfillment.put", {
+      hostFulfillmentPosture,
+      ...(runtimeReportMessage ? { runtimeReportMessage } : {}),
+      ...(sourceDispatch && typeof sourceDispatch === "object" ? { sourceDispatch } : {}),
+    }, finalTimeoutMs);
+  }
+
   const api = {
     attach,
     call,
@@ -305,6 +328,8 @@ export function createRuntimeSurfaceClient({
     openIntent,
     closeIntent,
     submitEvidence,
+    submitRunnerOperation,
+    putRunnerHostFulfillmentPosture,
     settleResponse,
     get attached() {
       return attached;

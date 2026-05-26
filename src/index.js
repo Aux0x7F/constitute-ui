@@ -470,6 +470,7 @@ export function renderStreamStatus(container, {
 }
 
 export { createRuntimeSurfaceClient } from "./runtime-surface-client.js";
+export { createRuntimeRunnerBridge } from "./runtime-runner-bridge.js";
 export {
   prepareRuntimeHostFabricPosture,
   prepareRuntimeReadModel,
@@ -526,6 +527,7 @@ export {
   surfaceAppInstancePosture,
   surfaceAppReleaseResolution,
   surfaceAppManifestSelection,
+  surfaceNativeModuleLoadRunnerOperation,
   surfaceAppRuntimeSelectionPosture,
   surfaceAppRunnerFulfillmentReadiness,
   surfaceAppRunnerFulfillmentLifecycle,

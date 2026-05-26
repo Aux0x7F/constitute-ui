@@ -14,6 +14,8 @@ export type SurfaceModuleResolutionOptions = {
   moduleRef?: string;
   primitiveRef?: string;
   allowRemote?: boolean;
+  moduleResolverPosture?: Readonly<Record<string, unknown>>;
+  nativeModuleResolver?: Readonly<Record<string, unknown>>;
 };
 
 export type SurfaceModuleImplementation<TImplementation = unknown> = {
@@ -57,6 +59,7 @@ export type SurfaceModuleRegistryPosture<TImplementation = unknown> = {
   sourceMode: string;
   sourcePosture: Readonly<Record<string, unknown>> | null;
   runtimeSelectionPosture: SurfaceAppRuntimeSelectionPosture | null;
+  moduleResolution: Readonly<Record<string, unknown>> | null;
   claim: SurfaceAppModuleClaim | null;
   implementation: SurfaceModuleImplementation<TImplementation> | null;
 };
@@ -80,6 +83,13 @@ export type SurfaceModuleBinding<TImplementation = unknown> = {
   sourceMode: string;
   sourcePosture: Readonly<Record<string, unknown>> | null;
   runtimeSelectionPosture: SurfaceAppRuntimeSelectionPosture | null;
+  moduleResolution: Readonly<Record<string, unknown>> | null;
+  sourceSnapshotRef: string;
+  contentIndexRef: string;
+  artifactRef: string;
+  materializedPathRef: string;
+  storageRefs: readonly string[];
+  conflictRefs: readonly string[];
   claim: SurfaceAppModuleClaim | null;
   implementationRecord: SurfaceModuleImplementation<TImplementation> | null;
   implementation: TImplementation | null;
@@ -108,6 +118,13 @@ export type SurfaceAdapterBindingPosture<TImplementation = unknown> = {
   sourceMode: string;
   sourcePosture: Readonly<Record<string, unknown>> | null;
   runtimeSelectionPosture: SurfaceAppRuntimeSelectionPosture | null;
+  moduleResolution: Readonly<Record<string, unknown>> | null;
+  sourceSnapshotRef: string;
+  contentIndexRef: string;
+  artifactRef: string;
+  materializedPathRef: string;
+  storageRefs: readonly string[];
+  conflictRefs: readonly string[];
   moduleBinding: SurfaceModuleBinding<TImplementation>;
 };
 

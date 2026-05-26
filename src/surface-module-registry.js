@@ -39,7 +39,7 @@ export function createSurfaceModuleRegistry(entries = []) {
 }
 
 export function surfaceModuleRegistryPosture(registry, surfaceAppOrContract, role, options = {}) {
-  const resolutionSource = surfaceModuleResolutionSource(surfaceAppOrContract);
+  const resolutionSource = surfaceModuleResolutionSource(surfaceAppOrContract, options);
   const surfaceApp = resolutionSource.surfaceApp;
   const roleRef = String(role || "");
   const blockedSourceReason = sourceBlockedReason(resolutionSource, options);
@@ -56,6 +56,7 @@ export function surfaceModuleRegistryPosture(registry, surfaceAppOrContract, rol
       sourceMode: resolutionSource.sourceMode,
       sourcePosture: resolutionSource.sourcePosture,
       runtimeSelectionPosture: resolutionSource.runtimeSelectionPosture,
+      moduleResolution: null,
       claim: null,
       implementation: null,
     });
@@ -79,6 +80,7 @@ export function surfaceModuleRegistryPosture(registry, surfaceAppOrContract, rol
       sourceMode: resolutionSource.sourceMode,
       sourcePosture: resolutionSource.sourcePosture,
       runtimeSelectionPosture: resolutionSource.runtimeSelectionPosture,
+      moduleResolution: null,
       claim: null,
       implementation: null,
     });
@@ -86,6 +88,26 @@ export function surfaceModuleRegistryPosture(registry, surfaceAppOrContract, rol
 
   const claim = rolePosture.modules[0];
   const fallbackRefs = claim.fallbackRefs || [];
+  const moduleResolution = sourceModuleResolutionForClaim(resolutionSource.moduleResolverPosture, claim);
+  const moduleResolutionBlock = moduleResolutionBlockedReason(resolutionSource, claim, moduleResolution, options);
+  if (moduleResolutionBlock) {
+    return Object.freeze({
+      kind: "surface.module.registry.posture",
+      state: "blocked",
+      blockedReason: moduleResolutionBlock,
+      role: roleRef,
+      moduleRef: claim.moduleRef,
+      implementationRef: "",
+      fallbackRefs: Object.freeze([...fallbackRefs]),
+      fallbackTried: Object.freeze([]),
+      sourceMode: resolutionSource.sourceMode,
+      sourcePosture: resolutionSource.sourcePosture,
+      runtimeSelectionPosture: resolutionSource.runtimeSelectionPosture,
+      moduleResolution,
+      claim,
+      implementation: null,
+    });
+  }
   const candidates = [claim.moduleRef, ...fallbackRefs].filter(Boolean);
   const fallbackTried = [];
   for (const moduleRef of candidates) {
@@ -105,6 +127,7 @@ export function surfaceModuleRegistryPosture(registry, surfaceAppOrContract, rol
       sourceMode: resolutionSource.sourceMode,
       sourcePosture: resolutionSource.sourcePosture,
       runtimeSelectionPosture: resolutionSource.runtimeSelectionPosture,
+      moduleResolution,
       claim,
       implementation,
     });
@@ -122,6 +145,7 @@ export function surfaceModuleRegistryPosture(registry, surfaceAppOrContract, rol
     sourceMode: resolutionSource.sourceMode,
     sourcePosture: resolutionSource.sourcePosture,
     runtimeSelectionPosture: resolutionSource.runtimeSelectionPosture,
+    moduleResolution,
     claim,
     implementation: null,
   });
@@ -168,6 +192,13 @@ export function surfaceModuleBinding(registry, surfaceAppOrContract, role, optio
     sourceMode: posture.sourceMode || "",
     sourcePosture: posture.sourcePosture || null,
     runtimeSelectionPosture: posture.runtimeSelectionPosture || null,
+    moduleResolution: posture.moduleResolution || null,
+    sourceSnapshotRef: String(posture.moduleResolution?.sourceSnapshotRef || ""),
+    contentIndexRef: String(posture.moduleResolution?.contentIndexRef || ""),
+    artifactRef: String(posture.moduleResolution?.artifactRef || ""),
+    materializedPathRef: String(posture.moduleResolution?.materializedPathRef || ""),
+    storageRefs: Object.freeze(normalizeStringArray(posture.moduleResolution?.storageRefs)),
+    conflictRefs: Object.freeze(normalizeStringArray(posture.moduleResolution?.conflictRefs)),
     claim: posture.claim,
     implementationRecord: posture.implementation,
     implementation,
@@ -248,6 +279,13 @@ export function surfaceAdapterBindingPosture(registry, surfaceAppOrContract, opt
     sourceMode: binding.sourceMode,
     sourcePosture: binding.sourcePosture,
     runtimeSelectionPosture: binding.runtimeSelectionPosture,
+    moduleResolution: binding.moduleResolution,
+    sourceSnapshotRef: binding.sourceSnapshotRef,
+    contentIndexRef: binding.contentIndexRef,
+    artifactRef: binding.artifactRef,
+    materializedPathRef: binding.materializedPathRef,
+    storageRefs: binding.storageRefs,
+    conflictRefs: binding.conflictRefs,
     moduleBinding: binding,
   });
 }
@@ -383,7 +421,7 @@ function asSurfaceApp(surfaceAppOrContract) {
   return defineSurfaceAppContract(surfaceAppOrContract);
 }
 
-function surfaceModuleResolutionSource(surfaceAppOrContract) {
+function surfaceModuleResolutionSource(surfaceAppOrContract, options = {}) {
   const runtimeSelectionPosture = isRuntimeSelectionPosture(surfaceAppOrContract)
     ? surfaceAppOrContract
     : null;
@@ -404,11 +442,18 @@ function surfaceModuleResolutionSource(surfaceAppOrContract) {
     ...normalizeStringArray(runtimeSelectionPosture?.requiredModuleRoles),
     ...normalizeStringArray(surfaceApp?.requiredRoles),
   ]);
+  const moduleResolverPosture = moduleResolverPostureFrom(
+    options.moduleResolverPosture
+      || options.nativeModuleResolver
+      || runtimeSelectionPosture?.moduleResolverPosture
+      || runtimeSelectionPosture?.nativeModuleResolver,
+  );
   return Object.freeze({
     runtimeSelectionPosture,
     surfaceApp,
     sourceMode,
     sourcePosture,
+    moduleResolverPosture,
     requiredRoles: Object.freeze(requiredRoles),
   });
 }
@@ -434,7 +479,7 @@ function sourceBlockedReason(resolutionSource, options = {}) {
       ? firstReason(sourcePosture.blockedReasons, "remoteSourceUntrusted")
       : firstReason(sourcePosture.blockedReasons, "sourceUntrusted");
   }
-  if (nonBundledSourceMode(sourceMode) && options.allowRemote !== true) {
+  if (nonBundledSourceMode(sourceMode) && sourceMode !== "nativeInstalled" && options.allowRemote !== true) {
     return "unsupportedRemoteModuleSource";
   }
   return "";
@@ -460,6 +505,110 @@ function surfaceAdapterTaxonomyRolePosture(surfaceAppOrContract, role, options =
 function firstReason(value, fallback) {
   const reasons = normalizeStringArray(value);
   return reasons[0] || fallback;
+}
+
+function moduleResolverPostureFrom(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+
+function sourceModuleResolutionForClaim(moduleResolverPosture, claim) {
+  if (!moduleResolverPosture || !claim) return null;
+  const moduleResolutions = Array.isArray(moduleResolverPosture.moduleResolutions)
+    ? moduleResolverPosture.moduleResolutions.filter(isObject)
+    : [];
+  if (!moduleResolutions.length) return null;
+  const moduleCandidates = moduleResolutionModuleCandidates(claim);
+  const repoCandidates = moduleResolutionRepoCandidates(claim);
+  const resolution = moduleResolutions.find((entry) => (
+    moduleCandidates.includes(String(entry.moduleRef || "").trim())
+    || repoCandidates.includes(String(entry.repoRef || "").trim())
+  )) || null;
+  if (!resolution) return null;
+  const conflictRefs = uniqueStrings(normalizeStringArray(resolution.conflictRefs));
+  const resolutionState = String(resolution.state || "").trim();
+  return Object.freeze({
+    kind: "surface.module.resolver.resolution",
+    state: resolutionState === "materialized" && conflictRefs.length ? "trackingConflicts" : (resolutionState || "unknown"),
+    resolverRef: String(moduleResolverPosture.resolverRef || ""),
+    moduleRef: String(resolution.moduleRef || ""),
+    repoRef: String(resolution.repoRef || ""),
+    role: String(resolution.role || ""),
+    sourceSnapshotRef: String(resolution.sourceSnapshotRef || moduleResolverPosture.sourceSnapshotRef || ""),
+    contentIndexRef: String(resolution.contentIndexRef || moduleResolverPosture.contentIndexRef || ""),
+    artifactRef: String(resolution.artifactRef || ""),
+    materializedPathRef: String(resolution.materializedPathRef || ""),
+    storageRefs: Object.freeze(normalizeStringArray(resolution.storageRefs)),
+    conflictRefs: Object.freeze(conflictRefs),
+    blockedReasons: Object.freeze(normalizeStringArray(resolution.blockedReasons)),
+  });
+}
+
+function moduleResolutionBlockedReason(resolutionSource, claim, moduleResolution) {
+  if (String(resolutionSource.sourceMode || "") !== "nativeInstalled") return "";
+  if (!resolutionSource.moduleResolverPosture) return "missingNativeModuleResolver";
+  if (!moduleResolution) return "missingNativeModuleResolution";
+  const state = String(moduleResolution.state || "");
+  if (state === "missing" || state === "blocked" || state === "degraded") {
+    return firstReason(moduleResolution.blockedReasons, "nativeModuleResolutionBlocked");
+  }
+  if (!String(moduleResolution.sourceSnapshotRef || "").trim()) return "missingNativeSourceSnapshotRef";
+  if (!String(moduleResolution.artifactRef || "").trim()) return "missingNativeArtifactRef";
+  if (!String(claim?.moduleRef || "").trim()) return "missingModuleRef";
+  return "";
+}
+
+function moduleResolutionModuleCandidates(claim) {
+  const refs = uniqueStrings([
+    claim.sourceModuleRef,
+    claim.nativeModuleRef,
+    ...normalizeStringArray(claim.sourceModuleRefs),
+    ...normalizeStringArray(claim.nativeModuleRefs),
+    claim.moduleRef,
+    ...normalizeStringArray(claim.fallbackRefs),
+  ]);
+  return uniqueStrings([
+    ...refs,
+    ...refs.map((ref) => nativeModuleRefForModuleClaimRef(ref)),
+  ]);
+}
+
+function moduleResolutionRepoCandidates(claim) {
+  const refs = uniqueStrings([
+    claim.repoRef,
+    claim.sourceRepoRef,
+    claim.repositoryRef,
+    ...normalizeStringArray(claim.repoRefs),
+    ...normalizeStringArray(claim.sourceRepoRefs),
+  ]);
+  const moduleRefs = uniqueStrings([
+    claim.moduleRef,
+    claim.sourceModuleRef,
+    claim.nativeModuleRef,
+    ...normalizeStringArray(claim.fallbackRefs),
+  ]);
+  return uniqueStrings([
+    ...refs,
+    ...refs.map((ref) => ref.startsWith("repo:") ? ref : `repo:${ref}`),
+    ...moduleRefs.map((ref) => repoRefForModuleClaimRef(ref)),
+  ]);
+}
+
+function nativeModuleRefForModuleClaimRef(ref) {
+  const repoRef = repoRefForModuleClaimRef(ref);
+  const repoName = repoRef.replace(/^repo:/, "");
+  return repoName ? `module:native-dev:${repoName}` : "";
+}
+
+function repoRefForModuleClaimRef(ref) {
+  const value = String(ref || "").trim();
+  if (!value) return "";
+  if (value.startsWith("repo:")) return value;
+  if (value.startsWith("module:native-dev:")) return `repo:${value.replace(/^module:native-dev:/, "")}`;
+  const withoutModulePrefix = value.replace(/^module:/, "");
+  const versionIndex = withoutModulePrefix.lastIndexOf("@");
+  const withoutVersion = versionIndex > 0 ? withoutModulePrefix.slice(0, versionIndex) : withoutModulePrefix;
+  const repoName = withoutVersion.split("/")[0] || "";
+  return repoName ? `repo:${repoName}` : "";
 }
 
 function nonBundledSourceMode(sourceMode) {

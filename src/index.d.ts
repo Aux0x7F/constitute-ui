@@ -299,6 +299,7 @@ export type SurfaceAppSelectionReadModel = {
   runtimeSelectionPosture: SurfaceAppRuntimeSelectionPosture;
   moduleBindings: Readonly<Record<string, unknown>> | null;
   runnerPlan: SurfaceAppRunnerPlan;
+  moduleLoadRunnerOperation: SurfaceRunnerOperation | null;
   runnerFulfillmentLifecycle: SurfaceAppRunnerFulfillmentLifecycle | null;
   runnerFulfillmentReadiness: SurfaceAppRunnerFulfillmentReadiness | null;
   fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
@@ -771,6 +772,7 @@ export type SurfaceAppRuntimeSelectionPosture = {
   materializationBudgetRefs: string[];
   accessRequirementRefs: string[];
   sourceTrustResult: Readonly<Record<string, unknown>>;
+  moduleResolverPosture: Readonly<Record<string, unknown>> | null;
   modulePostures: readonly SurfaceModuleRolePosture[];
   runnerReadiness: Readonly<Record<string, unknown>>;
   serviceManagerReadiness: Readonly<Record<string, unknown>>;
@@ -850,6 +852,10 @@ export function surfaceRunnerOperation(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
 ): SurfaceRunnerOperation;
+export function surfaceNativeModuleLoadRunnerOperation(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceRunnerOperation;
 export function surfaceServiceManagerSecretBoundary(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
@@ -918,6 +924,8 @@ export function surfaceAppSelectionReadModel(options?: {
   runtimeSelectionOptions?: Record<string, unknown>;
   moduleBindings?: Record<string, unknown>;
   moduleBindingPosture?: Record<string, unknown>;
+  moduleLoadRunnerOperation?: SurfaceRunnerOperation | null;
+  moduleLoadRunnerOptions?: Record<string, unknown>;
   runnerPlan?: SurfaceAppRunnerPlan;
   runnerPlanOptions?: Record<string, unknown>;
   runnerFulfillmentReport?: Record<string, unknown>;
@@ -1294,5 +1302,6 @@ export function prepareServiceHostFabricPosture(value?: Record<string, unknown>)
 export function prepareServiceLaunchPosture(record?: Record<string, unknown>, options?: ServiceLaunchPostureOptions): ServiceLaunchReadModel;
 
 export * from "./projection-read-model.js";
+export * from "./runtime-runner-bridge.js";
 export * from "./runtime-shell-state.js";
 export * from "./runtime-read-model.js";

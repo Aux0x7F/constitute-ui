@@ -11,6 +11,10 @@ import {
 export type BrowserStreamSession = {
   sourceId: string;
   sessionId: string;
+  fulfillmentSessionId: string;
+  operationRef: string;
+  operationClassRef: string;
+  methodRef: string;
   frameId: string;
   correlationKeys: Set<string>;
   correlationBudget: MaterializationBudget;
@@ -71,6 +75,10 @@ export type BrowserStreamOffer = {
 export type BrowserStreamAdapterOptions = {
   nonce: string;
   sessionId: string;
+  fulfillmentSessionId: string;
+  operationRef?: string;
+  operationClassRef?: string;
+  methodRef?: string;
   sourceId: string;
   moduleRef?: string;
   adapterBindingPosture?: SurfaceAdapterBindingPosture | null;
@@ -416,7 +424,11 @@ function mediaEvidenceBase(
     evidenceId: mediaEvidenceId(session, evidenceKind),
     evidenceKind,
     state,
+    fulfillmentSessionId: session.fulfillmentSessionId,
     sessionId: session.sessionId,
+    ...(session.operationRef ? { operationRef: session.operationRef } : {}),
+    ...(session.operationClassRef ? { operationClassRef: session.operationClassRef } : {}),
+    ...(session.methodRef ? { methodRef: session.methodRef } : {}),
     correlationId: session.frameId || undefined,
     adapterRef: BROWSER_STREAM_ADAPTER_REF,
     sourceRef: session.sourceId,
@@ -444,7 +456,7 @@ function mediaTransportPathId(session: BrowserStreamSession): string {
 
 function mediaCorrelationKeys(options: BrowserStreamAdapterOptions): Set<string> {
   const keys = new Set<string>();
-  for (const value of [options.sessionId, options.nonce]) {
+  for (const value of [options.sessionId, options.fulfillmentSessionId, options.operationRef, options.nonce]) {
     const key = String(value || "").trim();
     if (!key || keys.size >= MEDIA_CORRELATION_KEY_LIMIT) continue;
     keys.add(key);
@@ -518,6 +530,19 @@ function inboundRtpStateFromEvidence(evidence: MediaFulfillmentEvidence): string
   return SWARM.MEDIA_TRANSPORT_RTP_STATE.PENDING;
 }
 
+function trackStateFromEvidence(evidence: MediaFulfillmentEvidence): string | undefined {
+  if (evidence.evidenceKind !== SWARM.MEDIA_FULFILLMENT_EVIDENCE_KIND.TRACK_STATE) return undefined;
+  const facts = evidence.safeFacts && typeof evidence.safeFacts === "object"
+    ? evidence.safeFacts as Record<string, unknown>
+    : {};
+  if (evidence.state === SWARM.MEDIA_FULFILLMENT_STATE.RELEASED) return SWARM.MEDIA_TRANSPORT_TRACK_STATE.RELEASED;
+  if (evidence.state === SWARM.MEDIA_FULFILLMENT_STATE.BLOCKED) return SWARM.MEDIA_TRANSPORT_TRACK_STATE.BLOCKED;
+  if (String(facts.trackReadyState || "").trim() === "ended") return SWARM.MEDIA_TRANSPORT_TRACK_STATE.ENDED;
+  if (facts.muted === true) return SWARM.MEDIA_TRANSPORT_TRACK_STATE.MUTED;
+  if (evidence.state === SWARM.MEDIA_FULFILLMENT_STATE.USABLE) return SWARM.MEDIA_TRANSPORT_TRACK_STATE.LIVE;
+  return SWARM.MEDIA_TRANSPORT_TRACK_STATE.PENDING;
+}
+
 function renderStateFromEvidence(evidence: MediaFulfillmentEvidence): string | undefined {
   if (evidence.evidenceKind !== SWARM.MEDIA_FULFILLMENT_EVIDENCE_KIND.RENDER_STATE) return undefined;
   if (evidence.state === SWARM.MEDIA_FULFILLMENT_STATE.BLOCKED) return SWARM.MEDIA_TRANSPORT_RENDER_STATE.BLOCKED;
@@ -534,6 +559,7 @@ export function mediaTransportObservationFromFulfillmentEvidence(
     SWARM.MEDIA_FULFILLMENT_EVIDENCE_KIND.TRANSPORT_STATE,
     SWARM.MEDIA_FULFILLMENT_EVIDENCE_KIND.SELECTED_CANDIDATE_PAIR,
     SWARM.MEDIA_FULFILLMENT_EVIDENCE_KIND.INBOUND_STATS,
+    SWARM.MEDIA_FULFILLMENT_EVIDENCE_KIND.TRACK_STATE,
     SWARM.MEDIA_FULFILLMENT_EVIDENCE_KIND.RENDER_STATE,
     SWARM.MEDIA_FULFILLMENT_EVIDENCE_KIND.RELEASE,
   ].includes(evidenceKind)) {
@@ -548,6 +574,7 @@ export function mediaTransportObservationFromFulfillmentEvidence(
     observationId: mediaObservationId(session, evidenceKind || "transport"),
     pathId: mediaTransportPathId(session),
     sessionId: session.sessionId,
+    fulfillmentSessionId: firstString(evidence.fulfillmentSessionId, session.fulfillmentSessionId),
     activationId: String(evidence.activationId || "").trim() || undefined,
     routePromiseId: String(evidence.routePromiseId || "").trim() || undefined,
     participantRef: BROWSER_STREAM_ADAPTER_REF,
@@ -557,6 +584,7 @@ export function mediaTransportObservationFromFulfillmentEvidence(
     iceConnectionState: session.iceConnectionState || undefined,
     selectedPairState: selectedPairStateFromEvidence(evidence),
     inboundRtpState: inboundRtpStateFromEvidence(evidence),
+    trackState: trackStateFromEvidence(evidence),
     renderState: renderStateFromEvidence(evidence),
     blockedReason: String((evidence as MediaFulfillmentEvidence & { blockedReason?: string }).blockedReason || "").trim() || undefined,
     safeFacts: {
@@ -902,10 +930,21 @@ export async function createBrowserStreamOffer(options: BrowserStreamAdapterOpti
   const adapterBinding = mediaWebRtcAdapterBindingProfile(options.adapterBindingPosture, {
     moduleRef: options.moduleRef,
   });
+  const fulfillmentSessionId = firstString(options.fulfillmentSessionId);
+  if (!fulfillmentSessionId) {
+    throw new Error("browser stream offer requires runtime-prepared fulfillmentSessionId");
+  }
+  const operationRef = firstString(options.operationRef);
+  const operationClassRef = firstString(options.operationClassRef);
+  const methodRef = firstString(options.methodRef);
   const candidates: RTCIceCandidateInit[] = [];
   const session: BrowserStreamSession = {
     sourceId: options.sourceId,
     sessionId: options.sessionId,
+    fulfillmentSessionId,
+    operationRef,
+    operationClassRef,
+    methodRef,
     frameId: "",
     correlationKeys,
     correlationBudget: mediaCorrelationMaterializationBudget(correlationKeys, issuedAt, adapterBinding.adapterModuleRef),

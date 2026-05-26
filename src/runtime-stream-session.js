@@ -12,6 +12,18 @@ const STREAM_KEY_FIELDS = Object.freeze([
   "correlation_id",
   "activationId",
   "activation_id",
+  "fulfillmentSessionId",
+  "fulfillment_session_id",
+  "operationRef",
+  "operation_ref",
+  "operationClassRef",
+  "operation_class_ref",
+  "methodRef",
+  "method_ref",
+  "pathId",
+  "path_id",
+  "sourceRef",
+  "source_ref",
   "interactionId",
   "interaction_id",
   "routePromiseId",
@@ -99,6 +111,15 @@ export function collectRuntimeMediaFulfillmentKeys(posture = {}) {
   for (const evidence of Object.values(evidenceByKind)) {
     addRecordKeys(keys, asObject(evidence));
   }
+  return keys;
+}
+
+export function collectRuntimeMediaTransportObservationKeys(observation = {}) {
+  const keys = new Set();
+  const record = asObject(observation);
+  addRecordKeys(keys, record);
+  addRecordKeys(keys, asObject(record.safeFacts));
+  addRuntimeStreamKey(keys, record.observationId);
   return keys;
 }
 
@@ -355,6 +376,178 @@ export function applyRuntimeMediaFulfillmentPostureToStreamSession(session, post
   return state;
 }
 
+function normalizeTransportObservations(source = {}) {
+  if (Array.isArray(source)) return source.map(asObject).filter((item) => Object.keys(item).length > 0);
+  const record = asObject(source);
+  const observations = Array.isArray(record.observations)
+    ? record.observations
+    : Array.isArray(record.mediaTransportObservations)
+      ? record.mediaTransportObservations
+      : Array.isArray(record.records)
+        ? record.records
+        : [];
+  if (observations.length > 0) return observations.map(asObject).filter((item) => Object.keys(item).length > 0);
+  return Object.keys(record).length > 0 ? [record] : [];
+}
+
+function firstObservationString(observations, field, fallback = "") {
+  for (const observation of observations) {
+    const value = String(asObject(observation)[field] || "").trim();
+    if (value) return value;
+  }
+  return String(fallback || "").trim();
+}
+
+function latestObservation(observations, predicate = () => true) {
+  return observations
+    .filter((observation) => predicate(asObject(observation)))
+    .sort((left, right) => Number(asObject(right).observedAt || 0) - Number(asObject(left).observedAt || 0))[0] || null;
+}
+
+function latestObservationValue(observations, field) {
+  const found = latestObservation(observations, (observation) => String(observation[field] || "").trim());
+  return found ? String(asObject(found)[field] || "").trim() : "";
+}
+
+function observationSafeFacts(observation) {
+  return asObject(asObject(observation).safeFacts);
+}
+
+function collectTransportBlockedReasons(observations) {
+  const reasons = [];
+  for (const observation of observations) {
+    const record = asObject(observation);
+    const reason = String(record.blockedReason || record.reason || "").trim();
+    if (String(record.state || "").trim() === "blocked" && reason) reasons.push(reason);
+    const facts = observationSafeFacts(record);
+    const readiness = String(facts.readinessState || "").trim();
+    if (readiness === "renderBlocked") reasons.push("renderBlocked");
+  }
+  return Array.from(new Set(reasons));
+}
+
+export function runtimeMediaTransportReadModel(source = {}, options = {}) {
+  const sourceObject = asObject(source);
+  const observations = normalizeTransportObservations(source);
+  const fulfillmentSessionId = firstObservationString(
+    observations,
+    "fulfillmentSessionId",
+    options.fulfillmentSessionId || sourceObject.fulfillmentSessionId,
+  );
+  const sessionId = firstObservationString(observations, "sessionId", options.sessionId || sourceObject.sessionId);
+  const pathId = firstObservationString(observations, "pathId", options.pathId || sourceObject.pathId);
+  const serviceObservation = latestObservation(observations, (observation) => String(observation.participantRole || "").trim() === "service");
+  const browserObservation = latestObservation(observations, (observation) => String(observation.participantRole || "").trim() === "browser");
+  const latest = latestObservation(observations);
+  const latestByRole = Array.from(new Set([serviceObservation, browserObservation, latest].filter(Boolean)));
+  const blockedReasons = collectTransportBlockedReasons(latestByRole);
+  const selectedPairState = latestObservationValue(observations, "selectedPairState");
+  const inboundRtpState = latestObservationValue(observations, "inboundRtpState");
+  const trackState = latestObservationValue(observations, "trackState");
+  const renderState = latestObservationValue(observations, "renderState");
+  const latestState = String(asObject(latest).state || "").trim();
+  const latestFacts = observationSafeFacts(latest);
+  const visibleFrame = renderState === "visible" || latestFacts.visibleFrame === true;
+  const trackLive = trackState === "live";
+  const selectedPairUsable = selectedPairState === "selected";
+  const inboundFlowing = inboundRtpState === "flowing";
+  const released = ["released", "closed"].includes(latestState)
+    || selectedPairState === "none"
+    || trackState === "released";
+  const blocked = blockedReasons.length > 0
+    || latestState === "blocked"
+    || selectedPairState === "failed"
+    || inboundRtpState === "blocked"
+    || trackState === "blocked"
+    || renderState === "blocked";
+  const transportUsable = selectedPairUsable && (inboundFlowing || trackLive || visibleFrame);
+
+  let state = "pending";
+  let postureState = "waitingTransport";
+  if (blocked) {
+    state = "blocked";
+    postureState = renderState === "blocked" ? "renderBlocked" : "mediaPathBlocked";
+  } else if (released) {
+    state = "released";
+    postureState = "released";
+  } else if (visibleFrame && trackLive && transportUsable) {
+    state = "usable";
+    postureState = "transportUsable";
+  } else if (transportUsable && !visibleFrame) {
+    postureState = "waitingRender";
+  } else if (selectedPairUsable || latestState === "connected") {
+    postureState = "transportDegraded";
+  }
+
+  return {
+    kind: "runtime.media.transport.read-model",
+    fulfillmentSessionId,
+    sessionId,
+    pathId,
+    state,
+    postureState,
+    selectedPairState,
+    inboundRtpState,
+    trackState,
+    renderState,
+    blockedReasons,
+    serviceObserved: Boolean(serviceObservation),
+    browserObserved: Boolean(browserObservation),
+    transportUsable,
+    trackLive,
+    visibleFrame,
+    latestObservedAt: Number(asObject(latest).observedAt || 0) || 0,
+    observationCount: observations.length,
+    latestObservation: latest ? Object.freeze({ ...asObject(latest) }) : null,
+    serviceObservation: serviceObservation ? Object.freeze({ ...asObject(serviceObservation) }) : null,
+    browserObservation: browserObservation ? Object.freeze({ ...asObject(browserObservation) }) : null,
+  };
+}
+
+export function applyRuntimeMediaTransportReadModelToStreamSession(session, source = {}, options = {}) {
+  if (!session || typeof session !== "object") return "";
+  const posture = String(asObject(source).kind || "") === "runtime.media.transport.read-model"
+    ? asObject(source)
+    : runtimeMediaTransportReadModel(source, options);
+  session.fulfillmentSessionId = String(posture.fulfillmentSessionId || session.fulfillmentSessionId || "").trim();
+  session.mediaPathId = String(posture.pathId || session.mediaPathId || "").trim();
+  session.mediaPathState = String(posture.state || "").trim();
+  session.mediaPostureState = String(posture.postureState || "").trim();
+  session.mediaBlockedReason = Array.isArray(posture.blockedReasons) ? String(posture.blockedReasons[0] || "").trim() : "";
+  session.mediaVisibleFrame = posture.visibleFrame === true;
+  session.mediaTrackLive = posture.trackLive === true;
+  session.mediaTransportUsable = posture.transportUsable === true;
+  session.mediaRenderReadinessState = String(posture.renderState || "").trim();
+  session.serviceMediaObserved = posture.serviceObserved === true;
+  session.browserMediaObserved = posture.browserObserved === true;
+  if (posture.state === "blocked") {
+    session.routePending = false;
+    session.routeState = posture.postureState || "mediaPathBlocked";
+    session.adapterFailed = true;
+    session.adapterFailureReason = session.mediaBlockedReason || session.routeState;
+    return posture.state;
+  }
+  if (posture.state === "released") {
+    session.routePending = false;
+    session.routeState = "mediaReleased";
+    return posture.state;
+  }
+  if (posture.state === "usable") {
+    session.routePending = false;
+    session.routeState = "mediaUsable";
+    session.adapterFailed = false;
+    session.adapterFailureReason = "";
+    return posture.state;
+  }
+  if (posture.postureState === "waitingRender" || posture.postureState === "transportDegraded") {
+    session.routePending = false;
+    session.routeState = posture.postureState;
+    session.adapterFailed = false;
+    session.adapterFailureReason = "";
+  }
+  return posture.state || "";
+}
+
 export function runtimeStreamSessionPosture(sessions = []) {
   const uniqueSessions = Array.from(new Set(Array.isArray(sessions) ? sessions : []))
     .filter((session) => session && typeof session === "object");
@@ -377,6 +570,8 @@ export function runtimeStreamSessionPosture(sessions = []) {
     mediaBlockedCount: uniqueSessions.filter((session) => session.mediaPathState === "blocked").length,
     mediaUsableCount: uniqueSessions.filter((session) => session.mediaPathState === "usable").length,
     mediaReleasedCount: uniqueSessions.filter((session) => session.mediaPathState === "released").length,
+    mediaWaitingRenderCount: uniqueSessions.filter((session) => session.mediaPostureState === "waitingRender").length,
+    mediaTransportDegradedCount: uniqueSessions.filter((session) => session.mediaPostureState === "transportDegraded").length,
     expiresAt: Number.isFinite(expiresAt) ? expiresAt : 0,
   };
 }
