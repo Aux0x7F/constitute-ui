@@ -2,6 +2,7 @@ export const SURFACE_CONTRACT_ROLE_ORDER = Object.freeze([
   "runtimeClient",
   "projectionModel",
   "platformAdapter",
+  "runtimeRunnerBridge",
   "serviceSurfaceAdapter",
   "serviceEdgeAdapter",
   "productView",
@@ -30,6 +31,13 @@ export const SURFACE_MODULE_ROLE_TAXONOMY = Object.freeze({
     participantSides: ["window", "native"],
     evidenceChannels: ["adapter.evidence", "media.transport.observation"],
     lifecycle: { state: "platformBinding" },
+  }),
+  runtimeRunnerBridge: freezeTaxonomyRole({
+    taxonomyKey: "runtimeRunnerBridge",
+    role: "runtimeRunnerBridge",
+    participantSides: ["window", "native", "hostFabric"],
+    evidenceChannels: ["runtime.runner.dispatch", "runner.runtime-dispatch.bridge", "runtime.runner.host.fulfillment.put"],
+    lifecycle: { state: "adapterBridge" },
   }),
   serviceSurfaceAdapter: freezeTaxonomyRole({
     taxonomyKey: "serviceSurfaceAdapter",
@@ -673,6 +681,52 @@ export function surfaceRunnerOperation(surfaceAppOrContract, options = {}) {
   assignIfPresent(record, "releaseRef", options.releaseRef || operationPosture.releaseRef || releasePosture.releaseRef);
   assignIfPresent(record, "rollbackRef", options.rollbackRef || operationPosture.rollbackRef || releasePosture.rollbackRef || rollbackPosture.rollbackRef);
   return deepFreeze(record);
+}
+
+export function surfaceNativeModuleLoadRunnerOperation(surfaceAppOrContract, options = {}) {
+  const surfaceApp = isDefinedSurfaceApp(surfaceAppOrContract)
+    ? surfaceAppOrContract
+    : defineSurfaceAppContract(surfaceAppOrContract);
+  const contract = surfaceApp.contract;
+  const moduleLoad = surfaceNativeModuleLoadPosture(options.moduleBindings || options.moduleBindingPosture, options);
+  const requestedAt = Number(options.requestedAt || options.issuedAt || Date.now());
+  const primaryModuleRef = moduleLoad.moduleRefs[0] || String(contract.serviceRef || contract.appRef || contract.contractId || "surface-app");
+  const blocked = moduleLoad.blockedReasons.length > 0;
+  return surfaceRunnerOperation(surfaceApp, {
+    ...options,
+    runnerOperation: "execute",
+    runnerState: blocked ? "blocked" : String(options.runnerState || "accepted"),
+    operationId: String(
+      options.operationId
+        || options.runnerOperationId
+        || `runner-operation:module-load:${primaryModuleRef.replace(/[^A-Za-z0-9_.:-]/g, "-")}:${requestedAt}`,
+    ),
+    subjectRef: String(options.subjectRef || primaryModuleRef),
+    contractRef: String(options.contractRef || primaryModuleRef),
+    inputRefs: moduleLoad.inputRefs,
+    outputRefs: blocked ? [] : moduleLoad.outputRefs,
+    evidenceRefs: uniqueStrings([
+      ...moduleLoad.evidenceRefs,
+      ...normalizeStringArray(options.evidenceRefs),
+    ]),
+    capabilityRefs: uniqueStrings([
+      "capability:runner.module.load",
+      ...normalizeStringArray(options.capabilityRefs),
+    ]),
+    blockedReasons: moduleLoad.blockedReasons,
+    rollbackRef: options.rollbackRef || `rollback:${primaryModuleRef.replace(/[^A-Za-z0-9_.:-]/g, "-")}`,
+    safeFacts: {
+      ...(isObject(options.safeFacts) ? options.safeFacts : {}),
+      executionKind: "nativeModuleLoad",
+      moduleResolverRefCount: moduleLoad.moduleResolverRefs.length,
+      moduleRefCount: moduleLoad.moduleRefs.length,
+      moduleArtifactRefCount: moduleLoad.artifactRefs.length,
+      moduleMaterializedPathRefCount: moduleLoad.materializedPathRefs.length,
+      moduleStorageRefCount: moduleLoad.storageRefs.length,
+      moduleConflictCount: moduleLoad.conflictRefs.length,
+    },
+    requestedAt,
+  });
 }
 
 export function surfaceServiceManagerSecretBoundary(surfaceAppOrContract, options = {}) {
@@ -1717,7 +1771,7 @@ export function surfaceAppSourceCandidatePosture(selectionOrOptions, options = {
   const storageObjectRefs = uniqueStrings([
     ...normalizeStringArray(source.storageObjectRefs),
     ...normalizeStringArray(options.storageObjectRefs),
-    ...(sourceMode === "storageObject" ? remoteSourceRefs : []),
+    ...(sourceMode === "storageObject" && sourceClass !== "releaseFetched" ? remoteSourceRefs : []),
   ]);
   const releaseSourceRefs = uniqueStrings([
     ...normalizeStringArray(source.releaseSourceRefs),
@@ -2507,6 +2561,9 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
     ? selection.sourceCandidatePosture
     : surfaceAppSourceCandidatePosture(selection, options);
   const sourceTrustResult = surfaceAppSourceTrustResult(selection, options);
+  const moduleResolverPosture = isObject(options.moduleResolverPosture)
+    ? options.moduleResolverPosture
+    : (isObject(options.nativeModuleResolver) ? options.nativeModuleResolver : null);
   const serviceManagerActionability = surfaceApp
     ? surfaceAppServiceManagerActionability(surfaceApp, {
       ...(isObject(options.serviceManagerActionabilityOptions) ? options.serviceManagerActionabilityOptions : {}),
@@ -2623,6 +2680,7 @@ export function surfaceAppRuntimeSelectionPosture(manifest, surfaceAppsOrContrac
     accessRequirementRefs: appContractResolution.accessRequirementRefs,
     sourceCandidatePosture,
     sourceTrustResult,
+    moduleResolverPosture,
     modulePostures,
     runnerReadiness,
     serviceManagerReadiness,
@@ -3773,6 +3831,104 @@ function instancePostureBlockedReasons(posture, prefix) {
 function postureIsInstanceDegraded(posture) {
   if (!isObject(posture)) return false;
   return ["degraded", "pressure", "partial", "stale", "unchecked"].includes(String(posture.state || "").trim());
+}
+
+function surfaceNativeModuleLoadPosture(moduleBindings, options = {}) {
+  const bindings = moduleBindingEntries(moduleBindings);
+  const moduleResolverPosture = isObject(options.moduleResolverPosture)
+    ? options.moduleResolverPosture
+    : (isObject(options.runtimeSelectionPosture?.moduleResolverPosture)
+      ? options.runtimeSelectionPosture.moduleResolverPosture
+      : null);
+  const moduleResolverRefs = uniqueStrings([
+    ...bindings.map((binding) => binding.moduleResolution?.resolverRef),
+    moduleResolverPosture?.resolverRef,
+    ...normalizeStringArray(options.moduleResolverRefs),
+  ]);
+  const moduleRefs = uniqueStrings([
+    ...normalizeStringArray(options.moduleRefs),
+    ...bindings.map((binding) => binding.moduleResolution?.moduleRef || binding.moduleRef),
+  ]);
+  const sourceSnapshotRefs = uniqueStrings([
+    ...normalizeStringArray(options.sourceSnapshotRefs),
+    ...bindings.map((binding) => binding.sourceSnapshotRef || binding.moduleResolution?.sourceSnapshotRef),
+  ]);
+  const contentIndexRefs = uniqueStrings([
+    ...normalizeStringArray(options.contentIndexRefs),
+    ...bindings.map((binding) => binding.contentIndexRef || binding.moduleResolution?.contentIndexRef),
+  ]);
+  const artifactRefs = uniqueStrings([
+    ...normalizeStringArray(options.artifactRefs),
+    ...bindings.map((binding) => binding.artifactRef || binding.moduleResolution?.artifactRef),
+  ]);
+  const materializedPathRefs = uniqueStrings([
+    ...normalizeStringArray(options.materializedPathRefs),
+    ...bindings.map((binding) => binding.materializedPathRef || binding.moduleResolution?.materializedPathRef),
+  ]);
+  const storageRefs = uniqueStrings([
+    ...normalizeStringArray(options.storageRefs),
+    ...bindings.flatMap((binding) => normalizeStringArray(binding.storageRefs || binding.moduleResolution?.storageRefs)),
+  ]);
+  const conflictRefs = uniqueStrings([
+    ...normalizeStringArray(options.conflictRefs),
+    ...bindings.flatMap((binding) => normalizeStringArray(binding.conflictRefs || binding.moduleResolution?.conflictRefs)),
+  ]);
+  const bindingBlockers = bindings
+    .filter((binding) => String(binding?.state || "") === "blocked")
+    .map((binding) => `moduleBinding:${binding.blockedReason || "blocked"}`);
+  const blockedReasons = uniqueStrings([
+    ...normalizeStringArray(moduleBindings?.blockedReasons).map((reason) => `moduleBinding:${reason}`),
+    ...bindingBlockers,
+    ...(bindings.length ? [] : ["moduleLoad:missingModuleBindings"]),
+    ...(moduleResolverRefs.length ? [] : ["moduleLoad:missingModuleResolverRef"]),
+    ...(moduleRefs.length ? [] : ["moduleLoad:missingModuleRef"]),
+    ...(artifactRefs.length ? [] : ["moduleLoad:missingArtifactRef"]),
+    ...(materializedPathRefs.length ? [] : ["moduleLoad:missingMaterializedPathRef"]),
+    ...(storageRefs.length ? [] : ["moduleLoad:missingStorageRef"]),
+    ...normalizeStringArray(options.blockedReasons),
+  ]);
+  const inputRefs = uniqueStrings([
+    ...moduleResolverRefs,
+    ...moduleRefs,
+    ...sourceSnapshotRefs,
+    ...contentIndexRefs,
+    ...artifactRefs,
+    ...materializedPathRefs,
+    ...storageRefs,
+    ...conflictRefs,
+  ]);
+  return deepFreeze({
+    kind: "surface.native.module.load.posture",
+    state: blockedReasons.length ? "blocked" : (conflictRefs.length ? "degraded" : "ready"),
+    moduleResolverRefs,
+    moduleRefs,
+    sourceSnapshotRefs,
+    contentIndexRefs,
+    artifactRefs,
+    materializedPathRefs,
+    storageRefs,
+    conflictRefs,
+    inputRefs,
+    outputRefs: uniqueStrings([
+      ...moduleRefs.map((moduleRef) => `module-load:${moduleRef}`),
+      ...artifactRefs,
+      ...materializedPathRefs,
+    ]),
+    evidenceRefs: uniqueStrings([
+      ...(blockedReasons.length ? [] : ["runner:evidence:module-load"]),
+      "runner:evidence:module-resolution",
+      ...normalizeStringArray(options.evidenceRefs),
+    ]),
+    blockedReasons,
+  });
+}
+
+function moduleBindingEntries(moduleBindings) {
+  if (!isObject(moduleBindings)) return [];
+  const entries = Array.isArray(moduleBindings.bindings)
+    ? moduleBindings.bindings
+    : (Array.isArray(moduleBindings.postures) ? moduleBindings.postures : []);
+  return entries.filter(isObject);
 }
 
 function surfaceAppModuleBindingPosture(moduleBindings) {

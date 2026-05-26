@@ -11,6 +11,10 @@
     },
     "./media-webrtc-adapter": "./src/media-webrtc-adapter.ts",
     "./runtime-surface-client": "./src/runtime-surface-client.js",
+    "./runtime-runner-bridge": {
+      "types": "./src/runtime-runner-bridge.d.ts",
+      "default": "./src/runtime-runner-bridge.js"
+    },
     "./runtime-read-model": {
       "types": "./src/runtime-read-model.d.ts",
       "default": "./src/runtime-read-model.js"

@@ -229,6 +229,36 @@ test("runtime surface client exposes intent and evidence helpers through correla
     assert.deepEqual(evidence.observation, { observationId: "obs-1" });
     port.onmessage({ data: { type: "runtime.response", requestId: evidence.requestId, ok: true, result: { accepted: true } } });
     assert.deepEqual(await evidencePromise, { accepted: true });
+
+    const runnerPromise = client.submitRunnerOperation(
+      { kind: "runner.operation", operationId: "runner-operation:module-load:test" },
+      1_000,
+    );
+    const runner = port.messages.at(-1);
+    assert.equal(runner.type, "runtime.runner.operation.submit");
+    assert.deepEqual(runner.runnerOperation, { kind: "runner.operation", operationId: "runner-operation:module-load:test" });
+    port.onmessage({ data: { type: "runtime.response", requestId: runner.requestId, ok: true, result: { accepted: true } } });
+    assert.deepEqual(await runnerPromise, { accepted: true });
+
+    const hostFulfillmentPromise = client.putRunnerHostFulfillmentPosture(
+      { kind: "runner.host.fulfillment.posture", operationId: "runner-operation:module-load:test" },
+      1_000,
+    );
+    const hostFulfillment = port.messages.at(-1);
+    assert.equal(hostFulfillment.type, "runtime.runner.host.fulfillment.put");
+    assert.deepEqual(hostFulfillment.hostFulfillmentPosture, {
+      kind: "runner.host.fulfillment.posture",
+      operationId: "runner-operation:module-load:test",
+    });
+    port.onmessage({
+      data: {
+        type: "runtime.response",
+        requestId: hostFulfillment.requestId,
+        ok: true,
+        result: { state: "succeeded" },
+      },
+    });
+    assert.deepEqual(await hostFulfillmentPromise, { state: "succeeded" });
   } finally {
     globalThis.SharedWorker = previousSharedWorker;
   }

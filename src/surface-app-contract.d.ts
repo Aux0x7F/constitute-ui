@@ -841,6 +841,7 @@ export type SurfaceAppRuntimeSelectionPosture = {
   accessRequirementRefs: string[];
   sourceCandidatePosture: SurfaceAppSourceCandidatePosture;
   sourceTrustResult: Readonly<Record<string, unknown>>;
+  moduleResolverPosture: Readonly<Record<string, unknown>> | null;
   modulePostures: readonly SurfaceModuleRolePosture[];
   runnerReadiness: Readonly<Record<string, unknown>>;
   serviceManagerReadiness: Readonly<Record<string, unknown>>;
@@ -957,6 +958,10 @@ export function surfaceServiceManagerProofDigest(
   options?: Record<string, unknown>,
 ): SurfaceServiceManagerProofDigest;
 export function surfaceRunnerOperation(
+  surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
+  options?: Record<string, unknown>,
+): SurfaceRunnerOperation;
+export function surfaceNativeModuleLoadRunnerOperation(
   surfaceAppOrContract: DefinedSurfaceApp | SurfaceAppContractShape,
   options?: Record<string, unknown>,
 ): SurfaceRunnerOperation;

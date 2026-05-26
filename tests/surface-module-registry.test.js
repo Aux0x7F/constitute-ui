@@ -60,6 +60,33 @@ function makeSurfaceApp(overrides = {}) {
   });
 }
 
+function makeNativeModuleResolver(overrides = {}) {
+  const resolution = {
+    moduleRef: "module:native-dev:constitute-ui",
+    repoRef: "repo:constitute-ui",
+    role: "surface-composition",
+    state: "materialized",
+    sourceSnapshotRef: "source:snapshot:native-dev:constitute-ui:abc123",
+    contentIndexRef: "content-index:native-dev:constitute-ui:abc123",
+    artifactRef: "artifact:native-dev:constitute-ui:abc123",
+    materializedPathRef: "materialized:path:workspace-dev:constitute-ui",
+    storageRefs: ["storage:materialized-local:constitute-ui"],
+    conflictRefs: ["transition-conflict:constitute-ui:repo:dirty"],
+    ...(overrides.resolution || {}),
+  };
+  return {
+    kind: "operator.native-module.resolver",
+    state: "trackingConflicts",
+    resolverRef: "module-resolver:native-dev:abc123",
+    sourceSnapshotRef: "source:snapshot:native-dev:abc123",
+    contentIndexRef: "content-index:native-dev:abc123",
+    moduleResolutions: [resolution],
+    transitionConflicts: [],
+    blockedReasons: [],
+    ...overrides,
+  };
+}
+
 test("surface module registry resolves contract role claims to bundled implementations", () => {
   const registry = createSurfaceModuleRegistry([
     {
@@ -272,6 +299,7 @@ test("surface service edge adapter binding posture defaults to service edge prim
         role: "serviceEdgeAdapter",
         participantSide: "service",
         fulfillmentMode: "nativeInstalled",
+        sourceModuleRef: "module:native-dev:constitute-logging",
         version: "0.1.0",
         primitiveRefs: ["service.edge.adapter.posture"],
         evidenceChannels: ["service.admission"],
@@ -291,7 +319,25 @@ test("surface service edge adapter binding posture defaults to service edge prim
     },
   ]);
 
-  const posture = surfaceServiceEdgeAdapterBindingPosture(registry, surfaceApp);
+  const blocked = surfaceServiceEdgeAdapterBindingPosture(registry, surfaceApp);
+  assert.equal(blocked.state, "blocked");
+  assert.equal(blocked.blockedReason, "missingNativeModuleResolver");
+
+  const posture = surfaceServiceEdgeAdapterBindingPosture(registry, surfaceApp, {
+    moduleResolverPosture: makeNativeModuleResolver({
+      resolution: {
+        moduleRef: "module:native-dev:constitute-logging",
+        repoRef: "repo:constitute-logging",
+        role: "event-fabric-logging",
+        sourceSnapshotRef: "source:snapshot:native-dev:constitute-logging:def456",
+        contentIndexRef: "content-index:native-dev:constitute-logging:def456",
+        artifactRef: "artifact:native-dev:constitute-logging:def456",
+        materializedPathRef: "materialized:path:workspace-dev:constitute-logging",
+        storageRefs: ["storage:materialized-local:constitute-logging"],
+        conflictRefs: [],
+      },
+    }),
+  });
 
   assert.equal(posture.kind, "surface.adapter.binding.posture");
   assert.equal(posture.state, "ready");
@@ -306,6 +352,8 @@ test("surface service edge adapter binding posture defaults to service edge prim
   ]);
   assert.deepEqual(posture.materializationBudgetRefs, ["service-edge.responses"]);
   assert.deepEqual(posture.releaseRefs, ["release:service-edge"]);
+  assert.equal(posture.moduleResolution.moduleRef, "module:native-dev:constitute-logging");
+  assert.equal(posture.artifactRef, "artifact:native-dev:constitute-logging:def456");
   assert.equal(posture.moduleBinding.implementation.admit, true);
 });
 
@@ -352,10 +400,12 @@ test("surface module registry resolves runtime selection posture roles", () => {
     },
   ]);
   const surfaceApp = makeSurfaceApp();
+  const moduleResolverPosture = makeNativeModuleResolver();
   const posture = surfaceAppRuntimeSelectionPosture(makeManifest({
     requiredModuleRoles: ["runtimeClient", "platformAdapter", "productView"],
   }), [surfaceApp], {
     runtimeVersion: "0.1.0",
+    moduleResolverPosture,
     issuedAt: 1234,
   });
 
@@ -365,7 +415,41 @@ test("surface module registry resolves runtime selection posture roles", () => {
   assert.deepEqual(bindings.roles, ["runtimeClient", "platformAdapter", "productView"]);
   assert.equal(bindings.byKey.platformAdapter.runtimeSelectionPosture, posture);
   assert.equal(bindings.byKey.platformAdapter.sourceMode, "bundled");
+  assert.equal(bindings.byKey.platformAdapter.moduleResolution.moduleRef, "module:native-dev:constitute-ui");
   assert.equal(bindings.byKey.platformAdapter.implementation.bind, true);
+});
+
+test("surface module registry consumes native resolver projection without claiming execution ownership", () => {
+  const registry = createSurfaceModuleRegistry([
+    {
+      moduleRef: "constitute-ui/media-webrtc-adapter@0.1.0",
+      role: "platformAdapter",
+      version: "0.1.0",
+      primitiveRefs: ["media.transport.path"],
+      implementation: { bind: true },
+    },
+  ]);
+  const moduleResolverPosture = makeNativeModuleResolver();
+
+  const posture = surfaceModuleRegistryPosture(registry, makeSurfaceApp(), "platformAdapter", {
+    moduleResolverPosture,
+  });
+
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.moduleResolution.moduleRef, "module:native-dev:constitute-ui");
+  assert.equal(posture.moduleResolution.state, "trackingConflicts");
+  assert.equal(posture.moduleResolution.artifactRef, "artifact:native-dev:constitute-ui:abc123");
+  assert.deepEqual(posture.moduleResolution.conflictRefs, ["transition-conflict:constitute-ui:repo:dirty"]);
+
+  const binding = surfacePlatformAdapterBindingPosture(registry, makeSurfaceApp(), {
+    moduleResolverPosture,
+  });
+  assert.equal(binding.state, "ready");
+  assert.equal(binding.sourceSnapshotRef, "source:snapshot:native-dev:constitute-ui:abc123");
+  assert.equal(binding.contentIndexRef, "content-index:native-dev:constitute-ui:abc123");
+  assert.equal(binding.artifactRef, "artifact:native-dev:constitute-ui:abc123");
+  assert.deepEqual(binding.storageRefs, ["storage:materialized-local:constitute-ui"]);
+  assert.equal(binding.moduleBinding.implementation.bind, true);
 });
 
 test("surface module registry blocks untrusted and unsupported remote module sources", () => {

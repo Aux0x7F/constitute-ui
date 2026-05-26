@@ -74,6 +74,104 @@ test("runtime read model keeps swarm edge endpoint references out of URL vocabul
   assert.equal(readModel.edge.endpointRef, "edge-endpoint:lab-gateway");
 });
 
+test("runtime read model consumes carrier edge session evidence as connection posture", () => {
+  const now = 1778721000000;
+  const readModel = prepareRuntimeReadModel({
+    buildId: "runtime-test",
+    broker: { available: true },
+    edge: {
+      mode: "live",
+      connected: false,
+      carrierEdge: {
+        kind: SWARM.RECORD_KIND.CARRIER_EDGE_SESSION_EVIDENCE,
+        evidenceId: "carrier-edge-evidence:runtime:test",
+        selectionRef: "carrier-edge-selection:runtime:swarm-edge",
+        edgeSessionRef: "carrier-edge-session:test",
+        adapterRef: "adapter:runtime-worker:websocket",
+        adapterKind: SWARM.CARRIER_EDGE_ADAPTER_KIND.WEB_SOCKET,
+        participantRef: "member:runtime",
+        state: SWARM.CARRIER_EDGE_SESSION_STATE.OPEN,
+        connectionState: "connected",
+        backpressureState: SWARM.CARRIER_EDGE_BACKPRESSURE_STATE.CLEAR,
+        observedAt: now,
+        expiresAt: now + 30_000,
+      },
+    },
+  }, { now });
+
+  assert.equal(readModel.edge.state, SWARM.CARRIER_EDGE_SESSION_STATE.OPEN);
+  assert.equal(readModel.edge.connected, true);
+  assert.equal(readModel.edge.memberRef, "member:runtime");
+  assert.equal(readModel.edge.carrierEdge.present, true);
+  assert.equal(readModel.edge.carrierEdge.adapterKind, SWARM.CARRIER_EDGE_ADAPTER_KIND.WEB_SOCKET);
+  assert.deepEqual(readModel.edge.carrierEdge.validationErrors, []);
+});
+
+test("runtime read model exposes carrier actionability posture without socket inference", () => {
+  const now = 1778721000000;
+  const blocked = prepareRuntimeReadModel({
+    buildId: "runtime-test",
+    broker: { available: true },
+    edge: {
+      connected: false,
+      carrierEdge: {
+        kind: SWARM.RECORD_KIND.CARRIER_EDGE_SESSION_EVIDENCE,
+        evidenceId: "carrier-edge-evidence:runtime:blocked",
+        selectionRef: "carrier-edge-selection:runtime:swarm-edge",
+        edgeSessionRef: "carrier-edge-session:blocked",
+        adapterRef: "adapter:runtime-worker:websocket",
+        adapterKind: SWARM.CARRIER_EDGE_ADAPTER_KIND.WEB_SOCKET,
+        participantRef: "member:runtime",
+        sessionBindingRef: "binding:gateway-edge:blocked",
+        networkSensitivity: SWARM.CARRIER_EDGE_NETWORK_SENSITIVITY.LOCAL_NETWORK,
+        state: SWARM.CARRIER_EDGE_SESSION_STATE.BLOCKED,
+        connectionState: "closed",
+        backpressureState: SWARM.CARRIER_EDGE_BACKPRESSURE_STATE.BLOCKED,
+        blockedReasons: ["carrierEdgeBackoff"],
+        observedAt: now,
+        expiresAt: now + 30_000,
+      },
+    },
+  }, { now });
+
+  assert.equal(blocked.edge.actionabilityState, "carrierBlocked");
+  assert.equal(blocked.edge.blocked, true);
+  assert.equal(blocked.edge.reason, "carrierEdgeBackoff");
+  assert.deepEqual(blocked.edge.blockedReasons, ["carrierEdgeBackoff"]);
+  assert.equal(blocked.edge.carrierEdge.sessionBindingRef, "binding:gateway-edge:blocked");
+  assert.equal(blocked.edge.carrierEdge.networkSensitivity, SWARM.CARRIER_EDGE_NETWORK_SENSITIVITY.LOCAL_NETWORK);
+
+  const degraded = prepareRuntimeReadModel({
+    buildId: "runtime-test",
+    broker: { available: true },
+    edge: {
+      connected: false,
+      carrierEdge: {
+        kind: SWARM.RECORD_KIND.CARRIER_EDGE_SESSION_EVIDENCE,
+        evidenceId: "carrier-edge-evidence:runtime:degraded",
+        selectionRef: "carrier-edge-selection:runtime:swarm-edge",
+        edgeSessionRef: "carrier-edge-session:degraded",
+        adapterRef: "adapter:runtime-worker:websocket",
+        adapterKind: SWARM.CARRIER_EDGE_ADAPTER_KIND.WEB_SOCKET,
+        participantRef: "member:runtime",
+        state: SWARM.CARRIER_EDGE_SESSION_STATE.OPEN,
+        connectionState: "connecting",
+        backpressureState: SWARM.CARRIER_EDGE_BACKPRESSURE_STATE.CLEAR,
+        observedAt: now,
+        expiresAt: now + 30_000,
+      },
+    },
+  }, { now });
+
+  assert.equal(degraded.edge.actionabilityState, "carrierDegraded");
+  assert.equal(degraded.edge.degraded, true);
+  assert.equal(degraded.edge.ready, false);
+
+  const waiting = prepareRuntimeReadModel({ buildId: "runtime-test", broker: { available: true } }, { now });
+  assert.equal(waiting.edge.actionabilityState, "waitingCarrier");
+  assert.equal(waiting.edge.waiting, true);
+});
+
 test("runtime target posture prepares protocol target and registry records for product-safe reads", () => {
   const target = {
     kind: SWARM.RECORD_KIND.CONTRACT_TARGET,
@@ -161,10 +259,14 @@ test("runtime host fabric posture prepares fulfillment plan and lifecycle record
     fabricRef: "fabric:local-workstation",
     hostRef: "host:local-windows",
     memberRef,
+    participantRef: "participant:gateway-association:local",
     role: FABRIC.MEMBER_ROLE.GATEWAY_ASSOCIATION,
+    roleRef: "role:gatewayAssociation",
     state: FABRIC.MEMBER_CONTRIBUTION_STATE.ACCEPTED,
     contractRef: "contract:gateway-association@0.1.0",
     subjectRef: "gateway:local",
+    moduleRefs: ["module:gateway-association"],
+    sourceRefs: ["content-index:source:constitute-gateway"],
     capabilityRefs: ["cap:route.associate"],
     evidenceRefs: ["evidence:gateway:local"],
     lifecyclePlanRefs: ["lifecycle:service-edge:nvr"],
@@ -183,9 +285,11 @@ test("runtime host fabric posture prepares fulfillment plan and lifecycle record
       {
         phase: FABRIC.LIFECYCLE_PHASE.RUN,
         state: FABRIC.LIFECYCLE_PHASE_STATE.READY,
+        dependencyRefs: [],
         evidenceRefs: ["evidence:lifecycle:nvr:run"],
       },
     ],
+    dependencyEdges: [],
     observedAt: 1778720000400,
   };
 
@@ -207,6 +311,105 @@ test("runtime host fabric posture prepares fulfillment plan and lifecycle record
   assert.equal(posture.contributions[0].role, FABRIC.MEMBER_ROLE.GATEWAY_ASSOCIATION);
   assert.equal(posture.lifecyclePlans.length, 1);
   assert.equal(posture.lifecyclePlans[0].phaseCount, 1);
+});
+
+test("runtime host fabric posture prepares operation state from control, bridge, and adapter records", () => {
+  const now = 1778720000500;
+  const plan = {
+    kind: SWARM.RECORD_KIND.HOST_FABRIC_FULFILLMENT_PLAN,
+    planId: "host-fabric-plan:service-manager:gateway",
+    fabricRef: "fabric:local-workstation",
+    hostRef: "host:local-windows",
+    contractRef: "contract:host-fabric@0.1.0",
+    state: FABRIC.FULFILLMENT_PLAN_STATE.READY,
+    requiredRoleRefs: ["role:hostServiceAdapter"],
+    memberContributionRefs: ["contribution:service-manager:local"],
+    lifecyclePlanRefs: ["lifecycle:service-manager:gateway"],
+    evidenceRefs: ["evidence:fabric-plan:gateway"],
+    observedAt: now,
+    expiresAt: now + 60_000,
+  };
+  const decision = {
+    kind: SWARM.RECORD_KIND.HOST_FABRIC_CONTROL_DECISION,
+    decisionId: "hostFabric:controlDecision:gateway:healthCheck:1778720000500",
+    fabricRef: plan.fabricRef,
+    hostRef: plan.hostRef,
+    operationRef: "service-manager:operation:gateway:healthCheck:1778720000500",
+    subjectRef: "service:gateway",
+    controlOwnerRef: "fabric:local-workstation",
+    delegatedRoleRef: "role:hostServiceAdapter",
+    sourcePlanRef: plan.planId,
+    sourcePlanObservedAt: now,
+    sourcePlanExpiresAt: now + 60_000,
+    planState: FABRIC.FULFILLMENT_PLAN_STATE.READY,
+    state: FABRIC.CONTROL_DECISION_STATE.READY,
+    authorizationRefs: ["authority:service-manager:local"],
+    fallbackRefs: ["fallback:service-manager:legacy-control"],
+    quarantineRefs: ["quarantine:service-manager:legacy-control:role:hostServiceAdapter"],
+    evidenceRefs: ["evidence:fabric-plan:gateway", "evidence:fabric-control:gateway"],
+    observedAt: now + 100,
+    expiresAt: now + 60_000,
+  };
+  const bridge = {
+    kind: SWARM.RECORD_KIND.HOST_FABRIC_LEGACY_CONTROL_BRIDGE,
+    bridgeId: "hostFabric:legacyControlBridge:gateway:healthCheck:1778720000500",
+    fabricRef: plan.fabricRef,
+    hostRef: plan.hostRef,
+    legacyOwnerRef: "service-manager:local",
+    subjectRef: decision.subjectRef,
+    operationRef: decision.operationRef,
+    state: FABRIC.LEGACY_CONTROL_STATE.FALLBACK_AVAILABLE,
+    sourceDecisionRef: decision.decisionId,
+    delegatedRoleRef: "role:hostServiceAdapter",
+    fallbackRefs: ["fallback:service-manager:legacy-control"],
+    quarantineRefs: ["quarantine:service-manager:legacy-control:role:hostServiceAdapter"],
+    evidenceRefs: ["evidence:legacy-control:gateway"],
+    observedAt: now + 200,
+    expiresAt: now + 60_000,
+  };
+  const adapter = {
+    kind: SWARM.RECORD_KIND.HOST_FABRIC_ADAPTER_EXECUTION_EVIDENCE,
+    evidenceId: "hostFabric:adapterExecution:gateway:healthCheck:1778720000500",
+    fabricRef: plan.fabricRef,
+    hostRef: plan.hostRef,
+    adapterRef: "adapter:service-manager:host-service",
+    subjectRef: decision.subjectRef,
+    operationRef: decision.operationRef,
+    state: FABRIC.ADAPTER_EXECUTION_STATE.SUCCEEDED,
+    sourceDecisionRef: decision.decisionId,
+    sourcePlanRef: plan.planId,
+    sourcePlanObservedAt: now,
+    sourcePlanExpiresAt: now + 60_000,
+    sourceBridgeRef: bridge.bridgeId,
+    delegatedRoleRef: "role:hostServiceAdapter",
+    authorizationRefs: ["authority:service-manager:local"],
+    actionAuthorityRefs: ["authority:service-manager:local"],
+    inputRefs: [decision.operationRef, bridge.bridgeId, plan.planId],
+    outputRefs: ["evidence:host-adapter:gateway:healthCheck:dry-run-ok"],
+    fallbackRefs: ["fallback:service-manager:legacy-control"],
+    cleanupRefs: ["cleanup:service-manager:gateway:healthCheck"],
+    evidenceRefs: ["evidence:host-adapter:gateway:healthCheck:dry-run-ok"],
+    observedAt: now + 300,
+    expiresAt: now + 60_000,
+  };
+
+  const posture = prepareRuntimeHostFabricPosture({
+    hostFabricFulfillmentPlans: [plan],
+    hostFabricControlDecisions: [decision],
+    hostFabricLegacyControlBridges: [bridge],
+    hostFabricAdapterExecutionEvidence: [adapter],
+  });
+
+  assert.equal(posture.state, "ready");
+  assert.equal(posture.operation.state, "ready");
+  assert.equal(posture.operation.decisionState, FABRIC.CONTROL_DECISION_STATE.READY);
+  assert.equal(posture.operation.legacyBridgeState, FABRIC.LEGACY_CONTROL_STATE.FALLBACK_AVAILABLE);
+  assert.equal(posture.operation.adapterExecutionState, FABRIC.ADAPTER_EXECUTION_STATE.SUCCEEDED);
+  assert.equal(posture.operation.sourcePlanRef, plan.planId);
+  assert.equal(posture.operation.sourcePlanObservedAt, now);
+  assert.equal(posture.operation.fallbackAvailable, true);
+  assert.deepEqual(posture.operation.outputRefs, ["evidence:host-adapter:gateway:healthCheck:dry-run-ok"]);
+  assert.deepEqual(posture.operation.validationErrors, []);
 });
 
 test("runtime read model accepts target source envelope from account runtime", () => {

@@ -11,6 +11,7 @@ import type {
   SurfaceAppRunnerFulfillmentLifecycle,
   SurfaceAppRunnerFulfillmentReadiness,
   SurfaceAppRunnerPlan,
+  SurfaceRunnerOperation,
   SurfaceServiceManagerOperationPosture,
   SurfaceServiceManagerProofDigest,
   SurfaceServiceManagerSecretBoundary,
@@ -34,6 +35,7 @@ export type SurfaceAppSelectionReadModel = {
   releaseResolution: SurfaceAppReleaseResolution | null;
   moduleBindings: Readonly<Record<string, unknown>> | null;
   runnerPlan: SurfaceAppRunnerPlan;
+  moduleLoadRunnerOperation: SurfaceRunnerOperation | null;
   runnerFulfillmentLifecycle: SurfaceAppRunnerFulfillmentLifecycle | null;
   runnerFulfillmentReadiness: SurfaceAppRunnerFulfillmentReadiness | null;
   fulfillmentIdentityPosture: SurfaceAppFulfillmentIdentityPosture;
@@ -66,6 +68,8 @@ export function surfaceAppSelectionReadModel(options?: {
   runtimeSelectionOptions?: Record<string, unknown>;
   moduleBindings?: Record<string, unknown>;
   moduleBindingPosture?: Record<string, unknown>;
+  moduleLoadRunnerOperation?: SurfaceRunnerOperation | null;
+  moduleLoadRunnerOptions?: Record<string, unknown>;
   runnerPlan?: SurfaceAppRunnerPlan;
   runnerPlanOptions?: Record<string, unknown>;
   runnerFulfillmentReport?: Record<string, unknown>;

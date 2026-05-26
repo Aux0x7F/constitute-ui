@@ -1,6 +1,7 @@
 export type RuntimeStreamPosture = {
   sessionCount: number;
   waitingRouteCount: number;
+  waitingServiceAdmissionCount: number;
   waitingServiceAcceptanceCount: number;
   serviceAdmissionTimedOutCount: number;
   waitingAnswerCount: number;
@@ -9,6 +10,8 @@ export type RuntimeStreamPosture = {
   mediaBlockedCount: number;
   mediaUsableCount: number;
   mediaReleasedCount: number;
+  mediaWaitingRenderCount: number;
+  mediaTransportDegradedCount: number;
   expiresAt: number;
 };
 
@@ -18,6 +21,7 @@ export declare function collectRuntimeStreamFrameKeys(frame?: Record<string, unk
 export declare function collectRuntimeObservationKeys(observation?: Record<string, unknown>): Set<string>;
 export declare function collectRuntimeActivationKeys(activation?: Record<string, unknown>): Set<string>;
 export declare function collectRuntimeMediaFulfillmentKeys(posture?: Record<string, unknown>): Set<string>;
+export declare function collectRuntimeMediaTransportObservationKeys(observation?: Record<string, unknown>): Set<string>;
 export declare function runtimeIntentSource(result: unknown): Record<string, unknown>;
 export declare function runtimeIntentFrameId(result: unknown): string;
 export declare function runtimeIntentWaitingAuthority(result: unknown): boolean;
@@ -26,4 +30,6 @@ export declare function runtimeIntentPendingRoute(result: unknown): boolean;
 export declare function applyRuntimeActivationPostureToStreamSession(session: Record<string, unknown>, activation?: Record<string, unknown>): string;
 export declare function applyRuntimeStreamLifecycleToStreamSession(session: Record<string, unknown>, lifecycle?: Record<string, unknown>): string;
 export declare function applyRuntimeMediaFulfillmentPostureToStreamSession(session: Record<string, unknown>, posture?: Record<string, unknown>): string;
+export declare function runtimeMediaTransportReadModel(source?: Record<string, unknown> | Array<Record<string, unknown>>, options?: Record<string, unknown>): Record<string, unknown>;
+export declare function applyRuntimeMediaTransportReadModelToStreamSession(session: Record<string, unknown>, source?: Record<string, unknown> | Array<Record<string, unknown>>, options?: Record<string, unknown>): string;
 export declare function runtimeStreamSessionPosture(sessions?: Array<Record<string, unknown>>): RuntimeStreamPosture;

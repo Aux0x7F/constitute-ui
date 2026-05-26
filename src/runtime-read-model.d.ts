@@ -21,7 +21,7 @@ export type RuntimeSurfaceReadModel = Readonly<{
   shell: Readonly<Record<string, unknown>>;
   authority: Readonly<Record<string, unknown>>;
   broker: Readonly<Record<string, unknown>>;
-  edge: Readonly<Record<string, unknown>>;
+  edge: RuntimeCarrierPostureReadModel;
   serviceRegistry: Readonly<Record<string, unknown>>;
   projection: Readonly<Record<string, unknown>>;
   target: RuntimeTargetReadModel;
@@ -29,6 +29,52 @@ export type RuntimeSurfaceReadModel = Readonly<{
   materialization: Readonly<Record<string, unknown>>;
   resource: Readonly<Record<string, unknown>>;
   retention: Readonly<Record<string, unknown>>;
+}>;
+
+export type RuntimeCarrierEdgeReadModel = Readonly<{
+  present: boolean;
+  state: string;
+  connectionState: string;
+  adapterRef: string;
+  adapterKind: string;
+  participantRef: string;
+  peerRef: string;
+  edgeSessionRef: string;
+  sessionBindingRef: string;
+  networkSensitivity: string;
+  backpressureState: string;
+  blockedReasons: readonly string[];
+  blockedReason: string;
+  actionabilityState: "carrierReady" | "waitingCarrier" | "carrierBlocked" | "carrierDegraded";
+  ready: boolean;
+  waiting: boolean;
+  degraded: boolean;
+  blocked: boolean;
+  validationErrors: readonly string[];
+  proofSubstrateRefs: readonly string[];
+  resourcePostureRefs: readonly string[];
+  retryPosture: Readonly<Record<string, unknown>>;
+  reconnectPosture: Readonly<Record<string, unknown>>;
+  closePosture: Readonly<Record<string, unknown>>;
+  releasePosture: Readonly<Record<string, unknown>>;
+  observedAt: number;
+  expiresAt: number;
+}>;
+
+export type RuntimeCarrierPostureReadModel = Readonly<{
+  state: string;
+  mode: string;
+  connected: boolean;
+  reason: string;
+  actionabilityState: RuntimeCarrierEdgeReadModel["actionabilityState"];
+  ready: boolean;
+  waiting: boolean;
+  degraded: boolean;
+  blocked: boolean;
+  blockedReasons: readonly string[];
+  endpointRef: string;
+  memberRef: string;
+  carrierEdge: RuntimeCarrierEdgeReadModel;
 }>;
 
 export type RuntimeTargetSlotReadModel = Readonly<{
@@ -143,6 +189,39 @@ export type RuntimeLifecyclePlanReadModel = Readonly<{
   }>[];
 }>;
 
+export type RuntimeHostOperationReadModel = Readonly<{
+  kind: "runtime.host-operation.read-model";
+  state: "ready" | "degraded" | "blocked" | "pending";
+  ready: boolean;
+  degraded: boolean;
+  blocked: boolean;
+  operationRef: string;
+  subjectRef: string;
+  decisionId: string;
+  decisionState: string;
+  planState: string;
+  sourcePlanRef: string;
+  sourcePlanObservedAt: number;
+  sourcePlanExpiresAt: number;
+  delegatedRoleRef: string;
+  legacyBridgeId: string;
+  legacyBridgeState: string;
+  legacyDirect: boolean;
+  fallbackAvailable: boolean;
+  quarantined: boolean;
+  adapterEvidenceId: string;
+  adapterExecutionState: string;
+  adapterRef: string;
+  outputRefs: readonly string[];
+  cleanupRefs: readonly string[];
+  fallbackRefs: readonly string[];
+  quarantineRefs: readonly string[];
+  blockedReasons: readonly string[];
+  validationErrors: readonly string[];
+  observedAt: number;
+  expiresAt: number;
+}>;
+
 export type RuntimeHostFabricReadModel = Readonly<{
   kind: "runtime.host-fabric.read-model";
   state: "ready" | "degraded" | "blocked" | "pending";
@@ -165,6 +244,11 @@ export type RuntimeHostFabricReadModel = Readonly<{
   planCount: number;
   contributionCount: number;
   lifecyclePlanCount: number;
+  controlDecisionCount: number;
+  legacyBridgeCount: number;
+  adapterExecutionCount: number;
+  operationValidationErrors: readonly string[];
+  operation: RuntimeHostOperationReadModel;
   contributions: readonly RuntimeHostFabricContributionReadModel[];
   lifecyclePlans: readonly RuntimeLifecyclePlanReadModel[];
   clientId: string;

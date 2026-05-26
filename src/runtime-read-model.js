@@ -7,9 +7,13 @@ import {
 import {
   FABRIC,
   SWARM,
+  assertCarrierEdgeSessionEvidence,
   assertContractTarget,
   assertContractTargetRegistryPosture,
+  assertHostFabricAdapterExecutionEvidence,
+  assertHostFabricControlDecision,
   assertHostFabricFulfillmentPlan,
+  assertHostFabricLegacyControlBridge,
   assertHostFabricMemberContribution,
   assertLifecyclePlanPosture,
 } from "../../constitute-protocol/src/index.js";
@@ -45,15 +49,143 @@ function summarizeBroker(snapshot) {
   });
 }
 
+function summarizeCarrierEdge(snapshot) {
+  const edge = record(snapshot.edge);
+  const carrierEdge = record(
+    edge.carrierEdge
+      || edge.carrierEdgeSessionEvidence
+      || snapshot.carrierEdge
+      || snapshot.carrierEdgeSessionEvidence,
+  );
+  if (countObject(carrierEdge) === 0) {
+    return Object.freeze({
+      present: false,
+      state: "unknown",
+      connectionState: "unknown",
+      adapterRef: "",
+      adapterKind: "",
+      participantRef: "",
+      peerRef: "",
+      edgeSessionRef: "",
+      sessionBindingRef: "",
+      networkSensitivity: "",
+      backpressureState: "unknown",
+      blockedReasons: Object.freeze([]),
+      blockedReason: "",
+      actionabilityState: "waitingCarrier",
+      ready: false,
+      waiting: true,
+      degraded: false,
+      blocked: false,
+      validationErrors: Object.freeze([]),
+      proofSubstrateRefs: Object.freeze([]),
+      resourcePostureRefs: Object.freeze([]),
+      retryPosture: Object.freeze({}),
+      reconnectPosture: Object.freeze({}),
+      closePosture: Object.freeze({}),
+      releasePosture: Object.freeze({}),
+      observedAt: 0,
+      expiresAt: 0,
+    });
+  }
+  const validationErrors = [];
+  if (carrierEdge.kind || carrierEdge.evidenceId) {
+    try {
+      assertCarrierEdgeSessionEvidence(carrierEdge);
+    } catch (error) {
+      validationErrors.push(String(error?.message || error || "invalid carrier edge evidence"));
+    }
+  }
+  const state = text(carrierEdge.state) || "unknown";
+  const connectionState = text(carrierEdge.connectionState) || "unknown";
+  const backpressureState = text(carrierEdge.backpressureState) || "unknown";
+  const blockedReasons = Object.freeze(textArray(carrierEdge.blockedReasons));
+  const blocked = validationErrors.length > 0
+    || blockedReasons.length > 0
+    || state === SWARM.CARRIER_EDGE_SESSION_STATE.BLOCKED
+    || state === SWARM.CARRIER_EDGE_SESSION_STATE.EXPIRED
+    || backpressureState === SWARM.CARRIER_EDGE_BACKPRESSURE_STATE.BLOCKED;
+  const waiting = !blocked && [
+    SWARM.CARRIER_EDGE_SESSION_STATE.OPENING,
+    SWARM.CARRIER_EDGE_SESSION_STATE.CLOSING,
+    SWARM.CARRIER_EDGE_SESSION_STATE.CLOSED,
+    SWARM.CARRIER_EDGE_SESSION_STATE.RECONNECTING,
+    "unknown",
+  ].includes(state);
+  const degraded = !blocked && (
+    state === SWARM.CARRIER_EDGE_SESSION_STATE.DEGRADED
+    || state === SWARM.CARRIER_EDGE_SESSION_STATE.BACKPRESSURE
+    || backpressureState === SWARM.CARRIER_EDGE_BACKPRESSURE_STATE.DEGRADED
+    || backpressureState === SWARM.CARRIER_EDGE_BACKPRESSURE_STATE.SATURATED
+    || (state === SWARM.CARRIER_EDGE_SESSION_STATE.OPEN && connectionState && connectionState !== "connected")
+  );
+  const ready = !blocked && !waiting && !degraded && state === SWARM.CARRIER_EDGE_SESSION_STATE.OPEN;
+  const actionabilityState = blocked
+    ? "carrierBlocked"
+    : degraded
+      ? "carrierDegraded"
+      : waiting || !ready
+        ? "waitingCarrier"
+        : "carrierReady";
+  const blockedReason = validationErrors[0]
+    ? `invalidCarrierEdgeEvidence:${validationErrors[0]}`
+    : blockedReasons[0] || "";
+  return Object.freeze({
+    present: true,
+    state,
+    connectionState,
+    adapterRef: text(carrierEdge.adapterRef),
+    adapterKind: text(carrierEdge.adapterKind),
+    participantRef: text(carrierEdge.participantRef),
+    peerRef: text(carrierEdge.peerRef),
+    edgeSessionRef: text(carrierEdge.edgeSessionRef),
+    sessionBindingRef: text(carrierEdge.sessionBindingRef),
+    networkSensitivity: text(carrierEdge.networkSensitivity),
+    backpressureState,
+    blockedReasons,
+    blockedReason,
+    actionabilityState,
+    ready,
+    waiting,
+    degraded,
+    blocked,
+    validationErrors: Object.freeze(validationErrors),
+    proofSubstrateRefs: Object.freeze(textArray(carrierEdge.proofSubstrateRefs)),
+    resourcePostureRefs: Object.freeze(textArray(carrierEdge.resourcePostureRefs)),
+    retryPosture: Object.freeze(record(carrierEdge.retryPosture)),
+    reconnectPosture: Object.freeze(record(carrierEdge.reconnectPosture)),
+    closePosture: Object.freeze(record(carrierEdge.closePosture)),
+    releasePosture: Object.freeze(record(carrierEdge.releasePosture)),
+    observedAt: number(carrierEdge.observedAt),
+    expiresAt: number(carrierEdge.expiresAt),
+  });
+}
+
 function summarizeEdge(snapshot) {
   const edge = record(snapshot.edge);
+  const carrierEdge = summarizeCarrierEdge(snapshot);
+  const connected = carrierEdge.present
+    ? carrierEdge.ready
+    : bool(edge.connected);
+  const state = carrierEdge.present && carrierEdge.state !== "unknown"
+    ? carrierEdge.state
+    : text(edge.state || edge.status || (connected ? "connected" : "")) || "unknown";
+  const endpointRef = text(edge.endpointRef)
+    || (text(edge.endpoint) ? "edge-endpoint:runtime-swarm-edge" : "");
   return Object.freeze({
-    state: text(edge.state || edge.status || (edge.connected === true ? "connected" : "")) || "unknown",
-    mode: text(edge.mode),
-    connected: bool(edge.connected),
-    reason: text(edge.reason || edge.error),
-    endpointRef: text(edge.endpointRef || edge.endpoint),
-    memberRef: text(edge.memberRef),
+    state,
+    mode: text(edge.mode || record(edge.carrierEdge)?.safeFacts?.mode || record(edge.carrierEdgeSessionEvidence)?.safeFacts?.mode),
+    connected,
+    reason: text(edge.reason || edge.error || carrierEdge.blockedReason || carrierEdge.blockedReasons[0]),
+    actionabilityState: carrierEdge.actionabilityState,
+    ready: carrierEdge.ready || connected,
+    waiting: carrierEdge.waiting,
+    degraded: carrierEdge.degraded,
+    blocked: carrierEdge.blocked,
+    blockedReasons: carrierEdge.blockedReasons,
+    endpointRef,
+    memberRef: text(edge.memberRef || carrierEdge.participantRef),
+    carrierEdge,
   });
 }
 
@@ -139,6 +271,9 @@ function collectRuntimeFabricRecords(snapshot) {
   const plans = [];
   const contributions = [];
   const lifecyclePlans = [];
+  const controlDecisions = [];
+  const legacyControlBridges = [];
+  const adapterExecutions = [];
   for (const container of containers) {
     for (const candidate of array(container.hostFabricFulfillmentPlans)) plans.push(candidate);
     for (const candidate of array(container.fabricFulfillmentPlans)) plans.push(candidate);
@@ -158,8 +293,30 @@ function collectRuntimeFabricRecords(snapshot) {
 
     for (const candidate of array(container.lifecyclePlans)) lifecyclePlans.push(candidate);
     if (container.lifecyclePlan) lifecyclePlans.push(container.lifecyclePlan);
+
+    for (const candidate of array(container.hostFabricControlDecisions)) controlDecisions.push(candidate);
+    for (const candidate of array(container.fabricControlDecisions)) controlDecisions.push(candidate);
+    for (const candidate of array(container.controlDecisions)) controlDecisions.push(candidate);
+    if (container.hostFabricControlDecision) controlDecisions.push(container.hostFabricControlDecision);
+    if (container.fabricControlDecision) controlDecisions.push(container.fabricControlDecision);
+    if (container.controlDecision && record(container.controlDecision).kind === SWARM.RECORD_KIND.HOST_FABRIC_CONTROL_DECISION) {
+      controlDecisions.push(container.controlDecision);
+    }
+
+    for (const candidate of array(container.hostFabricLegacyControlBridges)) legacyControlBridges.push(candidate);
+    for (const candidate of array(container.legacyControlBridges)) legacyControlBridges.push(candidate);
+    if (container.hostFabricLegacyControlBridge) legacyControlBridges.push(container.hostFabricLegacyControlBridge);
+    if (container.legacyControlBridge) legacyControlBridges.push(container.legacyControlBridge);
+
+    for (const candidate of array(container.hostFabricAdapterExecutionEvidence)) adapterExecutions.push(candidate);
+    for (const candidate of array(container.hostFabricAdapterExecutions)) adapterExecutions.push(candidate);
+    for (const candidate of array(container.adapterExecutions)) adapterExecutions.push(candidate);
+    if (container.hostFabricAdapterExecutionEvidence && !Array.isArray(container.hostFabricAdapterExecutionEvidence)) {
+      adapterExecutions.push(container.hostFabricAdapterExecutionEvidence);
+    }
+    if (container.adapterExecution) adapterExecutions.push(container.adapterExecution);
   }
-  return { plans, contributions, lifecyclePlans };
+  return { plans, contributions, lifecyclePlans, controlDecisions, legacyControlBridges, adapterExecutions };
 }
 
 function validateRuntimeTargetRecords(snapshot) {
@@ -191,11 +348,18 @@ function validateRuntimeFabricRecords(snapshot) {
     plans: rawPlans,
     contributions: rawContributions,
     lifecyclePlans: rawLifecyclePlans,
+    controlDecisions: rawControlDecisions,
+    legacyControlBridges: rawLegacyControlBridges,
+    adapterExecutions: rawAdapterExecutions,
   } = collectRuntimeFabricRecords(snapshot);
   const errors = [];
   const plans = [];
   const contributions = [];
   const lifecyclePlans = [];
+  const controlDecisions = [];
+  const legacyControlBridges = [];
+  const adapterExecutions = [];
+  const operationErrors = [];
   for (const candidate of rawPlans) {
     if (record(candidate).kind && record(candidate).kind !== SWARM.RECORD_KIND.HOST_FABRIC_FULFILLMENT_PLAN) continue;
     try {
@@ -220,7 +384,40 @@ function validateRuntimeFabricRecords(snapshot) {
       errors.push(text(error?.message || error || "invalid lifecycle plan posture"));
     }
   }
-  return { plans, contributions, lifecyclePlans, errors };
+  for (const candidate of rawControlDecisions) {
+    if (record(candidate).kind && record(candidate).kind !== SWARM.RECORD_KIND.HOST_FABRIC_CONTROL_DECISION) continue;
+    try {
+      controlDecisions.push(assertHostFabricControlDecision(candidate));
+    } catch (error) {
+      operationErrors.push(text(error?.message || error || "invalid host-fabric control decision"));
+    }
+  }
+  for (const candidate of rawLegacyControlBridges) {
+    if (record(candidate).kind && record(candidate).kind !== SWARM.RECORD_KIND.HOST_FABRIC_LEGACY_CONTROL_BRIDGE) continue;
+    try {
+      legacyControlBridges.push(assertHostFabricLegacyControlBridge(candidate));
+    } catch (error) {
+      operationErrors.push(text(error?.message || error || "invalid host-fabric legacy control bridge"));
+    }
+  }
+  for (const candidate of rawAdapterExecutions) {
+    if (record(candidate).kind && record(candidate).kind !== SWARM.RECORD_KIND.HOST_FABRIC_ADAPTER_EXECUTION_EVIDENCE) continue;
+    try {
+      adapterExecutions.push(assertHostFabricAdapterExecutionEvidence(candidate));
+    } catch (error) {
+      operationErrors.push(text(error?.message || error || "invalid host-fabric adapter execution"));
+    }
+  }
+  return {
+    plans,
+    contributions,
+    lifecyclePlans,
+    controlDecisions,
+    legacyControlBridges,
+    adapterExecutions,
+    errors,
+    operationErrors,
+  };
 }
 
 function targetRank(target) {
@@ -445,6 +642,88 @@ function summarizeLifecyclePlan(plan) {
   });
 }
 
+function latestRuntimeRecord(records) {
+  return [...records].sort((left, right) => {
+    const observedDelta = number(right.observedAt) - number(left.observedAt);
+    if (observedDelta !== 0) return observedDelta;
+    return JSON.stringify(right).localeCompare(JSON.stringify(left));
+  })[0] || null;
+}
+
+function summarizeHostOperation(controlDecisions, legacyControlBridges, adapterExecutions, errors) {
+  const decision = latestRuntimeRecord(controlDecisions);
+  const bridge = decision
+    ? legacyControlBridges.find((entry) => text(entry.sourceDecisionRef) === text(decision.decisionId)) || latestRuntimeRecord(legacyControlBridges)
+    : latestRuntimeRecord(legacyControlBridges);
+  const adapter = decision
+    ? adapterExecutions.find((entry) => text(entry.sourceDecisionRef) === text(decision.decisionId)) || latestRuntimeRecord(adapterExecutions)
+    : latestRuntimeRecord(adapterExecutions);
+  const blockedReasons = [
+    ...textArray(decision?.blockedReasons),
+    ...textArray(bridge?.blockedReasons),
+    ...textArray(adapter?.blockedReasons),
+    ...errors.map((error) => `invalidHostOperationRecord:${error}`),
+  ];
+  const legacyBridgeState = text(bridge?.state);
+  const adapterExecutionState = text(adapter?.state);
+  const decisionState = text(decision?.state);
+  const state = !decision && !bridge && !adapter
+    ? "pending"
+    : blockedReasons.length
+      || decisionState === FABRIC.CONTROL_DECISION_STATE.BLOCKED
+      || legacyBridgeState === FABRIC.LEGACY_CONTROL_STATE.BLOCKED
+      || adapterExecutionState === FABRIC.ADAPTER_EXECUTION_STATE.BLOCKED
+      || adapterExecutionState === FABRIC.ADAPTER_EXECUTION_STATE.FAILED
+        ? "blocked"
+        : legacyBridgeState === FABRIC.LEGACY_CONTROL_STATE.QUARANTINED
+          || decisionState === FABRIC.CONTROL_DECISION_STATE.WAITING_PLAN
+          || decisionState === FABRIC.CONTROL_DECISION_STATE.DEGRADED
+          || adapterExecutionState === FABRIC.ADAPTER_EXECUTION_STATE.DEGRADED
+          || adapterExecutionState === FABRIC.ADAPTER_EXECUTION_STATE.SKIPPED
+            ? "degraded"
+            : decisionState === FABRIC.CONTROL_DECISION_STATE.READY
+              && legacyBridgeState === FABRIC.LEGACY_CONTROL_STATE.FALLBACK_AVAILABLE
+              && adapterExecutionState === FABRIC.ADAPTER_EXECUTION_STATE.SUCCEEDED
+                ? "ready"
+                : "degraded";
+  return Object.freeze({
+    kind: "runtime.host-operation.read-model",
+    state,
+    ready: state === "ready",
+    degraded: state === "degraded",
+    blocked: state === "blocked",
+    operationRef: text(decision?.operationRef || bridge?.operationRef || adapter?.operationRef),
+    subjectRef: text(decision?.subjectRef || bridge?.subjectRef || adapter?.subjectRef),
+    decisionId: text(decision?.decisionId),
+    decisionState: decisionState || "unknown",
+    planState: text(decision?.planState),
+    sourcePlanRef: text(decision?.sourcePlanRef || adapter?.sourcePlanRef),
+    sourcePlanObservedAt: number(decision?.sourcePlanObservedAt || adapter?.sourcePlanObservedAt),
+    sourcePlanExpiresAt: number(decision?.sourcePlanExpiresAt || adapter?.sourcePlanExpiresAt),
+    delegatedRoleRef: text(decision?.delegatedRoleRef || bridge?.delegatedRoleRef || adapter?.delegatedRoleRef),
+    legacyBridgeId: text(bridge?.bridgeId),
+    legacyBridgeState: legacyBridgeState || "unknown",
+    legacyDirect: legacyBridgeState === FABRIC.LEGACY_CONTROL_STATE.LEGACY_DIRECT,
+    fallbackAvailable: legacyBridgeState === FABRIC.LEGACY_CONTROL_STATE.FALLBACK_AVAILABLE,
+    quarantined: legacyBridgeState === FABRIC.LEGACY_CONTROL_STATE.QUARANTINED,
+    adapterEvidenceId: text(adapter?.evidenceId),
+    adapterExecutionState: adapterExecutionState || "unknown",
+    adapterRef: text(adapter?.adapterRef),
+    outputRefs: Object.freeze(textArray(adapter?.outputRefs)),
+    cleanupRefs: Object.freeze(textArray(adapter?.cleanupRefs)),
+    fallbackRefs: Object.freeze([
+      ...new Set([...textArray(decision?.fallbackRefs), ...textArray(bridge?.fallbackRefs), ...textArray(adapter?.fallbackRefs)]),
+    ]),
+    quarantineRefs: Object.freeze([
+      ...new Set([...textArray(decision?.quarantineRefs), ...textArray(bridge?.quarantineRefs), ...textArray(adapter?.quarantineRefs)]),
+    ]),
+    blockedReasons: Object.freeze(blockedReasons),
+    validationErrors: Object.freeze(errors),
+    observedAt: number(adapter?.observedAt || bridge?.observedAt || decision?.observedAt),
+    expiresAt: number(adapter?.expiresAt || bridge?.expiresAt || decision?.expiresAt),
+  });
+}
+
 function fabricReadModelState(plan, contributions, lifecyclePlans, errors) {
   if (!plan) return errors.length ? "degraded" : "pending";
   if (
@@ -464,7 +743,16 @@ function fabricReadModelState(plan, contributions, lifecyclePlans, errors) {
 
 export function prepareRuntimeHostFabricPosture(snapshot = {}, options = {}) {
   const snap = record(snapshot);
-  const { plans, contributions, lifecyclePlans, errors } = validateRuntimeFabricRecords(snap);
+  const {
+    plans,
+    contributions,
+    lifecyclePlans,
+    controlDecisions,
+    legacyControlBridges,
+    adapterExecutions,
+    errors,
+    operationErrors,
+  } = validateRuntimeFabricRecords(snap);
   const plan = selectRuntimeFabricPlan(plans);
   const planContributionRefs = new Set(textArray(plan?.memberContributionRefs));
   const planLifecycleRefs = new Set(textArray(plan?.lifecyclePlanRefs));
@@ -505,6 +793,11 @@ export function prepareRuntimeHostFabricPosture(snapshot = {}, options = {}) {
     planCount: plans.length,
     contributionCount: contributions.length,
     lifecyclePlanCount: lifecyclePlans.length,
+    controlDecisionCount: controlDecisions.length,
+    legacyBridgeCount: legacyControlBridges.length,
+    adapterExecutionCount: adapterExecutions.length,
+    operationValidationErrors: Object.freeze(operationErrors),
+    operation: summarizeHostOperation(controlDecisions, legacyControlBridges, adapterExecutions, operationErrors),
     contributions: Object.freeze(selectedContributions.map(summarizeFabricContribution)),
     lifecyclePlans: Object.freeze(selectedLifecyclePlans.map(summarizeLifecyclePlan)),
     clientId: text(options.clientId),

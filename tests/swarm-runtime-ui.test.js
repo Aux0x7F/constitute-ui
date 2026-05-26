@@ -117,12 +117,17 @@ test("swarm edge status renders queued sent and rejected counts", () => {
     sent: 11,
     rejected: 2,
     lastRejectReason: "expired-frame",
+    carrierState: "open",
+    connectionState: "connected",
+    backpressureState: "clear",
   });
 
   const countValues = Array.from(root.querySelectorAll(".cuCountItem")).map((node) => node.textContent);
   assert.deepEqual(countValues, ["7Queued", "11Sent", "2Rejected"]);
   assert.match(root.textContent, /Swarm edge/);
   assert.match(root.textContent, /Mode\s*fixture/);
+  assert.match(root.textContent, /Carrier\s*open/);
+  assert.match(root.textContent, /Connection\s*connected/);
   assert.match(root.textContent, /Last reject\s*expired-frame/);
 });
 

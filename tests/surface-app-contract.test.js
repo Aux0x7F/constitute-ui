@@ -39,6 +39,7 @@ import {
   surfaceAppManifestSelection,
   surfaceAppReleaseResolution,
   surfaceAppRuntimeSelectionPosture,
+  surfaceNativeModuleLoadRunnerOperation,
   surfaceAppRunnerFulfillmentLifecycle,
   surfaceAppRunnerFulfillmentReadiness,
   surfaceAppRunnerPlan,
@@ -58,7 +59,7 @@ import {
   surfaceModuleTaxonomyPosture,
 } from "../src/surface-app-contract.js";
 import { surfaceAppSelectionReadModel } from "../src/surface-selection-read-model.js";
-import { createSurfaceModuleRegistry } from "../src/surface-module-registry.js";
+import { createSurfaceModuleRegistry, surfaceAppModuleBindings } from "../src/surface-module-registry.js";
 
 const RESOLVED_RUNNER_REF = "4a29ff60c5c3837e9e20555bfeb2a046be3eb140818144628691fcf7efb1d2f1";
 
@@ -143,6 +144,33 @@ function makeContract(overrides = {}) {
       },
     ],
     issuedAt: 1700000000,
+    ...overrides,
+  };
+}
+
+function makeNativeModuleResolver(overrides = {}) {
+  const resolution = {
+    moduleRef: "module:native-dev:constitute-logging-ui",
+    repoRef: "repo:constitute-logging-ui",
+    role: "logging-surface",
+    state: "materialized",
+    sourceSnapshotRef: "source:snapshot:native-dev:constitute-logging-ui:abc123",
+    contentIndexRef: "content-index:native-dev:constitute-logging-ui:abc123",
+    artifactRef: "artifact:native-dev:constitute-logging-ui:abc123",
+    materializedPathRef: "materialized:path:workspace-dev:constitute-logging-ui",
+    storageRefs: ["storage:materialized-local:constitute-logging-ui"],
+    conflictRefs: [],
+    ...(overrides.resolution || {}),
+  };
+  return {
+    kind: "operator.native-module.resolver",
+    state: "ready",
+    resolverRef: "module-resolver:native-dev:logging-ui",
+    sourceSnapshotRef: "source:snapshot:native-dev:abc123",
+    contentIndexRef: "content-index:native-dev:abc123",
+    moduleResolutions: [resolution],
+    transitionConflicts: [],
+    blockedReasons: [],
     ...overrides,
   };
 }
@@ -471,6 +499,75 @@ test("surface app helper composes execution-bound runner operations", () => {
   assert.throws(() => surfaceRunnerOperation(noGrantSurfaceApp, {
     resourceBudget: { maxMemoryMiB: 256 },
   }), /requires grantRefs/);
+});
+
+test("surface app helper composes native module load runner operations", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract({
+    appRef: "surface-app:logging-ui",
+    serviceRef: "service:logging",
+    serviceManagerPosture: {
+      managerId: "manager:logging-local",
+      managerRef: "member:logging-manager",
+      runnerId: "runner:logging-local",
+      runnerRef: RESOLVED_RUNNER_REF,
+      hostRef: "host:operator-lab",
+      state: "ready",
+      serviceRefs: ["service:logging"],
+      capabilityRefs: ["service.manage"],
+      grantRefs: ["authority-grant:service-manager:logging"],
+      resourceBudget: { maxMemoryMiB: 256, maxCpuPct: 25 },
+      issuedAt: 1234,
+    },
+  }));
+  const registry = createSurfaceModuleRegistry(surfaceApp.modules.map((module) => ({
+    moduleRef: module.moduleRef,
+    role: module.role,
+    version: module.version,
+    primitiveRefs: module.primitiveRefs,
+    implementation: { moduleRef: module.moduleRef },
+  })));
+  const runtimeSelectionPosture = surfaceAppRuntimeSelectionPosture({
+    kind: "surface.app.manifest",
+    manifestId: "manifest:logging-ui",
+    appId: "constitute-logging-ui",
+    currentAppContractRef: "surface-app:logging-ui",
+    currentVersion: "0.1.0",
+    defaultSourceMode: "bundled",
+    versions: [{
+      appContractRef: "surface-app:logging-ui",
+      version: "0.1.0",
+      state: "current",
+      sourceMode: "bundled",
+      compatibilityWindow: {
+        minVersion: "0.1.0",
+        maxVersion: "0.1.x",
+        protocolRef: "protocol:surface-app:v1",
+      },
+      bundledSourceRefs: ["bundle:logging-ui@0.1.0"],
+    }],
+  }, [surfaceApp], {
+    runtimeVersion: "0.1.0",
+    moduleResolverPosture: makeNativeModuleResolver(),
+    issuedAt: 1234,
+  });
+  const moduleBindings = surfaceAppModuleBindings(registry, runtimeSelectionPosture, ["productView"]);
+  const runnerOperation = surfaceNativeModuleLoadRunnerOperation(surfaceApp, {
+    moduleBindings,
+    runtimeSelectionPosture,
+    moduleResolverPosture: runtimeSelectionPosture.moduleResolverPosture,
+    requestedAt: 1234,
+  });
+
+  assert.equal(runnerOperation.kind, "runner.operation");
+  assert.equal(runnerOperation.operation, "execute");
+  assert.equal(runnerOperation.state, "accepted");
+  assert.equal(runnerOperation.safeFacts.executionKind, "nativeModuleLoad");
+  assert(runnerOperation.inputRefs.includes("module-resolver:native-dev:logging-ui"));
+  assert(runnerOperation.inputRefs.includes("artifact:native-dev:constitute-logging-ui:abc123"));
+  assert(runnerOperation.inputRefs.includes("materialized:path:workspace-dev:constitute-logging-ui"));
+  assert(runnerOperation.inputRefs.includes("storage:materialized-local:constitute-logging-ui"));
+  assert(runnerOperation.outputRefs.includes("module-load:module:native-dev:constitute-logging-ui"));
+  assert.equal(assertRunnerOperation(runnerOperation), runnerOperation);
 });
 
 test("surface app helper separates app, service, host, runner, and route identity", () => {
@@ -1222,6 +1319,102 @@ test("surface app selection read model composes selection, modules, runner, and 
   assert.deepEqual(readModel.blockedReasons, []);
 });
 
+test("surface app selection read model projects native module load runner operation", () => {
+  const surfaceApp = defineSurfaceAppContract(makeContract({
+    contractId: "surface-app:logging-ui@0.1.0",
+    appRef: "surface-app:logging-ui@0.1.0",
+    serviceRef: "service:logging",
+    serviceManagerPosture: {
+      managerId: "manager:logging-local",
+      managerRef: "member:logging-manager",
+      runnerId: "runner:logging-local",
+      runnerRef: RESOLVED_RUNNER_REF,
+      hostRef: "host:operator-lab",
+      subjectRef: "service:logging",
+      state: "ready",
+      serviceRefs: ["service:logging"],
+      capabilityRefs: ["service.manage"],
+      grantRefs: ["authority-grant:service-manager:logging"],
+      resourceBudget: { maxMemoryMiB: 256, maxCpuPct: 25 },
+      issuedAt: 1234,
+    },
+  }));
+  const manifest = {
+    kind: "surface.app.manifest",
+    manifestId: "manifest:logging-ui",
+    appId: "constitute-logging-ui",
+    currentAppContractRef: "surface-app:logging-ui@0.1.0",
+    currentVersion: "0.1.0",
+    defaultSourceMode: "bundled",
+    versions: [{
+      appContractRef: "surface-app:logging-ui@0.1.0",
+      version: "0.1.0",
+      state: "current",
+      sourceMode: "bundled",
+      compatibilityWindow: {
+        minVersion: "0.1.0",
+        maxVersion: "0.1.x",
+        protocolRef: "protocol:surface-app:v1",
+      },
+      bundledSourceRefs: ["bundle:logging-ui@0.1.0"],
+    }],
+    issuedAt: 1234,
+  };
+  const moduleRegistry = createSurfaceModuleRegistry(surfaceApp.modules.map((module) => ({
+    moduleRef: module.moduleRef,
+    role: module.role,
+    version: module.version,
+    primitiveRefs: module.primitiveRefs,
+    implementation: { moduleRef: module.moduleRef },
+  })));
+
+  const readModel = surfaceAppSelectionReadModel({
+    surfaceApp,
+    manifest,
+    moduleRegistry,
+    moduleRoles: ["productView"],
+    runtimeVersion: "0.1.0",
+    runtimeSelectionOptions: {
+      moduleResolverPosture: makeNativeModuleResolver(),
+    },
+    serviceManagerOperationOptions: {
+      operation: "start",
+      operationId: "operation:logging-ui:start",
+      requestedAt: 1234,
+    },
+    runnerPlanOptions: {
+      includeReleaseContract: true,
+      releaseContractOptions: {
+        buildRef: "build:logging-ui:abc",
+        releaseRef: "release:logging-ui:abc",
+        rollbackRequired: false,
+      },
+      labProofOptions: {
+        state: "proved",
+        artifactRefs: ["artifact:surface-landscape"],
+        metricsRefs: ["metrics:surface-landscape"],
+        startedAt: 1234,
+      },
+      trainDigestOptions: {
+        state: "proved",
+        observedAt: 1234,
+      },
+    },
+    serviceManagerProofDigestOptions: {
+      digestId: "proof-digest:logging-ui:start",
+      observedAt: 1234,
+    },
+    issuedAt: 1234,
+  });
+
+  assert.equal(readModel.state, "ready");
+  assert.equal(readModel.moduleLoadRunnerOperation.kind, "runner.operation");
+  assert.equal(readModel.moduleLoadRunnerOperation.safeFacts.executionKind, "nativeModuleLoad");
+  assert(readModel.moduleLoadRunnerOperation.inputRefs.includes("artifact:native-dev:constitute-logging-ui:abc123"));
+  assert(readModel.moduleLoadRunnerOperation.inputRefs.includes("storage:materialized-local:constitute-logging-ui"));
+  assert.equal(readModel.attachContext.moduleLoadRunnerOperation, readModel.moduleLoadRunnerOperation);
+});
+
 test("surface app manifest selection blocks missing bundles and unproven remote sources", () => {
   const manifest = {
     kind: "surface.app.manifest",
@@ -1273,6 +1466,8 @@ test("surface app manifest selection blocks missing bundles and unproven remote 
 });
 
 test("surface app source candidate posture gates non-bundled sources explicitly", () => {
+  const loggingUiStorage020 = `storage:object:${"a".repeat(64)}`;
+
   const bundled = surfaceAppSourceCandidatePosture({
     sourceMode: "bundled",
     appContractRef: "surface-app:logging-ui@0.1.0",
@@ -1287,7 +1482,7 @@ test("surface app source candidate posture gates non-bundled sources explicitly"
 
   const storagePinned = surfaceAppSourceCandidatePosture({
     sourceMode: "storageObject",
-    remoteSourceRefs: ["storage-object:logging-ui@0.2.0"],
+    remoteSourceRefs: [loggingUiStorage020],
     releaseContractRef: "release:logging-ui@0.2.0",
     digestRefs: ["sha256:logging-ui@0.2.0"],
     signatureRefs: ["sig:logging-ui@0.2.0"],
@@ -1303,7 +1498,7 @@ test("surface app source candidate posture gates non-bundled sources explicitly"
   });
   assert.equal(storagePinned.state, "ready");
   assert.equal(storagePinned.sourceClass, "storagePinned");
-  assert.deepEqual(storagePinned.storageObjectRefs, ["storage-object:logging-ui@0.2.0"]);
+  assert.deepEqual(storagePinned.storageObjectRefs, [loggingUiStorage020]);
   assert.deepEqual(storagePinned.digestRefs, ["sha256:logging-ui@0.2.0"]);
   assert.deepEqual(storagePinned.signatureRefs, ["sig:logging-ui@0.2.0"]);
   assertSurfaceAppSourceCandidatePosture(storagePinned);
@@ -1320,7 +1515,7 @@ test("surface app source candidate posture gates non-bundled sources explicitly"
     },
   });
   assert.equal(retained.state, "retained");
-  assert.deepEqual(retained.storageRefs, ["storage-object:logging-ui@0.2.0"]);
+  assert.deepEqual(retained.storageRefs, [loggingUiStorage020]);
   assertSurfaceAppDistributionPosture(retained);
 
   const releaseFetched = surfaceAppSourceCandidatePosture({
@@ -1360,7 +1555,7 @@ test("surface app source candidate posture gates non-bundled sources explicitly"
 
   const incompleteRemote = surfaceAppSourceCandidatePosture({
     sourceMode: "storageObject",
-    remoteSourceRefs: ["storage-object:logging-ui@0.2.0"],
+    remoteSourceRefs: [loggingUiStorage020],
     releaseContractRef: "release:logging-ui@0.2.0",
     compatibilityRefs: ["protocol:surface-app:v1"],
     issuedAt: 1234,
@@ -1375,6 +1570,7 @@ test("surface app source candidate posture gates non-bundled sources explicitly"
 });
 
 test("surface app release resolution binds manifest modules to content addressed sources", () => {
+  const loggingUiStorage020 = `storage:object:${"a".repeat(64)}`;
   const contract = makeContract({
     contractId: "surface-app:logging-ui@0.2.0",
     appRef: "surface-app:logging-ui@0.2.0",
@@ -1396,7 +1592,7 @@ test("surface app release resolution binds manifest modules to content addressed
         version: "0.2.0",
         state: "current",
         sourceMode: "storageObject",
-        remoteSourceRefs: ["storage:object:logging-ui@0.2.0"],
+        remoteSourceRefs: [loggingUiStorage020],
         releaseContractRef: "app:release:logging-ui@0.2.0",
         digestRefs: ["source:digest:logging-ui@0.2.0"],
         signatureRefs: ["signature:logging-ui@0.2.0"],
@@ -1420,7 +1616,7 @@ test("surface app release resolution binds manifest modules to content addressed
   assert.equal(resolution.state, "resolved");
   assert.equal(resolution.kind, "surface.app.release.resolution");
   assert.equal(resolution.selectedReleaseRef, "app:release:logging-ui@0.2.0");
-  assert.deepEqual(resolution.selectedStorageRefs, ["storage:object:logging-ui@0.2.0"]);
+  assert.deepEqual(resolution.selectedStorageRefs, [loggingUiStorage020]);
   assert.deepEqual(resolution.sourceDigestRefs, ["source:digest:logging-ui@0.2.0"]);
   assert.equal(resolution.selectedModuleRoleRefs.length, 3);
   assert(resolution.selectedModuleRefs.includes("constitute-ui/runtime-surface-client@0.1.0"));
@@ -1467,6 +1663,7 @@ test("surface app helper emits shared module taxonomy posture", () => {
       "runtimeClient",
       "projectionModel",
       "platformAdapter",
+      "runtimeRunnerBridge",
       "serviceSurfaceAdapter",
       "serviceEdgeAdapter",
       "productView",
@@ -1487,6 +1684,15 @@ test("surface app helper emits shared module taxonomy posture", () => {
         primitiveRefs: ["media.transport.path"],
         outputs: ["media.transport.observation"],
         materializationBudgetRefs: ["logging-ui.event-table"],
+      },
+      {
+        moduleRef: "constitute-ui/runtime-runner-bridge@0.1.0",
+        role: "runtimeRunnerBridge",
+        participantSide: "window",
+        fulfillmentMode: "bundled",
+        version: "0.1.0",
+        primitiveRefs: ["runtime.runner.dispatch", "runner.runtime-dispatch.bridge"],
+        outputs: ["runtime.runner.host.fulfillment.put"],
       },
       {
         moduleRef: "constitute-logging-ui/service-surface-adapter@0.1.0",
@@ -1516,11 +1722,14 @@ test("surface app helper emits shared module taxonomy posture", () => {
   assert.equal(posture.state, "ready");
   assert.equal(posture.byRole.serviceEdgeAdapter.taxonomyKey, "serviceEdgeAdapter");
   assert.deepEqual(posture.byRole.serviceEdgeAdapter.participantSides, ["service"]);
+  assert.equal(posture.byRole.runtimeRunnerBridge.taxonomyKey, "runtimeRunnerBridge");
+  assert(posture.byRole.runtimeRunnerBridge.evidenceChannels.includes("runtime.runner.host.fulfillment.put"));
   assert(posture.byRole.platformAdapter.evidenceChannels.includes("media.transport.observation"));
   assert(posture.materializationBudgetRefs.includes("logging-ui.event-table"));
   assert(posture.releaseRefs.includes("release:logging-ui"));
   assert(posture.releaseRefs.includes("release:logging-service"));
   assert.equal(surfaceAdapterTaxonomyPosture(surfaceApp).byRole.runtimeClient.taxonomyKey, "surfaceClient");
+  assert.equal(SURFACE_ADAPTER_TAXONOMY.runtimeRunnerBridge.role, "runtimeRunnerBridge");
   assert.equal(SURFACE_ADAPTER_TAXONOMY.serviceEdgeAdapter.role, "serviceEdgeAdapter");
 });
 

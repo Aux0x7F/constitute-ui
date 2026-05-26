@@ -17,6 +17,7 @@ import {
   surfaceAppBootstrapPosture,
   surfaceAppFulfillmentIdentityPosture,
   surfaceAppInstancePosture,
+  surfaceNativeModuleLoadRunnerOperation,
   surfaceAppRuntimeSelectionPosture,
   surfaceAppRunnerPlan,
   surfaceAppServiceManagerActionability,
@@ -86,6 +87,18 @@ export function surfaceAppSelectionReadModel(options = {}) {
       observedAt: options.serviceManagerProofDigestOptions?.observedAt || issuedAt,
     }),
   );
+  const moduleLoadRunnerOperation = options.moduleLoadRunnerOperation || (
+    shouldProjectNativeModuleLoad(moduleBindings, runtimeSelectionPosture)
+      ? surfaceNativeModuleLoadRunnerOperation(surfaceApp, {
+        ...(isObject(options.moduleLoadRunnerOptions) ? options.moduleLoadRunnerOptions : {}),
+        moduleBindings,
+        runtimeSelectionPosture,
+        moduleResolverPosture: runtimeSelectionPosture.moduleResolverPosture,
+        operationPosture: serviceManagerOperationPosture,
+        requestedAt: options.moduleLoadRunnerOptions?.requestedAt || issuedAt,
+      })
+      : null
+  );
   const serviceManagerActionability = assertSurfaceAppServiceManagerActionability(
     options.serviceManagerActionability || runtimeSelectionPosture.serviceManagerActionability || surfaceAppServiceManagerActionability(surfaceApp, {
       ...(isObject(options.serviceManagerActionabilityOptions) ? options.serviceManagerActionabilityOptions : {}),
@@ -147,6 +160,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
     serviceManagerActionability,
     serviceManagerOperationPosture,
     serviceManagerProofDigest,
+    moduleLoadRunnerOperation,
   });
   const blockedReasons = uniqueStrings([
     ...normalizeStringArray(runtimeSelectionPosture.blockedReasons),
@@ -159,6 +173,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
     ...normalizeStringArray(serviceManagerOperationPosture.blockedReasons),
     ...normalizeStringArray(serviceManagerProofDigest.blockedReasons),
     ...normalizeStringArray(appInstancePosture.blockedReasons),
+    ...normalizeStringArray(moduleLoadRunnerOperation?.blockedReasons).map((reason) => `moduleLoadRunner:${reason}`),
   ]);
   const state = blockedReasons.length
     ? "blocked"
@@ -183,6 +198,7 @@ export function surfaceAppSelectionReadModel(options = {}) {
     releaseResolution: runtimeSelectionPosture.releaseResolution || null,
     moduleBindings: moduleBindings || null,
     runnerPlan,
+    moduleLoadRunnerOperation,
     runnerFulfillmentLifecycle: appInstancePosture.runnerFulfillmentLifecycle || null,
     runnerFulfillmentReadiness: appInstancePosture.runnerFulfillmentReadiness || null,
     fulfillmentIdentityPosture,
@@ -225,6 +241,22 @@ function resolveModuleBindings({
     return surfaceAppModuleImplementations(moduleRegistry, runtimeSelectionPosture, moduleRoles);
   }
   return surfaceAppModuleBindings(moduleRegistry, runtimeSelectionPosture, moduleRoles);
+}
+
+function shouldProjectNativeModuleLoad(moduleBindings, runtimeSelectionPosture) {
+  if (!isObject(moduleBindings)) return false;
+  if (String(runtimeSelectionPosture?.sourceMode || "") === "nativeInstalled") return true;
+  const bindings = Array.isArray(moduleBindings.bindings)
+    ? moduleBindings.bindings
+    : (Array.isArray(moduleBindings.postures) ? moduleBindings.postures : []);
+  return bindings.some((binding) => (
+    isObject(binding)
+    && (
+      String(binding.artifactRef || binding.moduleResolution?.artifactRef || "").trim()
+      || String(binding.materializedPathRef || binding.moduleResolution?.materializedPathRef || "").trim()
+      || normalizeStringArray(binding.storageRefs || binding.moduleResolution?.storageRefs).length
+    )
+  ));
 }
 
 function isObject(value) {

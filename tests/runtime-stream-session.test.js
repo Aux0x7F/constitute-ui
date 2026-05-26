@@ -3,13 +3,16 @@ import assert from "node:assert/strict";
 import {
   applyRuntimeActivationPostureToStreamSession,
   applyRuntimeMediaFulfillmentPostureToStreamSession,
+  applyRuntimeMediaTransportReadModelToStreamSession,
   applyRuntimeRouteObservationToStreamSession,
   applyRuntimeStreamLifecycleToStreamSession,
   collectRuntimeActivationKeys,
   collectRuntimeIntentResultKeys,
   collectRuntimeMediaFulfillmentKeys,
+  collectRuntimeMediaTransportObservationKeys,
   collectRuntimeObservationKeys,
   collectRuntimeStreamFrameKeys,
+  runtimeMediaTransportReadModel,
   runtimeIntentFrameId,
   runtimeIntentPendingRoute,
   runtimeIntentWaitingAuthority,
@@ -116,6 +119,7 @@ test("runtime activation posture applies service admission lifecycle to stream s
   assert.deepEqual(runtimeStreamSessionPosture([session]), {
     sessionCount: 1,
     waitingRouteCount: 0,
+    waitingServiceAdmissionCount: 0,
     waitingServiceAcceptanceCount: 0,
     serviceAdmissionTimedOutCount: 0,
     waitingAnswerCount: 0,
@@ -124,6 +128,8 @@ test("runtime activation posture applies service admission lifecycle to stream s
     mediaBlockedCount: 0,
     mediaUsableCount: 0,
     mediaReleasedCount: 0,
+    mediaWaitingRenderCount: 0,
+    mediaTransportDegradedCount: 0,
     expiresAt: session.expiresAt,
   });
 });
@@ -215,6 +221,7 @@ test("runtime media fulfillment posture applies recovery state to stream session
   assert.deepEqual(runtimeStreamSessionPosture([session]), {
     sessionCount: 1,
     waitingRouteCount: 0,
+    waitingServiceAdmissionCount: 0,
     waitingServiceAcceptanceCount: 0,
     serviceAdmissionTimedOutCount: 0,
     waitingAnswerCount: 0,
@@ -223,6 +230,8 @@ test("runtime media fulfillment posture applies recovery state to stream session
     mediaBlockedCount: 1,
     mediaUsableCount: 0,
     mediaReleasedCount: 0,
+    mediaWaitingRenderCount: 0,
+    mediaTransportDegradedCount: 0,
     expiresAt: session.expiresAt,
   });
 
@@ -247,4 +256,102 @@ test("runtime media fulfillment posture applies recovery state to stream session
   }), "usable");
   assert.equal(session.routeState, "mediaUsable");
   assert.equal(session.adapterFailed, false);
+});
+
+test("runtime media transport read model reduces browser and service observations by fulfillment session", () => {
+  assert.deepEqual(
+    Array.from(collectRuntimeMediaTransportObservationKeys({
+      observationId: "obs-1",
+      fulfillmentSessionId: "fulfillment:preview:nvr-preview-1",
+      pathId: "nvr-preview-1:path:browserWebRtc",
+      safeFacts: { sourceRef: "camera:front" },
+    })).sort(),
+    [
+      "camera:front",
+      "fulfillment:preview:nvr-preview-1",
+      "nvr-preview-1:path:browserWebRtc",
+      "obs-1",
+    ],
+  );
+
+  const observations = [
+    {
+      kind: "media.transport.observation",
+      observationId: "service-1",
+      fulfillmentSessionId: "fulfillment:preview:nvr-preview-1",
+      sessionId: "nvr-preview-1",
+      pathId: "nvr-preview-1:path:browserWebRtc",
+      participantRole: "service",
+      state: "connected",
+      selectedPairState: "selected",
+      inboundRtpState: "flowing",
+      trackState: "live",
+      observedAt: 1_700_000_001,
+    },
+    {
+      kind: "media.transport.observation",
+      observationId: "browser-1",
+      fulfillmentSessionId: "fulfillment:preview:nvr-preview-1",
+      sessionId: "nvr-preview-1",
+      pathId: "nvr-preview-1:path:browserWebRtc",
+      participantRole: "browser",
+      state: "connected",
+      selectedPairState: "selected",
+      inboundRtpState: "flowing",
+      trackState: "live",
+      renderState: "pending",
+      observedAt: 1_700_000_002,
+    },
+  ];
+  const waiting = runtimeMediaTransportReadModel(observations);
+  assert.equal(waiting.kind, "runtime.media.transport.read-model");
+  assert.equal(waiting.fulfillmentSessionId, "fulfillment:preview:nvr-preview-1");
+  assert.equal(waiting.serviceObserved, true);
+  assert.equal(waiting.browserObserved, true);
+  assert.equal(waiting.state, "pending");
+  assert.equal(waiting.postureState, "waitingRender");
+  assert.equal(waiting.transportUsable, true);
+  assert.equal(waiting.trackLive, true);
+  assert.equal(waiting.visibleFrame, false);
+
+  const session = {
+    routePending: false,
+    routeState: "serviceAccepted",
+    serviceAccepted: true,
+    answerReceived: true,
+    adapterFailed: false,
+    adapterFailureReason: "",
+    expiresAt: Date.now() + 30_000,
+  };
+  assert.equal(applyRuntimeMediaTransportReadModelToStreamSession(session, waiting), "pending");
+  assert.equal(session.routeState, "waitingRender");
+  assert.equal(session.fulfillmentSessionId, "fulfillment:preview:nvr-preview-1");
+  assert.equal(session.mediaTransportUsable, true);
+  assert.equal(session.serviceMediaObserved, true);
+  assert.equal(session.browserMediaObserved, true);
+
+  const usable = runtimeMediaTransportReadModel([
+    ...observations,
+    { ...observations[1], observationId: "browser-2", renderState: "visible", observedAt: 1_700_000_003 },
+  ]);
+  assert.equal(usable.state, "usable");
+  assert.equal(usable.postureState, "transportUsable");
+  assert.equal(applyRuntimeMediaTransportReadModelToStreamSession(session, usable), "usable");
+  assert.equal(session.routeState, "mediaUsable");
+
+  const blocked = runtimeMediaTransportReadModel([
+    ...observations,
+    {
+      ...observations[0],
+      observationId: "service-2",
+      state: "blocked",
+      inboundRtpState: "blocked",
+      trackState: "blocked",
+      blockedReason: "sourceRtpUnavailable",
+      observedAt: 1_700_000_004,
+    },
+  ]);
+  assert.equal(blocked.state, "blocked");
+  assert.equal(blocked.postureState, "mediaPathBlocked");
+  assert.deepEqual(blocked.blockedReasons, ["sourceRtpUnavailable"]);
 });
